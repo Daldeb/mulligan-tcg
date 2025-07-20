@@ -1,0 +1,42 @@
+name: 🚀 Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy to OVH Server
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🚀 Deploy to server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: 51.178.27.41
+        username: debian
+        password: ${{ secrets.SERVER_PASSWORD }}
+        script: |
+          echo "🔄 Starting deployment..."
+          cd /opt/tcg-hub
+          
+          echo "📥 Pulling latest changes..."
+          git pull origin main
+          
+          echo "🐳 Rebuilding containers if needed..."
+          docker-compose restart nginx
+          
+          echo "⏳ Waiting for services..."
+          sleep 10
+          
+          echo "🔍 Health check..."
+          curl -f http://localhost/health || exit 1
+          
+          echo "📊 Quick status check..."
+          docker-compose ps
+          
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 Site available at: http://51.178.27.41"
