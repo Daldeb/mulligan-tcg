@@ -1,0 +1,12 @@
+{
+  "name": "tcg-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "echo 'Frontend build completed'",
+    "dev": "echo 'Development mode'"
+  },
+  "dependencies": {
+    "vue": "^3.3.0"
+  },
+  "devDependencies": {}
+}
