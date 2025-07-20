@@ -1,1 +1,78 @@
-<h1>TCG Hub - Loading...</h1>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mulligan TCG - Test Deploy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin: 0;
+            padding: 40px;
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        h1 { font-size: 2.5rem; margin-bottom: 20px; }
+        .status { 
+            background: rgba(76, 175, 80, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .test-info {
+            background: rgba(255, 193, 7, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🃏 Mulligan TCG</h1>
+        <p>Plateforme TCG en développement</p>
+        
+        <div class="status">
+            ✅ <strong>Serveur opérationnel</strong><br>
+            Docker stack déployée avec succès
+        </div>
+        
+        <div class="test-info">
+            🚀 <strong>Test de déploiement</strong><br>
+            Cette page teste le workflow Git → GitHub → Production
+        </div>
+        
+        <p><strong>API Backend :</strong> <a href="/api" style="color: #feca57;">/api</a></p>
+        <p><strong>Health Check :</strong> <a href="/health" style="color: #feca57;">/health</a></p>
+        
+        <p style="margin-top: 30px; opacity: 0.8;">
+            Déployé depuis GitHub - Version: 1.0
+        </p>
+    </div>
+
+    <script>
+        // Test automatique de l'API
+        fetch('/health')
+            .then(response => response.text())
+            .then(data => {
+                console.log('Health check:', data);
+                if (data === 'healthy') {
+                    document.querySelector('.status').innerHTML += '<br>🔗 API Backend connecté';
+                }
+            })
+            .catch(err => {
+                console.log('API non disponible:', err);
+                document.querySelector('.status').innerHTML += '<br>⚠️ API Backend déconnecté';
+            });
+    </script>
+</body>
+</html>
