@@ -1,17 +1,49 @@
-# Dependencies
+# ======================
+# MULLIGAN TCG - .gitignore
+# ======================
+
+# === INFRASTRUCTURE (à garder local) ===
+docker/
+nginx/
+ssl/
+scripts/
+setup.sh
+monitoring/
+docker-compose.yaml
+docker-compose.yaml.backup
+Makefile
+
+# === DEPENDENCIES ===
 node_modules/
 vendor/
-backend/backend/
+composer.lock
 
-# Cache & logs
-.vite/
-var/log/
-var/cache/
+# === CACHE & BUILD ===
+frontend/dist/
+frontend/.vite/
+backend/var/cache/
+backend/var/log/
+backend/var/sessions/
 
-# Environment
+# === DÉVELOPPEMENT ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+*.log
+*.tmp
+*.bak
+
+# === SÉCURITÉ ===
+*.pem
+*.key
+.env
 .env.local
-.env.*.local
+.env.production
 
-# Build
-dist/
-build/
+# === TEMPORARY ===
+test-ssh.txt
+backup*.sql
+tmp/
+temp/
