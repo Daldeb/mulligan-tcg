@@ -1,6 +1,6 @@
 FROM php:8.3-fpm-alpine
 
-# Install system dependencies including autoconf
+# Install system dependencies + SSH
 RUN apk add --no-cache \
     git \
     curl \
@@ -14,9 +14,12 @@ RUN apk add --no-cache \
     netcat-openbsd \
     autoconf \
     g++ \
-    make
+    make \
+    openssh \
+    nodejs \
+    npm
 
-# Install PHP extensions
+# PHP extensions
 RUN docker-php-ext-install \
     pdo_mysql \
     mbstring \
@@ -27,24 +30,39 @@ RUN docker-php-ext-install \
     zip \
     opcache
 
-# Install Redis extension
+# Redis extension
 RUN pecl install redis && docker-php-ext-enable redis
 
-# Install Composer
+# Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Set working directory
+# Créer l’utilisateur dev
+RUN adduser -D dev && echo "dev:dev" | chpasswd
+
+# Préparer l’environnement SSH
+RUN mkdir -p /home/dev/.ssh && \
+    echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICz/VAeO48DgBWLK+v8qlGogtrs24VCjrv/qKTQU0itk daldeb.mulligan@gmail.com" > /home/dev/.ssh/authorized_keys && \
+    chown -R dev:dev /home/dev/.ssh && \
+    chmod 700 /home/dev/.ssh && \
+    chmod 600 /home/dev/.ssh/authorized_keys
+
+# Clés hôte SSH persistantes
+RUN ssh-keygen -A && \
+    mkdir -p /etc/ssh/keys && \
+    cp /etc/ssh/ssh_host_* /etc/ssh/keys/
+
+# Dossier de travail
 WORKDIR /var/www/backend
 
-# Create Symfony user
-RUN addgroup -g 1000 -S symfony && \
-    adduser -u 1000 -S symfony -G symfony
+EXPOSE 9000 22
 
-# Change ownership
-RUN chown -R symfony:symfony /var/www
+# Modifier le home directory de dev (Alpine-friendly)
+RUN sed -i 's|^dev:.*:.*:.*:[^:]*:[^:]*|dev:x:1000:1000:dev:/var/www:/bin/sh|' /etc/passwd && \
+    mkdir -p /var/www && chown dev:dev /var/www
 
-USER symfony
+# Lancer PHP-FPM + SSHD en conservant les clés
+CMD ["sh", "-c", "cp /etc/ssh/keys/ssh_host_* /etc/ssh/ && php-fpm & /usr/sbin/sshd -D"]
 
-EXPOSE 9000
-
-CMD ["php-fpm"]
+# Autoriser le port forwarding pour VS Code
+RUN sed -i '/^AllowTcpForwarding/d' /etc/ssh/sshd_config && \
+    echo "AllowTcpForwarding yes" >> /etc/ssh/sshd_config

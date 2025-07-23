@@ -1,83 +1,71 @@
-.PHONY: help build start stop restart logs health test security clean
+APP_CONTAINER=tcg_dev_app
+FRONT_DIR=/var/www/frontend
+BACK_DIR=/var/www/backend
+SSH_KEY_PATH=~/.ssh/id_ed25519
+SSH_USER=dev
+SSH_HOST=51.178.27.41
+SSH_PORT=2222
 
-# Variables
-COMPOSE_FILE = docker-compose.yml
+.PHONY: up down build logs ssh add-key dev test build-front workspace
 
-# Couleurs
-RED=\033[0;31m
-GREEN=\033[0;32m
-YELLOW=\033[1;33m
-BLUE=\033[0;34m
-NC=\033[0m
-
-help: ## Affiche l'aide
-	@echo "$(BLUE)TCG HUB - Commandes disponibles:$(NC)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "$(GREEN)  %-20s$(NC) %s\n", $$1, $$2}'
-
-build: ## Build tous les containers
-	@echo "$(YELLOW)Building containers...$(NC)"
-	docker compose build --no-cache
-	@echo "$(GREEN)Build completed!$(NC)"
-
-start: ## Démarre la stack complète
-	@echo "$(YELLOW)Starting TCG Hub stack...$(NC)"
+# 🔄 Démarrer les conteneurs
+up:
 	docker compose up -d
-	@echo "$(GREEN)Stack started!$(NC)"
 
-dev: ## Mode développement avec PhpMyAdmin
-	@echo "$(YELLOW)Starting development mode...$(NC)"
-	docker compose --profile dev up -d
-	@echo "$(GREEN)Dev mode started! PhpMyAdmin: http://localhost:8080$(NC)"
-
-stop: ## Arrête tous les services
-	@echo "$(YELLOW)Stopping all services...$(NC)"
+# 🛑 Stopper les conteneurs
+down:
 	docker compose down
-	@echo "$(GREEN)All services stopped!$(NC)"
 
-restart: ## Redémarre la stack
-	@make stop
-	@make start
+# 🔁 Rebuild uniquement le conteneur PHP (app)
+build:
+	docker compose build app
 
-logs: ## Affiche les logs
-	docker compose logs -f --tail=100
+# 📥 Logs Symfony
+logs:
+	docker compose logs -f app
 
-health: ## Health check complet
-	@echo "$(BLUE)Health Check Starting...$(NC)"
-	@./scripts/serveur.sh
-	@./scripts/front.sh
-	@./scripts/reseau.sh
+# 🔐 Ajouter la clé SSH
+add-key:
+	@echo "🔐 Ajout de la clé SSH publique dans $(APP_CONTAINER)..."
+	@[ -f $(SSH_KEY_PATH) ] || (echo "❌ Clé SSH non trouvée : $(SSH_KEY_PATH)" && exit 1)
+	docker exec -u root $(APP_CONTAINER) mkdir -p /home/$(SSH_USER)/.ssh
+	cat $(SSH_KEY_PATH) | docker exec -i -u root $(APP_CONTAINER) tee /home/$(SSH_USER)/.ssh/authorized_keys > /dev/null
+	docker exec -u root $(APP_CONTAINER) chown -R $(SSH_USER):$(SSH_USER) /home/$(SSH_USER)/.ssh
+	docker exec -u root $(APP_CONTAINER) chmod 700 /home/$(SSH_USER)/.ssh
+	docker exec -u root $(APP_CONTAINER) chmod 600 /home/$(SSH_USER)/.ssh/authorized_keys
+	@echo "✅ Clé SSH ajoutée avec succès."
 
-status: ## Status des services
-	@docker compose ps
+# 💻 Accès SSH direct
+ssh:
+	ssh $(SSH_USER)@$(SSH_HOST) -p $(SSH_PORT) -i $(SSH_KEY_PATH)
 
-test: ## Lance tous les tests
-	@echo "$(YELLOW)Running tests...$(NC)"
-	@if [ -f "./backend/vendor/bin/phpunit" ]; then \
-		docker compose exec -T app php vendor/bin/phpunit; \
-	else \
-		echo "$(YELLOW)PHPUnit not found$(NC)"; \
-	fi
+# 🚀 Lancer les serveurs frontend + backend
+dev:
+	docker exec -u $(SSH_USER) -w $(BACK_DIR) -d $(APP_CONTAINER) php -S 0.0.0.0:8080 -t public
+	docker exec -u $(SSH_USER) -w $(FRONT_DIR) -d $(APP_CONTAINER) npm run dev
+	@echo "🌐 Frontend : http://localhost:5173"
+	@echo "🖥️  Backend  : http://localhost:8080"
 
-security: ## Scan de sécurité
-	@echo "$(YELLOW)Security scan...$(NC)"
-	@./scripts/security.sh
+# ✅ Tests backend
+test:
+	docker exec -u $(SSH_USER) -w $(BACK_DIR) $(APP_CONTAINER) ./vendor/bin/phpunit
 
-clean: ## Nettoie les containers
-	@docker compose down
-	@docker system prune -f
+# 🛠️ Build du frontend
+build-front:
+	docker exec -u $(SSH_USER) -w $(FRONT_DIR) $(APP_CONTAINER) npm run build
 
-reset: ## Reset complet
-	@echo "$(RED)This will destroy ALL data! Continue? [y/N]$(NC)" && read ans && [ $${ans:-N} = y ]
-	@docker compose down -v --rmi all
-
-install: ## Installation complète
-	@echo "$(BLUE)Installing TCG Hub...$(NC)"
-	@make build
-	@make start
-	@sleep 30
-	@make health
-
-up: start
-down: stop
-
-.DEFAULT_GOAL := help
+# 📁 Générer un workspace VSCode
+workspace:
+	@echo "🧱 Génération de tcg-dev.code-workspace..."
+	echo '{'                                  > tcg-dev.code-workspace
+	echo '  "folders": ['                    >> tcg-dev.code-workspace
+	echo '    { "name": "backend", "path": "backend" },' >> tcg-dev.code-workspace
+	echo '    { "name": "frontend", "path": "frontend" }' >> tcg-dev.code-workspace
+	echo '  ]'                               >> tcg-dev.code-workspace
+	echo '}'                                 >> tcg-dev.code-workspace
+	@echo "✅ Workspace prêt !"
+# 🔁 Rebuild complet pour développement local
+dev-init:
+	make down
+	make build
+	make up
