@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+vendor/
+backend/backend/
+
+# Cache & logs
+.vite/
+var/log/
+var/cache/
+
+# Environment
+.env.local
+.env.*.local
+
+# Build
+dist/
+build/
