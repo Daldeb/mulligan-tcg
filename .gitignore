@@ -3,6 +3,8 @@
 # ======================
 
 # === INFRASTRUCTURE (à garder local) ===
+infrastructure/
+ops/
 docker/
 nginx/
 ssl/
@@ -19,11 +21,12 @@ vendor/
 composer.lock
 
 # === CACHE & BUILD ===
-frontend/dist/
-frontend/.vite/
-backend/var/cache/
-backend/var/log/
-backend/var/sessions/
+app/vuejs/dist/
+app/vuejs/.vite/
+app/vuejs/node_modules/
+app/symfony/var/cache/
+app/symfony/var/log/
+app/symfony/var/sessions/
 
 # === DÉVELOPPEMENT ===
 .vscode/
