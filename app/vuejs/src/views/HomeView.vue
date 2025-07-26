@@ -1,428 +1,685 @@
 <template>
-  <div class="tcg-test-page">
-    <!-- Header avec menu -->
-    <Menubar :model="menuItems" class="mb-4">
-      <template #start>
-        <div class="flex items-center gap-2">
-          <i class="pi pi-heart-fill text-pink-500 text-2xl"></i>
-          <span class="font-bold text-xl">MULLIGAN TCG</span>
-        </div>
-      </template>
-      <template #end>
-        <Badge value="DEV" severity="info" />
-      </template>
-    </Menubar>
-
-    <div class="container mx-auto p-6">
-      <!-- Hero Section -->
-      <div class="hero-section text-center mb-8">
-        <h1 class="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-          🃏 Bienvenue sur Mulligan TCG
-        </h1>
-        <p class="text-xl text-gray-600 dark:text-gray-300 mb-6">
-          Votre plateforme ultime pour les Trading Card Games
-        </p>
-        <div class="flex gap-3 justify-center">
-          <Button 
-            label="Commencer" 
-            icon="pi pi-play" 
-            class="bg-gradient-to-r from-blue-500 to-purple-600 border-0"
-            @click="showWelcomeDialog = true"
-          />
-          <Button 
-            label="Voir les cartes" 
-            icon="pi pi-search" 
-            severity="secondary"
-            outlined
-            @click="loadCards"
-          />
-        </div>
-      </div>
-
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card class="text-center hover:shadow-lg transition-shadow">
+  <div class="home-view">
+    <!-- Hero Section avec News et Événements -->
+    <section class="hero-section">
+      <div class="container">
+        <Card class="hero-card emerald-gradient text-white">
           <template #content>
-            <div class="card-content">
-              <i class="pi pi-users text-4xl text-blue-500 mb-3"></i>
-              <h3 class="text-2xl font-bold mb-2">{{ stats.players }}</h3>
-              <p class="text-gray-600">Joueurs actifs</p>
-            </div>
-          </template>
-        </Card>
-
-        <Card class="text-center hover:shadow-lg transition-shadow">
-          <template #content>
-            <div class="card-content">
-              <i class="pi pi-bookmark text-4xl text-green-500 mb-3"></i>
-              <h3 class="text-2xl font-bold mb-2">{{ stats.decks }}</h3>
-              <p class="text-gray-600">Decks créés</p>
-            </div>
-          </template>
-        </Card>
-
-        <Card class="text-center hover:shadow-lg transition-shadow">
-          <template #content>
-            <div class="card-content">
-              <i class="pi pi-trophy text-4xl text-yellow-500 mb-3"></i>
-              <h3 class="text-2xl font-bold mb-2">{{ stats.tournaments }}</h3>
-              <p class="text-gray-600">Tournois organisés</p>
-            </div>
-          </template>
-        </Card>
-      </div>
-
-      <!-- Features Section -->
-      <div class="features-grid grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <!-- Deck Builder Preview -->
-        <Card>
-          <template #title>
-            <div class="flex items-center gap-2">
-              <i class="pi pi-wrench text-blue-500"></i>
-              Deck Builder
-            </div>
-          </template>
-          <template #content>
-            <p class="mb-4">Construisez vos decks parfaits avec notre outil intuitif.</p>
-            <div class="flex gap-2 mb-4">
-              <InputText v-model="searchCard" placeholder="Rechercher une carte..." class="flex-1" />
-              <Button icon="pi pi-search" @click="searchCards" />
-            </div>
-            <div class="grid grid-cols-3 gap-2">
-              <div 
-                v-for="card in previewCards" 
-                :key="card.id"
-                class="card-preview bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-800 dark:to-purple-800 p-3 rounded-lg text-center cursor-pointer hover:scale-105 transition-transform"
-                @click="selectCard(card)"
-              >
-                <div class="text-2xl mb-1">{{ card.icon }}</div>
-                <div class="text-sm font-medium">{{ card.name }}</div>
-                <div class="text-xs text-gray-500">{{ card.cost }}</div>
+            <div class="hero-content">
+              <div class="hero-text">
+                <h1 class="hero-title slide-in-up">
+                  NEWS ET ÉVÉNEMENTS
+                </h1>
+                <p class="hero-subtitle slide-in-up" style="animation-delay: 0.2s">
+                  Restez informé des dernières actualités du monde TCG
+                </p>
+              </div>
+              <div class="hero-actions slide-in-up" style="animation-delay: 0.4s">
+                <Button 
+                  label="Voir tout" 
+                  icon="pi pi-arrow-right"
+                  class="p-button-secondary"
+                  @click="viewAllNews"
+                />
               </div>
             </div>
           </template>
         </Card>
-
-        <!-- Map Preview -->
-        <Card>
-          <template #title>
-            <div class="flex items-center gap-2">
-              <i class="pi pi-map text-green-500"></i>
-              Boutiques à proximité
-            </div>
-          </template>
-          <template #content>
-            <p class="mb-4">Trouvez les boutiques et événements près de chez vous.</p>
-            <div class="map-preview bg-gradient-to-br from-green-100 to-blue-100 dark:from-green-800 dark:to-blue-800 rounded-lg p-6 text-center">
-              <i class="pi pi-map-marker text-4xl text-green-600 mb-3"></i>
-              <p class="font-medium">Carte interactive</p>
-              <p class="text-sm text-gray-600 dark:text-gray-300">{{ nearbyShops.length }} boutiques trouvées</p>
-              <Button 
-                label="Voir la carte" 
-                icon="pi pi-external-link" 
-                text 
-                class="mt-2"
-                @click="showMap"
-              />
-            </div>
-          </template>
-        </Card>
       </div>
+    </section>
 
-      <!-- Data Table des événements -->
-      <Card>
-        <template #title>
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <i class="pi pi-calendar text-purple-500"></i>
-              Événements à venir
-            </div>
-            <Button 
-              icon="pi pi-refresh" 
-              text 
-              @click="loadEvents"
-              :loading="loading"
-            />
-          </div>
-        </template>
-        <template #content>
-          <DataTable 
-            :value="events" 
-            :loading="loading"
-            stripedRows 
-            paginator 
-            :rows="5"
-            responsiveLayout="scroll"
-          >
-            <Column field="name" header="Événement" sortable>
-              <template #body="{ data }">
-                <div class="flex items-center gap-2">
-                  <i :class="data.gameIcon"></i>
-                  {{ data.name }}
+    <!-- Main Content Grid -->
+    <section class="main-content">
+      <div class="container">
+        <div class="content-grid">
+          
+          <!-- Left Column - Main Content -->
+          <div class="main-column">
+            
+            <!-- Derniers Tournois -->
+            <Card class="section-card slide-in-up" style="animation-delay: 0.1s">
+              <template #header>
+                <div class="section-header">
+                  <h2 class="section-title">DERNIERS TOURNOIS</h2>
+                  <Button 
+                    icon="pi pi-refresh" 
+                    class="p-button-text p-button-rounded"
+                    @click="refreshTournaments"
+                  />
                 </div>
               </template>
-            </Column>
-            <Column field="date" header="Date" sortable />
-            <Column field="location" header="Lieu" sortable />
-            <Column field="participants" header="Participants" sortable>
-              <template #body="{ data }">
-                <Badge :value="data.participants" severity="success" />
+              <template #content>
+                <div class="tournaments-grid">
+                  <div 
+                    v-for="tournament in recentTournaments" 
+                    :key="tournament.id"
+                    class="tournament-item hover-lift"
+                    @click="viewTournament(tournament)"
+                  >
+                    <div class="tournament-info">
+                      <h4>{{ tournament.name }}</h4>
+                      <p class="text-secondary">{{ tournament.date }}</p>
+                    </div>
+                    <Badge :value="tournament.participants" severity="info" />
+                  </div>
+                </div>
               </template>
-            </Column>
-            <Column header="Actions">
-              <template #body="{ data }">
-                <Button 
-                  icon="pi pi-eye" 
-                  text 
-                  @click="viewEvent(data)"
-                  v-tooltip="'Voir détails'"
-                />
+            </Card>
+
+            <!-- Tournois à Venir -->
+            <Card class="section-card slide-in-up" style="animation-delay: 0.2s">
+              <template #header>
+                <div class="section-header">
+                  <h2 class="section-title">TOURNOIS À VENIR</h2>
+                  <Button 
+                    icon="pi pi-play" 
+                    class="p-button-accent p-button-rounded pulse-emerald"
+                    @click="joinTournament"
+                  />
+                </div>
               </template>
-            </Column>
-          </DataTable>
-        </template>
-      </Card>
-    </div>
+              <template #content>
+                <div class="upcoming-tournaments">
+                  <div 
+                    v-for="tournament in upcomingTournaments" 
+                    :key="tournament.id"
+                    class="upcoming-item hover-lift"
+                  >
+                    <div class="upcoming-info">
+                      <h4>{{ tournament.name }}</h4>
+                      <p class="text-secondary">{{ tournament.startDate }}</p>
+                      <div class="tournament-meta">
+                        <span class="prize">{{ tournament.prize }}</span>
+                        <span class="format">{{ tournament.format }}</span>
+                      </div>
+                    </div>
+                    <Button 
+                      label="S'inscrire" 
+                      class="p-button-sm"
+                      @click="registerForTournament(tournament)"
+                    />
+                  </div>
+                </div>
+              </template>
+            </Card>
 
-    <!-- Dialogs -->
-    <Dialog 
-      v-model:visible="showWelcomeDialog" 
-      modal 
-      header="Bienvenue !" 
-      :style="{ width: '50rem' }"
-    >
-      <p class="mb-4">
-        🎉 Félicitations ! Vous êtes connecté à l'environnement de développement de Mulligan TCG.
-      </p>
-      <p class="mb-4">
-        Cette page de test démontre l'intégration de PrimeVue avec Vue.js 3 et Vite.
-      </p>
-      <ul class="list-disc list-inside mb-4 space-y-1">
-        <li>✅ PrimeVue configuré et fonctionnel</li>
-        <li>✅ Composants interactifs</li>
-        <li>✅ Design moderne avec Tailwind CSS</li>
-        <li>✅ Thème adaptatif (clair/sombre)</li>
-      </ul>
-      <template #footer>
-        <Button label="Parfait !" @click="showWelcomeDialog = false" autofocus />
-      </template>
-    </Dialog>
+            <!-- Marketplace -->
+            <Card class="section-card slide-in-up" style="animation-delay: 0.3s">
+              <template #header>
+                <div class="section-header">
+                  <h2 class="section-title">MARKETPLACE</h2>
+                  <Button 
+                    icon="pi pi-plus" 
+                    class="p-button-text p-button-rounded"
+                    @click="addToMarketplace"
+                  />
+                </div>
+              </template>
+              <template #content>
+                <div class="marketplace-preview">
+                  <p class="text-secondary mb-4">
+                    Découvrez les dernières offres de la communauté
+                  </p>
+                  <div class="marketplace-stats">
+                    <div class="stat-item">
+                      <span class="stat-number">{{ marketStats.activeOffers }}</span>
+                      <span class="stat-label">Offres actives</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-number">{{ marketStats.recentSales }}</span>
+                      <span class="stat-label">Ventes récentes</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-number">{{ marketStats.avgPrice }}€</span>
+                      <span class="stat-label">Prix moyen</span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </Card>
 
-    <!-- Toast messages -->
-    <Toast />
+            <!-- Meilleurs Decks -->
+            <Card class="section-card slide-in-up" style="animation-delay: 0.4s">
+              <template #header>
+                <div class="section-header">
+                  <h2 class="section-title">MEILLEURS DECKS</h2>
+                  <Button 
+                    icon="pi pi-clone" 
+                    class="p-button-text p-button-rounded"
+                    @click="viewAllDecks"
+                  />
+                </div>
+              </template>
+              <template #content>
+                <div class="decks-carousel">
+                  <div 
+                    v-for="deck in topDecks" 
+                    :key="deck.id"
+                    class="deck-preview hover-lift"
+                    @click="viewDeck(deck)"
+                  >
+                    <div class="deck-image">
+                      <i class="pi pi-clone deck-icon"></i>
+                    </div>
+                    <div class="deck-info">
+                      <h5>{{ deck.name }}</h5>
+                      <p class="deck-class">{{ deck.class }}</p>
+                      <div class="deck-stats">
+                        <span class="win-rate">{{ deck.winRate }}%</span>
+                        <span class="games">{{ deck.games }} parties</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </Card>
+
+          </div>
+
+          <!-- Right Column - Sidebar Boutiques -->
+          <div class="sidebar-column">
+            <Card class="shop-widget slide-in-up" style="animation-delay: 0.5s">
+              <template #header>
+                <div class="widget-header">
+                  <Button 
+                    label="Accéder à la carte"
+                    class="p-button-accent w-full mb-3"
+                    icon="pi pi-map"
+                    @click="accessMap"
+                  />
+                </div>
+              </template>
+              <template #content>
+                <div class="shop-content">
+                  <h3 class="shop-title">Les boutiques les plus populaires</h3>
+                  
+                  <div class="shop-list">
+                    <div 
+                      v-for="shop in popularShops" 
+                      :key="shop.id"
+                      class="shop-item hover-lift"
+                      @click="visitShop(shop)"
+                    >
+                      <div class="shop-image">
+                        <Avatar 
+                          :image="shop.image" 
+                          size="large" 
+                          shape="square"
+                        />
+                      </div>
+                      <div class="shop-info">
+                        <h4>{{ shop.name }}</h4>
+                        <p class="shop-description">{{ shop.description }}</p>
+                        <div class="shop-rating">
+                          <i class="pi pi-star-fill" style="color: #ffd700;"></i>
+                          <span>{{ shop.rating }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    icon="pi pi-refresh" 
+                    class="p-button-rounded p-button-text mt-4"
+                    @click="refreshShops"
+                  />
+                </div>
+              </template>
+            </Card>
+          </div>
+
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 
 const toast = useToast()
 
-// Reactive data
-const showWelcomeDialog = ref(false)
-const loading = ref(false)
-const searchCard = ref('')
+// Mock data
+const recentTournaments = ref([
+  { id: 1, name: 'Championship Series #12', date: '15 Juil 2025', participants: '128' },
+  { id: 2, name: 'Weekly Standard', date: '20 Juil 2025', participants: '64' },
+  { id: 3, name: 'Emerald Cup', date: '22 Juil 2025', participants: '256' }
+])
 
-const stats = reactive({
-  players: 1247,
-  decks: 3892,
-  tournaments: 156
-})
-
-const menuItems = ref([
-  {
-    label: 'Accueil',
-    icon: 'pi pi-home'
+const upcomingTournaments = ref([
+  { 
+    id: 1, 
+    name: 'Grand Prix Paris', 
+    startDate: '30 Juil 2025',
+    prize: '5000€',
+    format: 'Standard'
   },
-  {
-    label: 'Deck Builder',
-    icon: 'pi pi-wrench'
-  },
-  {
-    label: 'Boutiques',
-    icon: 'pi pi-map'
-  },
-  {
-    label: 'Événements',
-    icon: 'pi pi-calendar'
+  { 
+    id: 2, 
+    name: 'Summer Championship', 
+    startDate: '5 Août 2025',
+    prize: '2500€',
+    format: 'Wild'
   }
 ])
 
-const previewCards = ref([
-  { id: 1, name: 'Dragon Bleu', icon: '🐉', cost: '5 mana' },
-  { id: 2, name: 'Éclair', icon: '⚡', cost: '2 mana' },
-  { id: 3, name: 'Potion', icon: '🧪', cost: '1 mana' },
-  { id: 4, name: 'Épée', icon: '⚔️', cost: '3 mana' },
-  { id: 5, name: 'Bouclier', icon: '🛡️', cost: '2 mana' },
-  { id: 6, name: 'Mage', icon: '🧙', cost: '4 mana' }
+const marketStats = ref({
+  activeOffers: 1247,
+  recentSales: 89,
+  avgPrice: 23
+})
+
+const topDecks = ref([
+  { id: 1, name: 'Aggro Warrior', class: 'Guerrier', winRate: 67, games: 1204 },
+  { id: 2, name: 'Control Mage', class: 'Mage', winRate: 63, games: 987 },
+  { id: 3, name: 'Midrange Hunter', class: 'Chasseur', winRate: 61, games: 856 },
+  { id: 4, name: 'Combo Priest', class: 'Prêtre', winRate: 59, games: 743 }
 ])
 
-const nearbyShops = ref([
-  { id: 1, name: 'Cards & Games', distance: '0.5km' },
-  { id: 2, name: 'Magic Store', distance: '1.2km' },
-  { id: 3, name: 'TCG Paradise', distance: '2.1km' }
-])
-
-const events = ref([
+const popularShops = ref([
   {
     id: 1,
-    name: 'Tournoi Magic Modern',
-    date: '2025-07-25',
-    location: 'Paris 11ème',
-    participants: 32,
-    gameIcon: 'pi pi-star-fill text-blue-500'
+    name: 'CARTES PREMIUM',
+    description: 'Spécialiste cartes rares',
+    rating: 4.8,
+    image: 'https://i.pravatar.cc/60?img=10'
   },
   {
     id: 2,
-    name: 'Draft Pokémon',
-    date: '2025-07-26',
-    location: 'Lyon Centre',
-    participants: 16,
-    gameIcon: 'pi pi-heart-fill text-red-500'
+    name: 'TCG MASTER',
+    description: 'Accessoires et boîtes',
+    rating: 4.6,
+    image: 'https://i.pravatar.cc/60?img=11'
   },
   {
     id: 3,
-    name: 'Yu-Gi-Oh! Local',
-    date: '2025-07-27',
-    location: 'Marseille',
-    participants: 24,
-    gameIcon: 'pi pi-bolt text-yellow-500'
+    name: 'DECK BUILDER',
+    description: 'Cartes singles',
+    rating: 4.7,
+    image: 'https://i.pravatar.cc/60?img=12'
+  },
+  {
+    id: 4,
+    name: 'COLLECTION PRO',
+    description: 'Échange et vente',
+    rating: 4.5,
+    image: 'https://i.pravatar.cc/60?img=13'
   }
 ])
 
 // Methods
-const loadCards = () => {
-  loading.value = true
-  toast.add({
-    severity: 'info',
-    summary: 'Chargement',
-    detail: 'Recherche de cartes en cours...',
-    life: 2000
-  })
-  
-  setTimeout(() => {
-    loading.value = false
-    toast.add({
-      severity: 'success',
-      summary: 'Succès',
-      detail: `${previewCards.value.length} cartes trouvées !`,
-      life: 3000
-    })
-  }, 1500)
+const viewAllNews = () => {
+  toast.add({ severity: 'info', summary: 'Navigation', detail: 'Redirection vers les actualités', life: 2000 })
 }
 
-const searchCards = () => {
-  if (searchCard.value.trim()) {
-    toast.add({
-      severity: 'info',
-      summary: 'Recherche',
-      detail: `Recherche de "${searchCard.value}"...`,
-      life: 2000
-    })
-  }
+const refreshTournaments = () => {
+  toast.add({ severity: 'success', summary: 'Actualisation', detail: 'Tournois mis à jour', life: 2000 })
 }
 
-const selectCard = (card) => {
-  toast.add({
-    severity: 'success',
-    summary: 'Carte sélectionnée',
-    detail: `${card.name} ajoutée au deck !`,
-    life: 2000
-  })
+const viewTournament = (tournament) => {
+  toast.add({ severity: 'info', summary: 'Tournoi', detail: `Consultation de ${tournament.name}`, life: 2000 })
 }
 
-const showMap = () => {
-  toast.add({
-    severity: 'info',
-    summary: 'Navigation',
-    detail: 'Ouverture de la carte interactive...',
-    life: 2000
-  })
+const joinTournament = () => {
+  toast.add({ severity: 'warn', summary: 'Tournoi', detail: 'Sélectionnez un tournoi pour participer', life: 3000 })
 }
 
-const loadEvents = () => {
-  loading.value = true
-  setTimeout(() => {
-    loading.value = false
-    toast.add({
-      severity: 'success',
-      summary: 'Actualisé',
-      detail: 'Liste des événements mise à jour !',
-      life: 2000
-    })
-  }, 1000)
+const registerForTournament = (tournament) => {
+  toast.add({ severity: 'success', summary: 'Inscription', detail: `Inscription au ${tournament.name}`, life: 3000 })
 }
 
-const viewEvent = (event) => {
-  toast.add({
-    severity: 'info',
-    summary: 'Événement',
-    detail: `Affichage de "${event.name}"`,
-    life: 2000
-  })
+const addToMarketplace = () => {
+  toast.add({ severity: 'info', summary: 'Marketplace', detail: 'Ajouter une offre', life: 2000 })
 }
 
-// Lifecycle
+const viewAllDecks = () => {
+  toast.add({ severity: 'info', summary: 'Decks', detail: 'Voir tous les decks', life: 2000 })
+}
+
+const viewDeck = (deck) => {
+  toast.add({ severity: 'info', summary: 'Deck', detail: `Consultation du deck ${deck.name}`, life: 2000 })
+}
+
+const accessMap = () => {
+  toast.add({ severity: 'success', summary: 'Carte', detail: 'Accès à la carte des boutiques', life: 2000 })
+}
+
+const visitShop = (shop) => {
+  toast.add({ severity: 'info', summary: 'Boutique', detail: `Visite de ${shop.name}`, life: 2000 })
+}
+
+const refreshShops = () => {
+  toast.add({ severity: 'success', summary: 'Actualisation', detail: 'Boutiques mises à jour', life: 2000 })
+}
+
 onMounted(() => {
-  toast.add({
-    severity: 'success',
-    summary: 'Connexion réussie',
-    detail: 'Page de test chargée avec succès !',
-    life: 3000
-  })
+  // Animation d'entrée
+  console.log('HomeView mounted - MULLIGAN TCG ready!')
 })
 </script>
 
 <style scoped>
-.tcg-test-page {
+.home-view {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-}
-
-.dark-mode .tcg-test-page {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: var(--surface);
 }
 
 .hero-section {
-  padding: 3rem 0;
+  padding: 2rem 0;
+  background: linear-gradient(135deg, var(--surface-100) 0%, var(--surface) 100%);
 }
 
-.card-content {
-  padding: 1.5rem 0;
+.hero-card {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark)) !important;
+  border: none !important;
+  overflow: hidden;
 }
 
-.card-preview {
-  min-height: 80px;
+.hero-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+}
+
+.hero-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -1px;
+}
+
+.hero-subtitle {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.main-content {
+  padding: 2rem 0;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+.section-card {
+  margin-bottom: 2rem;
+  transition: all var(--transition-medium);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: var(--surface-100);
+  margin: -1.5rem -1.5rem 1rem -1.5rem;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.tournaments-grid {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 1rem;
 }
 
-.map-preview {
-  min-height: 150px;
+.tournament-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: var(--surface-100);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-medium);
+}
+
+.tournament-item h4 {
+  margin: 0 0 0.25rem 0;
+  color: var(--text-primary);
+}
+
+.upcoming-tournaments {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 1.5rem;
 }
 
-.features-grid .p-card {
-  height: 100%;
+.upcoming-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem;
+  background: var(--surface-100);
+  border-radius: var(--border-radius-large);
+  cursor: pointer;
+  transition: all var(--transition-medium);
 }
 
-/* Animations */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
+.upcoming-info h4 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+}
+
+.tournament-meta {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.prize {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.format {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.marketplace-preview {
+  text-align: center;
+}
+
+.marketplace-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  background: var(--surface-100);
+  border-radius: var(--border-radius);
+}
+
+.stat-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.decks-carousel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.deck-preview {
+  padding: 1rem;
+  background: var(--surface-100);
+  border-radius: var(--border-radius-large);
+  cursor: pointer;
+  transition: all var(--transition-medium);
+  text-align: center;
+}
+
+.deck-image {
+  margin-bottom: 1rem;
+}
+
+.deck-icon {
+  font-size: 2rem;
+  color: var(--primary);
+}
+
+.deck-info h5 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+}
+
+.deck-class {
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem 0;
+}
+
+.deck-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.win-rate {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Sidebar Boutiques */
+.shop-widget {
+  background: linear-gradient(135deg, var(--accent-light), var(--accent)) !important;
+  color: var(--text-inverse) !important;
+  position: sticky;
+  top: 160px;
+}
+
+.widget-header {
+  margin: -1.5rem -1.5rem 1rem -1.5rem;
+  padding: 1.5rem;
+}
+
+.shop-title {
+  color: var(--text-inverse);
+  margin: 0 0 1.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.shop-item {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-medium);
+  backdrop-filter: blur(10px);
+}
+
+.shop-item:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(4px);
+}
+
+.shop-info h4 {
+  margin: 0 0 0.25rem 0;
+  color: var(--text-inverse);
+  font-size: 0.9rem;
+}
+
+.shop-description {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.shop-rating {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  
+  .hero-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+  
+  .hero-title {
+    font-size: 2rem;
   }
 }
 
-.tcg-test-page > * {
-  animation: fadeInUp 0.6s ease-out;
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 1.8rem;
+  }
+  
+  .decks-carousel {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  
+  .marketplace-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .shop-widget {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0 1rem;
+  }
+  
+  .hero-section {
+    padding: 1rem 0;
+  }
+  
+  .main-content {
+    padding: 1rem 0;
+  }
+  
+  .upcoming-item {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
 }
 </style>

@@ -1,0 +1,28 @@
+slug: hearthstone
+name: Hearthstone
+default_mode: constructed
+endpoint: "https://us.api.blizzard.com/hearthstone/cards"
+locale: en_US
+fields:
+  - name
+  - slug
+  - image
+  - class
+  - manaCost
+  - health
+  - attack
+  - type
+  - rarity
+  - keyword
+  - text
+game_modes:
+  - constructed
+  - battlegrounds
+  - wild
+image_handling: download # or external
+auth:
+  header: Authorization
+  token_env: BLIZZARD_TOKEN
+pagination:
+  pageSize: 100
+  maxPages: 50

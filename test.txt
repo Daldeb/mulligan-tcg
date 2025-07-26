@@ -1,0 +1,437 @@
+Hearthstone Game Data APIs
+Hearthstone game data APIs provide endpoints for Hearthstone cards, decks, and related information. For tips about searching and other questions about the Hearthstone API, see the Hearthstone Guides.
+
+Host Names
+For all regions except China, the API host name follows the format {region}.api.blizzard.com, where {region} is one of us | eu | kr | tw. For China, the host name is gateway.battlenet.com.cn. For more information, see Regionality and APIs.
+
+APIs
+Hearthstone supports the following APIs. For information about using the APIs, see Getting Started.
+
+Cards
+GET
+Card search
+/hearthstone/cards
+Returns an up-to-date list of all cards matching the search criteria. For more information about the search parameters, see the Card Search Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+locale	string	
+en_US
+The locale to reflect in localized data. If you do not supply a value, all translations are returned.
+
+set	string	
+The slug of the set the card belongs to. If you do not supply a value, cards from all sets will be returned.
+
+class	string	
+The slug of the card's class.
+
+manaCost	numbers	
+The mana cost required to play the card. You can include multiple values in a comma-separated list of numeric values.
+
+attack	numbers	
+The attack power of the minion or weapon. You can include multiple values in a comma-separated list of numeric values.
+
+health	numbers	
+The health of a minion. You can include multiple values in a comma-separated list of numeric values.
+
+collectible	numbers	
+Whether a card is collectible. A value of 1 indicates that collectible cards should be returned; 0 indicates uncollectible cards. To return all cards, use a value of '0,1'.
+
+rarity	string	
+The rarity of a card. This value must match the rarity slugs found in metadata.
+
+type	string	
+The type of card (for example, minion, spell, and so on). This value must match the type slugs found in metadata.
+
+minionType	string	
+The type of minion card (for example, beast, murloc, dragon, and so on). This value must match the minion type slugs found in metadata.
+
+keyword	string	
+A required keyword on the card (for example, battlecry, deathrattle, and so on). This value must match the keyword slugs found in metadata.
+
+textFilter	string	
+A text string used to filter cards. You must include a locale along with the textFilter parameter.
+
+gameMode	string	
+A recognized game mode (for example, battlegrounds or constructed). The default value is constructed. See the Game Modes Guide for more information.
+
+spellSchool	string	
+The school of a spell card (for example, arcane, fire, frost, and so on). This value must match the spell school slugs found in metadata.
+
+page	number	
+A page number.
+
+pageSize	number	
+The number of results to choose per page. A value will be selected automatically if you do not supply a pageSize or if the pageSize is higher than the maximum allowed.
+
+sort	string	
+The sort option and direction used to sort the results. Valid values include manaCost:asc, manaCost:desc, attack:asc, attack:desc, health:asc, health:desc, class:asc, class:desc, groupByClass:asc, groupByClass:desc, name:asc, and name:desc. Results are sorted by name:asc by default.
+
+order (deprecated)	string	
+The order in which to sort the results if no order is provided with sort option. Valid values are asc or desc. The default value is asc.
+
+GET
+Detailed card search example
+/hearthstone/cards
+Returns a specific card by using detailed search criteria. For more information about the search parameters, see the Card Search Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+locale	string	
+en_US
+The locale to reflect in localized data. If you do not supply a value, all translations are returned.
+
+set	string	
+rise-of-shadows
+The slug of the set the card belongs to. If you do not supply a value, cards from all sets will be returned.
+
+class	string	
+mage
+The slug of the card's class.
+
+manaCost	numbers	
+10
+The mana cost required to play the card. You can include multiple values in a comma-separated list of numeric values.
+
+attack	numbers	
+4
+The attack power of the minion or weapon. You can include multiple values in a comma-separated list of numeric values.
+
+health	numbers	
+10
+The health of a minion. You can include multiple values in a comma-separated list of numeric values.
+
+collectible	numbers	
+1
+Whether a card is collectible. A value of 1 indicates that collectible cards should be returned; 0 indicates uncollectible cards. To return all cards, use a value of '0,1'.
+
+rarity	string	
+legendary
+The rarity of a card. This value must match the rarity slugs found in metadata.
+
+type	string	
+minion
+The type of card (for example, minion, spell, and so on). This value must match the type slugs found in metadata.
+
+minionType	string	
+dragon
+The type of minion card (for example, beast, murloc, dragon, and so on). This value must match the minion type slugs found in metadata.
+
+keyword	string	
+battlecry
+A required keyword on the card (for example, battlecry, deathrattle, and so on). This value must match the keyword slugs found in metadata.
+
+textFilter	string	
+kalecgos
+A text string used to filter cards. You must include a locale along with the textFilter parameter.
+
+gameMode	string	
+constructed
+A recognized game mode (for example, battlegrounds or constructed). The default value is constructed. See the Game Modes Guide for more information.
+
+page	number	
+1
+A page number.
+
+pageSize	number	
+5
+The number of results to choose per page. A value will be selected automatically if you do not supply a pageSize or if the pageSize is higher than the maximum allowed.
+
+sort	string	
+name:asc
+The sort option and direction used to sort the results. Valid values include manaCost:asc, manaCost:desc, attack:asc, attack:desc, health:asc, health:desc, class:asc, class:desc, groupByClass:asc, groupByClass:desc, name:asc, and name:desc. Results are sorted by name:asc by default.
+
+order (deprecated)	string	
+asc
+The order in which to sort the results if no order is provided with sort option. Valid values are asc or desc. The default value is asc.
+
+GET
+Battlegrounds card search
+/hearthstone/cards
+Returns an up-to-date list of all cards matching the search criteria for the specified game mode. For more information about the search parameters, see the Card Search Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+locale	string	
+en_US
+The locale to reflect in localized data. If you do not supply a value, all translations are returned.
+
+gameMode	string	
+battlegrounds
+A recognized game mode (for example, battlegrounds or constructed). The default value is constructed. See the Game Modes Guide for more information.
+
+tier	numbers	
+hero,3
+This special parameter is for tavern tier, which is only recognized when searching for Battlegrounds cards. Valid comma-separated values are numbers 1-6, or the string 'hero'.
+
+attack	numbers	
+The attack power of the minion or weapon. You can include multiple values in a comma-separated list of numeric values.
+
+health	numbers	
+The health of a minion. You can include multiple values in a comma-separated list of numeric values.
+
+minionType	string	
+The type of minion card (for example, beast, murloc, dragon, and so on). This value must match the minion type slugs found in metadata.
+
+keyword	string	
+A required keyword on the card (for example, battlecry, deathrattle, and so on). This value must match the keyword slugs found in metadata.
+
+textFilter	string	
+A text string used to filter cards. You must include a locale along with the textFilter parameter.
+
+page	number	
+A page number.
+
+pageSize	number	
+The number of results to choose per page. A value will be selected automatically if you do not supply a pageSize or if the pageSize is higher than the maximum allowed.
+
+sort	string	
+The sort option and direction used to sort the results. Valid values include tier:asc, tier:desc, attack:asc, attack:desc, health:asc, health:desc, name:asc, and name:desc. Results are sorted by name:asc by default.
+
+order (deprecated)	string	
+The order in which to sort the results if no order is provided with sort option. Valid values are asc or desc. The default value is asc.
+
+GET
+Mercenaries card search
+/hearthstone/cards
+Returns an up-to-date list of all cards matching the search criteria for the specified game mode. For more information about the search parameters, see the Card Search Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+locale	string	
+en_US
+The locale to reflect in localized data. If you do not supply a value, all translations are returned.
+
+gameMode	string	
+mercenaries
+A recognized game mode (for example, battlegrounds or mercenaries). The default value is constructed. See the Game Modes Guide for more information.
+
+attack	numbers	
+The attack power of the mercenary. You can include multiple values in a comma-separated list of numeric values.
+
+health	numbers	
+The health of a mercenary. You can include multiple values in a comma-separated list of numeric values.
+
+minionType	string	
+The type of mercenary card (for example, beast, murloc, dragon, and so on). This value must match the minion type slugs found in metadata.
+
+mercenaryId	numbers	
+The unique numeric ID of a mercenary. This can return multiple cards representing each mercenary skin.
+
+mercenaryRole	string	
+The role of a mercenary card (for example, fighter, protector, tank). These values must match the mercenary role slugs in metadata. You can include multiple values in a comma-separated list of values.
+
+defaultMercenary	numbers	
+Whether or not a given card represents the default Mercenary skin. Specify 0 for non-default, and 1 for default.
+
+textFilter	string	
+A text string used to filter cards. You must include a locale along with the textFilter parameter.
+
+page	number	
+A page number.
+
+pageSize	number	
+The number of results to choose per page. A value will be selected automatically if you do not supply a pageSize or if the pageSize is higher than the maximum allowed.
+
+sort	string	
+The sort option and direction used to sort the results. Valid values include tier:asc, tier:desc, attack:asc, attack:desc, health:asc, health:desc, name:asc, and name:desc. Results are sorted by name:asc by default.
+
+order (deprecated)	string	
+The order in which to sort the results if no order is provided with sort option. Valid values are asc or desc. The default value is asc.
+
+GET
+Fetch one card
+/hearthstone/cards/:idorslug
+Returns the card with an ID or slug that matches the one you specify. For more information, see the Card Search Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+:idorslug	string
+Required
+52119-arch-villain-rafaam
+An ID or slug that uniquely identifies a card. You can discover these values by using the GET /hearthstone/cards endpoint.
+
+locale	string	
+en_US
+The locale to reflect in localized data.
+
+gameMode	string	
+A recognized game mode (for example, battlegrounds or constructed). The default value is constructed. See the Game Modes Guide for more information.
+
+Card Backs
+GET
+Card Back Search
+/hearthstone/cardbacks
+Returns an up-to-date list of all card backs matching the search criteria. For more information about the search parameters, see the Card Backs Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+locale	string	
+The locale to reflect in localized data. If you do not supply a value, all translations are returned.
+
+cardBackCategory	string	
+A category of the card back. The category must match a valid category.
+
+textFilter	string	
+A text string used to filter card backs. You must include a locale along with the textFilter parameter.
+
+sort	string	
+dateAdded:desc
+The field used to sort the results. Valid value include name:asc, name:desc, dateAdded:asc, and dateAdded:desc. Results are sorted by date (desc) by default.
+
+page	number	
+A page number.
+
+pageSize	number	
+The number of results to choose per page. A value will be selected automatically if you do not supply a pageSize or if the pageSize is higher than the maximum allowed.
+
+order (deprecated)	string	
+desc
+The order in which to sort the results if no order is provided with sort option. Valid values are asc or desc. The default value is asc.
+
+GET
+Fetch one card back
+/hearthstone/cardbacks/:idorslug
+Returns a specific card back by using card back ID or slug.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+:idorslug	string
+Required
+155-pizza-stone
+An ID or slug that uniquely identifies a card back. You can discover these values by using the GET /hearthstone/cardbacks endpoint
+
+locale	string	
+The locale to reflect in localized data. If you do not supply a value, all translations are returned.
+
+Decks
+GET
+Get deck by code
+/hearthstone/deck
+Finds a deck by deck code. For more information, see the Retrieving Decks Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+locale	string	
+en_US
+The locale to reflect in localized data.
+
+code	string	
+AAECAQcG+wyd8AKS+AKggAOblAPanQMMS6IE/web8wLR9QKD+wKe+wKz/AL1gAOXlAOalAOSnwMA
+A code that identifies a deck. You can copy one from the game or various Hearthstone websites. The value should be URL encoded.
+
+ids	string	
+A list of card IDs representing cards in the deck. Ignored if a code parameter is also present.
+
+hero	string	
+The card ID for the hero of the deck. Used along with ids. If not present, the API will attempt to add a default hero and class based on the cards in the deck.
+
+GET
+Get deck by card list
+/hearthstone/deck
+Finds a deck by list of cards, including the hero. For more information, see the Retrieving Decks Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+locale	string	
+en_US
+The locale to reflect in localized data.
+
+code	string	
+A code that identifies a deck. You can copy one from the game or various Hearthstone websites. The value should be URL encoded.
+
+ids	string	
+906,1099,1363,1367,46706,48099,48759,49184,50071,50278,51714,52109,52632,52715,53409,53413,53756,53969,54148,54425,54431,54874,54898,54917,55166,55245,55438,55441,55907,57416
+A list of card IDs representing cards in the deck. Ignored if a code parameter is also present.
+
+hero	string	
+813
+The card ID for the hero of the deck. Used along with ids. If not present, the API will attempt to add a default hero and class based on the cards in the deck.
+
+Metadata
+GET
+All metadata
+/hearthstone/metadata
+Returns information about the categorization of cards. Metadata includes the card set, set group (for example, Standard or Year of the Dragon), rarity, class, card type, minion type, and keywords. For more information, see the Metadata Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+locale	string	
+en_US
+The locale to reflect in localized data.
+
+GET
+Specific metadata
+/hearthstone/metadata/:type
+Returns information about just one type of metadata. For more information, see the Metadata Guide.
+
+Parameter	Type	Value	Description
+:region	string
+Required
+us
+The region of the data to retrieve.
+
+locale	string	
+en_US
+The locale to reflect in localized data.
+
+:type	string
+Required
+sets
+The type of the metadata to retrieve. Valid values include sets, setGroups, types, rarities, classes, minionTypes, and keywords.
+
+Careers
+About
+Support
+Contact Us
+Press
+API
+
+English (US)
+©2025 Blizzard Entertainment, Inc.
+All trademarks referenced herein are the properties of their respective owners.
+Privacy
+Legal
+Terms
+Cookie Policy
+Cookie Settings
