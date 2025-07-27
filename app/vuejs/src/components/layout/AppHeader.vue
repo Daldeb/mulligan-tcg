@@ -4,11 +4,13 @@
       <!-- Logo Section -->
       <div class="logo-section">
         <router-link to="/" class="logo-link">
-          <h1 class="logo-title">
-            <span class="logo-main">MULLIGAN</span>
-            <span class="logo-sub">TCG</span>
-          </h1>
-          <p class="logo-tagline">Votre hub TCG ultime</p>
+          <div class="logo-content">
+            <h1 class="logo-title">
+              <span class="logo-main">MULLIGAN</span>
+              <span class="logo-sub">TCG</span>
+            </h1>
+            <p class="logo-tagline">Votre hub TCG ultime</p>
+          </div>
         </router-link>
       </div>
 
@@ -18,7 +20,7 @@
           <i class="pi pi-search search-icon"></i>
           <InputText
             v-model="searchQuery"
-            placeholder="Recherche d'utilisateurs"
+            placeholder="Rechercher des utilisateurs, decks, tournois..."
             class="search-input"
             @focus="onSearchFocus"
             @blur="onSearchBlur"
@@ -28,7 +30,7 @@
           <!-- Search Suggestions -->
           <div 
             v-if="showSuggestions && searchSuggestions.length" 
-            class="search-suggestions fade-in-scale"
+            class="search-suggestions"
           >
             <div class="suggestions-header">
               <span class="text-sm text-secondary">Suggestions</span>
@@ -41,6 +43,7 @@
             >
               <Avatar 
                 :image="suggestion.avatar" 
+                :label="suggestion.initials"
                 size="small" 
                 class="mr-3" 
               />
@@ -60,13 +63,14 @@
         <div v-if="!authStore.isAuthenticated" class="auth-buttons">
           <Button
             label="Connexion"
-            class="p-button-text login-btn"
+            class="login-btn"
             @click="openLoginModal('login')"
             icon="pi pi-sign-in"
+            outlined
           />
           <Button
             label="Inscription"
-            class="p-button-outlined register-btn"
+            class="register-btn"
             @click="openLoginModal('register')"
             icon="pi pi-user-plus"
           />
@@ -78,13 +82,12 @@
           <div class="header-action">
             <Button
               icon="pi pi-envelope"
-              class="header-action-btn"
+              class="action-btn"
               :badge="unreadMessages > 0 ? unreadMessages.toString() : null"
               badge-class="p-badge-danger"
               outlined
               rounded
-              v-tooltip.bottom="'Messages'"
-              @click="openMessages"
+              @click="navigateTo('/messages')"
             />
           </div>
 
@@ -92,12 +95,11 @@
           <div class="header-action">
             <Button
               icon="pi pi-bell"
-              class="header-action-btn"
+              class="action-btn"
               :badge="unreadNotifications > 0 ? unreadNotifications.toString() : null"
               badge-class="p-badge-info"
               outlined
               rounded
-              v-tooltip.bottom="'Notifications'"
               @click="openNotifications"
             />
           </div>
@@ -105,41 +107,53 @@
           <!-- Profile Dropdown -->
           <div class="profile-dropdown" ref="profileDropdown">
             <Button
-              class="profile-trigger-btn"
+              class="profile-trigger"
               @click="toggleProfileMenu"
-              v-tooltip.bottom="'Profil'"
             >
               <Avatar 
                 :label="userInitials"
+                :image="authStore.user?.avatar"
                 size="normal"
-                class="profile-avatar-small"
+                class="profile-avatar"
               />
-              <span class="profile-name">{{ authStore.user?.pseudo }}</span>
+              <div class="profile-text">
+                <span class="profile-name">{{ displayName }}</span>
+                <div class="profile-roles">
+                  <Badge
+                    v-for="role in userRoles"
+                    :key="role"
+                    :value="formatRole(role)"
+                    :severity="getRoleSeverity(role)"
+                    class="role-badge"
+                  />
+                </div>
+              </div>
               <i class="pi pi-angle-down profile-arrow" :class="{ 'rotated': profileMenuVisible }"></i>
             </Button>
             
             <!-- Profile Menu -->
             <div 
               v-if="profileMenuVisible" 
-              class="profile-menu fade-in-scale"
+              class="profile-menu"
               @click.stop
             >
-              <div class="profile-menu-header emerald-gradient">
+              <div class="profile-menu-header">
                 <Avatar 
                   :label="userInitials"
+                  :image="authStore.user?.avatar"
                   size="large" 
-                  class="profile-avatar"
+                  class="profile-avatar-large"
                 />
                 <div class="profile-info">
-                  <h4 class="profile-name">{{ authStore.user?.fullName || authStore.user?.pseudo }}</h4>
+                  <h4 class="profile-full-name">{{ fullName }}</h4>
                   <span class="profile-email">{{ authStore.user?.email }}</span>
-                  <div class="profile-badges">
+                  <div class="profile-badge-container">
                     <Badge
-                      v-for="role in authStore.userRoles"
+                      v-for="role in userRoles"
                       :key="role"
                       :value="formatRole(role)"
                       :severity="getRoleSeverity(role)"
-                      class="role-badge"
+                      class="role-badge-large"
                     />
                     <Badge
                       v-if="authStore.user?.isVerified"
@@ -159,6 +173,7 @@
                   <i class="pi pi-user"></i>
                   <span>Mon Profil</span>
                 </div>
+                
                 <div 
                   class="menu-item"
                   @click="navigateTo('/my-decks')"
@@ -166,6 +181,7 @@
                   <i class="pi pi-clone"></i>
                   <span>Mes Decks</span>
                 </div>
+                
                 <div 
                   class="menu-item"
                   @click="navigateTo('/my-tournaments')"
@@ -174,9 +190,17 @@
                   <span>Mes Tournois</span>
                 </div>
                 
+                <div 
+                  class="menu-item"
+                  @click="navigateTo('/favorites')"
+                >
+                  <i class="pi pi-heart"></i>
+                  <span>Favoris</span>
+                </div>
+                
                 <!-- Section admin (si admin) -->
-                <div v-if="authStore.isAdmin">
-                  <Divider />
+                <template v-if="authStore.isAdmin">
+                  <Divider class="menu-divider" />
                   <div 
                     class="menu-item admin-item"
                     @click="navigateTo('/admin')"
@@ -184,16 +208,16 @@
                     <i class="pi pi-shield"></i>
                     <span>Administration</span>
                   </div>
-                </div>
+                </template>
                 
-                <Divider />
+                <Divider class="menu-divider" />
                 
                 <div 
                   class="menu-item"
                   @click="navigateTo('/settings')"
                 >
                   <i class="pi pi-cog"></i>
-                  <span>Préférences</span>
+                  <span>Paramètres</span>
                 </div>
                 
                 <div 
@@ -215,7 +239,6 @@
           outlined
           rounded
           @click="toggleMobileMenu"
-          v-tooltip.bottom="'Menu'"
         />
       </div>
     </div>
@@ -236,13 +259,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useToast } from 'primevue/usetoast'
 import { useAuthStore } from '@/stores/auth'
 import NavigationTabs from './NavigationTabs.vue'
 import LoginModal from '@/components/modal/LoginModal.vue'
 
 const router = useRouter()
-const toast = useToast()
 const authStore = useAuthStore()
 
 // Reactive state
@@ -252,38 +273,35 @@ const profileMenuVisible = ref(false)
 const showSuggestions = ref(false)
 const showLoginModal = ref(false)
 const loginModalMode = ref('login')
-const unreadMessages = ref(3)
-const unreadNotifications = ref(2)
+const unreadMessages = ref(0) // Sera connecté à une vraie API plus tard
+const unreadNotifications = ref(0) // Sera connecté à une vraie API plus tard
 
-// Mock search suggestions
+// Mock search suggestions - sera remplacé par une vraie API
 const allSuggestions = ref([
   { 
     id: 1, 
     name: 'Alice Gaming', 
     type: 'Joueur Pro',
-    avatar: 'https://i.pravatar.cc/32?img=2' 
+    initials: 'AG',
+    avatar: null
   },
   { 
     id: 2, 
     name: 'Bob TCG Master', 
     type: 'Streameur',
-    avatar: 'https://i.pravatar.cc/32?img=3' 
+    initials: 'BT',
+    avatar: null
   },
   { 
     id: 3, 
     name: 'Charlie Deck Builder', 
     type: 'Créateur de decks',
-    avatar: 'https://i.pravatar.cc/32?img=4' 
-  },
-  { 
-    id: 4, 
-    name: 'Diana Cardmaster', 
-    type: 'Collectionneuse',
-    avatar: 'https://i.pravatar.cc/32?img=5' 
+    initials: 'CD',
+    avatar: null
   }
 ])
 
-// Computed
+// Computed properties
 const searchSuggestions = computed(() => {
   if (!searchQuery.value || searchQuery.value.length < 2) {
     return []
@@ -304,57 +322,27 @@ const userInitials = computed(() => {
   return 'U'
 })
 
-// Authentication methods
-const openLoginModal = (mode = 'login') => {
-  loginModalMode.value = mode
-  showLoginModal.value = true
-}
+const displayName = computed(() => {
+  return authStore.user?.pseudo || 'Utilisateur'
+})
 
-const handleLoginSuccess = () => {
-  showLoginModal.value = false
-  profileMenuVisible.value = false
-  
-  toast.add({
-    severity: 'success',
-    summary: 'Bienvenue !',
-    detail: `Content de vous revoir, ${authStore.user?.pseudo} !`,
-    life: 3000
-  })
-}
+const fullName = computed(() => {
+  if (authStore.user?.firstName && authStore.user?.lastName) {
+    return `${authStore.user.firstName} ${authStore.user.lastName}`
+  }
+  return authStore.user?.pseudo || 'Utilisateur'
+})
 
-const handleRegistrationSuccess = () => {
-  showLoginModal.value = false
-  
-  toast.add({
-    severity: 'success',
-    summary: 'Inscription réussie',
-    detail: 'Vérifiez votre email pour activer votre compte',
-    life: 5000
-  })
-}
+const userRoles = computed(() => {
+  return authStore.userRoles.filter(role => role !== 'ROLE_USER') // On n'affiche pas le rôle USER de base
+})
 
-const handleLogout = () => {
-  profileMenuVisible.value = false
-  
-  const userName = authStore.user?.pseudo
-  authStore.logout()
-  
-  toast.add({
-    severity: 'info',
-    summary: 'Déconnexion',
-    detail: `À bientôt, ${userName} !`,
-    life: 3000
-  })
-  
-  router.push('/')
-}
-
-// Utility methods
+// Utility functions (comme dans ton Header original)
 const formatRole = (role) => {
   const roleMap = {
     'ROLE_USER': 'Utilisateur',
     'ROLE_ADMIN': 'Admin',
-    'ROLE_MODERATOR': 'Modérateur',
+    'ROLE_BOUTIQUE': 'Boutique',
     'ROLE_ORGANIZER': 'Organisateur'
   }
   return roleMap[role] || role
@@ -364,10 +352,31 @@ const getRoleSeverity = (role) => {
   const severityMap = {
     'ROLE_USER': 'secondary',
     'ROLE_ADMIN': 'danger',
-    'ROLE_MODERATOR': 'warning',
+    'ROLE_BOUTIQUE': 'warning',
     'ROLE_ORGANIZER': 'info'
   }
   return severityMap[role] || 'secondary'
+}
+
+// Authentication methods
+const openLoginModal = (mode = 'login') => {
+  loginModalMode.value = mode
+  showLoginModal.value = true
+}
+
+const handleLoginSuccess = () => {
+  showLoginModal.value = false
+  profileMenuVisible.value = false
+}
+
+const handleRegistrationSuccess = () => {
+  showLoginModal.value = false
+}
+
+const handleLogout = () => {
+  profileMenuVisible.value = false
+  authStore.logout()
+  router.push('/')
 }
 
 // Search methods
@@ -396,13 +405,7 @@ const onSearchInput = () => {
 const selectSuggestion = (suggestion) => {
   searchQuery.value = suggestion.name
   showSuggestions.value = false
-  
-  toast.add({
-    severity: 'info',
-    summary: 'Navigation',
-    detail: `Redirection vers le profil de ${suggestion.name}`,
-    life: 2000
-  })
+  // Ici on naviguerait vers le profil de l'utilisateur
 }
 
 // Navigation methods
@@ -411,42 +414,17 @@ const toggleProfileMenu = () => {
 }
 
 const toggleMobileMenu = () => {
-  toast.add({
-    severity: 'info',
-    summary: 'Menu mobile',
-    detail: 'Fonctionnalité à implémenter',
-    life: 2000
-  })
-}
-
-const openMessages = () => {
-  toast.add({
-    severity: 'info',
-    summary: 'Messages',
-    detail: `Vous avez ${unreadMessages.value} messages non lus`,
-    life: 3000
-  })
+  // À implémenter
+  console.log('Menu mobile')
 }
 
 const openNotifications = () => {
-  toast.add({
-    severity: 'info',
-    summary: 'Notifications',
-    detail: `Vous avez ${unreadNotifications.value} notifications`,
-    life: 3000
-  })
+  // À implémenter
+  console.log('Notifications')
 }
 
 const navigateTo = (route) => {
   profileMenuVisible.value = false
-  
-  toast.add({
-    severity: 'success',
-    summary: 'Navigation',
-    detail: `Redirection vers ${route}`,
-    life: 2000
-  })
-  
   router.push(route)
 }
 
@@ -463,8 +441,6 @@ const handleClickOutside = (event) => {
 // Lifecycle
 onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
-  
-  // Initialiser le store d'authentification
   await authStore.initialize()
 })
 
@@ -480,21 +456,21 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 1000;
-  background: rgba(250, 250, 250, 0.95);
-  backdrop-filter: blur(15px);
+  background: #fafafa !important; /* Force un fond opaque */
   border-bottom: 1px solid var(--surface-200);
-  box-shadow: var(--shadow-small);
-  animation: slideInDown 0.6s ease-out;
+  box-shadow: var(--shadow-medium);
+  backdrop-filter: none;
 }
 
 .header-container {
   display: grid;
-  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-columns: 280px 1fr 320px;
   align-items: center;
   padding: 0.75rem 2rem;
   max-width: 1400px;
   margin: 0 auto;
   gap: 2rem;
+  background: #fafafa !important; /* Force un fond opaque aussi */
 }
 
 /* Logo Section */
@@ -511,6 +487,11 @@ onUnmounted(() => {
 
 .logo-link:hover {
   transform: scale(1.02);
+}
+
+.logo-content {
+  display: flex;
+  flex-direction: column;
 }
 
 .logo-title {
@@ -553,7 +534,7 @@ onUnmounted(() => {
 .search-container {
   position: relative;
   width: 100%;
-  max-width: 400px;
+  max-width: 500px;
 }
 
 .search-icon {
@@ -563,23 +544,23 @@ onUnmounted(() => {
   transform: translateY(-50%);
   color: var(--text-secondary);
   z-index: 1;
-  transition: color var(--transition-fast);
 }
 
 .search-input {
   width: 100% !important;
-  padding: 0.875rem 1rem 0.875rem 3rem !important;
-  border: 2px solid var(--surface-300) !important;
-  border-radius: 50px !important;
-  background: var(--surface) !important;
+  padding: 0.75rem 1rem 0.75rem 3rem !important;
+  border: 1px solid var(--surface-300) !important;
+  border-radius: var(--border-radius) !important;
+  background: var(--surface-100) !important;
   transition: all var(--transition-medium) !important;
   font-size: 0.9rem !important;
+  color: var(--text-primary) !important;
 }
 
 .search-input:focus {
   border-color: var(--primary) !important;
-  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1) !important;
-  transform: scale(1.02);
+  box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.1) !important;
+  background: var(--surface) !important;
 }
 
 .search-suggestions {
@@ -607,7 +588,7 @@ onUnmounted(() => {
   align-items: center;
   padding: 0.75rem 1rem;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .suggestion-item:hover {
@@ -635,56 +616,73 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
-/* Auth Buttons (non connecté) */
+/* Auth Buttons - Style uniforme */
 .auth-buttons {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.login-btn {
-  font-weight: 500 !important;
-  color: var(--primary) !important;
-}
-
-.login-btn:hover {
-  background: rgba(20, 184, 166, 0.1) !important;
-}
-
+.login-btn,
 .register-btn {
+  font-weight: 500 !important;
+  color: var(--text-primary) !important;
+  border-color: var(--surface-300) !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+  transition: all var(--transition-medium) !important;
+}
+
+.login-btn:hover,
+.register-btn:hover {
+  background: var(--surface-100) !important;
   border-color: var(--primary) !important;
   color: var(--primary) !important;
-  font-weight: 500 !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
-.register-btn:hover {
-  background: var(--primary) !important;
-  color: white !important;
+.login-btn:focus,
+.register-btn:focus {
+  background: var(--surface) !important;
+  border-color: var(--surface-300) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.2) !important;
+  outline: none !important;
+}
+
+.login-btn:active,
+.register-btn:active {
+  background: var(--surface-100) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 /* Authenticated Section */
 .authenticated-section {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .header-action {
   position: relative;
 }
 
-.header-action-btn {
+.action-btn {
   transition: all var(--transition-medium) !important;
   border-color: var(--surface-300) !important;
+  background: var(--surface) !important;
 }
 
-.header-action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-small);
+.action-btn:hover {
   border-color: var(--primary) !important;
+  background: var(--surface-100) !important;
 }
 
 /* Profile Dropdown */
@@ -692,42 +690,61 @@ onUnmounted(() => {
   position: relative;
 }
 
-.profile-trigger-btn {
+.profile-trigger {
   display: flex !important;
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 1rem !important;
-  border: 2px solid var(--surface-300) !important;
-  border-radius: 50px !important;
+  border: 1px solid var(--surface-300) !important;
+  border-radius: var(--border-radius) !important;
   background: var(--surface) !important;
   transition: all var(--transition-medium) !important;
-  font-weight: 500;
   color: var(--text-primary) !important;
+  min-width: 200px;
 }
 
-.profile-trigger-btn:hover {
+.profile-trigger:hover {
   border-color: var(--primary) !important;
-  background: rgba(20, 184, 166, 0.05) !important;
-  transform: translateY(-1px);
+  background: var(--surface-100) !important;
 }
 
-.profile-avatar-small {
+.profile-avatar {
   background: linear-gradient(135deg, var(--primary), var(--primary-light));
   color: white;
   font-weight: bold;
+  flex-shrink: 0;
+}
+
+.profile-text {
+  flex: 1;
+  text-align: left;
+  min-width: 0;
 }
 
 .profile-name {
+  display: block;
+  font-weight: 600;
   font-size: 0.9rem;
-  max-width: 100px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.profile-roles {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.role-badge {
+  font-size: 0.65rem;
 }
 
 .profile-arrow {
   transition: transform var(--transition-fast);
   font-size: 0.8rem;
+  flex-shrink: 0;
 }
 
 .profile-arrow.rotated {
@@ -746,48 +763,57 @@ onUnmounted(() => {
   margin-top: 0.5rem;
   overflow: hidden;
   z-index: 20;
+  animation: fadeInScale 0.2s ease-out;
 }
 
 .profile-menu-header {
   padding: 1.5rem;
-  color: var(--text-inverse);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
   display: flex;
   align-items: center;
   gap: 1rem;
 }
 
-.profile-avatar {
+.profile-avatar-large {
   border: 2px solid rgba(255, 255, 255, 0.3);
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
   color: white;
   font-weight: bold;
+  flex-shrink: 0;
 }
 
 .profile-info {
   flex: 1;
+  min-width: 0;
 }
 
-.profile-info .profile-name {
-  margin: 0;
+.profile-full-name {
+  margin: 0 0 0.25rem 0;
   font-weight: 600;
   font-size: 1.1rem;
-  max-width: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .profile-email {
   font-size: 0.85rem;
   opacity: 0.9;
   display: block;
-  margin: 0.25rem 0 0.5rem 0;
+  margin-bottom: 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.profile-badges {
+.profile-badge-container {
   display: flex;
   gap: 0.25rem;
   flex-wrap: wrap;
 }
 
-.role-badge,
+.role-badge-large,
 .verified-badge {
   font-size: 0.7rem;
 }
@@ -814,6 +840,7 @@ onUnmounted(() => {
 .menu-item i {
   width: 16px;
   color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .menu-item.admin-item {
@@ -840,20 +867,257 @@ onUnmounted(() => {
   color: var(--accent);
 }
 
+.menu-divider {
+  margin: 0.5rem 0;
+}
+
 .mobile-menu-btn {
   display: none;
   border-color: var(--surface-300) !important;
+  background: var(--surface) !important;
 }
 
 .mobile-menu-btn:hover {
   border-color: var(--primary) !important;
+  background: var(--surface-100) !important;
 }
 
-/* Animations */
-.fade-in-scale {
-  animation: fadeInScale 0.2s ease-out;
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .header-container {
+    grid-template-columns: 260px 1fr 280px;
+    gap: 1.5rem;
+    padding: 0.75rem 1.5rem;
+  }
+  
+  .search-container {
+    max-width: 400px;
+  }
 }
 
+@media (max-width: 1024px) {
+  .header-container {
+    grid-template-columns: 240px 1fr 260px;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+  }
+  
+  .search-container {
+    max-width: 350px;
+  }
+  
+  .profile-trigger {
+    min-width: 180px;
+  }
+  
+  .logo-main {
+    font-size: 1.6rem;
+  }
+  
+  .logo-sub {
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-container {
+    grid-template-columns: auto 1fr auto;
+    padding: 0.75rem 1rem;
+    gap: 1rem;
+  }
+  
+  .logo-main {
+    font-size: 1.4rem;
+  }
+  
+  .logo-sub {
+    font-size: 1rem;
+  }
+  
+  .logo-tagline {
+    font-size: 0.7rem;
+  }
+  
+  .search-container {
+    max-width: 300px;
+  }
+  
+  .mobile-menu-btn {
+    display: flex;
+  }
+  
+  .profile-menu {
+    width: 300px;
+    right: -1rem;
+  }
+  
+  .profile-trigger {
+    min-width: 160px;
+  }
+  
+  .authenticated-section {
+    gap: 0.75rem;
+  }
+  
+  .auth-buttons {
+    gap: 0.5rem;
+  }
+  
+  .auth-buttons .p-button {
+    padding: 0.6rem 1rem !important;
+    font-size: 0.85rem !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-container {
+    grid-template-columns: auto 1fr auto;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+  }
+  
+  .user-section {
+    gap: 0.5rem;
+  }
+  
+  .search-container {
+    max-width: 250px;
+  }
+  
+  .search-input {
+    padding: 0.65rem 0.75rem 0.65rem 2.5rem !important;
+    font-size: 0.85rem !important;
+  }
+  
+  .search-icon {
+    left: 0.75rem;
+  }
+  
+  .authenticated-section .header-action:first-child {
+    display: none; /* Cache les messages sur mobile */
+  }
+  
+  .profile-menu {
+    width: 280px;
+    right: -1rem;
+  }
+  
+  .profile-trigger {
+    min-width: 140px;
+    padding: 0.5rem 0.75rem !important;
+  }
+  
+  .profile-name {
+    font-size: 0.8rem;
+  }
+  
+  .auth-buttons {
+    gap: 0.5rem;
+  }
+  
+  .auth-buttons .p-button {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.8rem !important;
+    min-width: 80px;
+  }
+  
+  .logo-main {
+    font-size: 1.3rem;
+  }
+  
+  .logo-sub {
+    font-size: 0.9rem;
+  }
+  
+  .logo-tagline {
+    font-size: 0.65rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-container {
+    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
+  }
+  
+  .search-container {
+    max-width: 200px;
+  }
+  
+  .search-input {
+    padding: 0.6rem 0.6rem 0.6rem 2.2rem !important;
+    font-size: 0.8rem !important;
+  }
+  
+  .search-icon {
+    left: 0.6rem;
+    font-size: 0.85rem;
+  }
+  
+  .logo-main {
+    font-size: 1.2rem;
+  }
+  
+  .logo-sub {
+    font-size: 0.85rem;
+  }
+  
+  .logo-tagline {
+    font-size: 0.6rem;
+  }
+  
+  .profile-trigger {
+    min-width: 120px;
+    padding: 0.4rem 0.6rem !important;
+  }
+  
+  .profile-text {
+    display: none; /* Cache le texte sur très petit écran */
+  }
+  
+  .auth-buttons .p-button {
+    padding: 0.45rem 0.6rem !important;
+    font-size: 0.75rem !important;
+    min-width: 70px;
+  }
+  
+  .action-btn {
+    padding: 0.4rem !important;
+  }
+  
+  .mobile-menu-btn {
+    padding: 0.4rem !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .header-container {
+    padding: 0.4rem 0.5rem;
+  }
+  
+  .search-container {
+    max-width: 160px;
+  }
+  
+  .auth-buttons .p-button span {
+    display: none; /* Cache le texte des boutons sur très petit écran */
+  }
+  
+  .auth-buttons .p-button {
+    min-width: 40px;
+    padding: 0.4rem !important;
+  }
+  
+  .profile-trigger {
+    min-width: 100px;
+  }
+  
+  .logo-tagline {
+    display: none; /* Cache le tagline sur très petit écran */
+  }
+}
+
+/* Animation pour le menu profil */
 @keyframes fadeInScale {
   from {
     opacity: 0;
@@ -865,78 +1129,50 @@ onUnmounted(() => {
   }
 }
 
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .header-container {
-    grid-template-columns: auto 1fr auto;
-    gap: 1rem;
-  }
-  
-  .search-container {
-    max-width: 300px;
-  }
-  
-  .profile-name {
-    display: none;
+/* Amélioration de l'accessibilité */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
-@media (max-width: 768px) {
+/* Support du mode sombre */
+@media (prefers-color-scheme: dark) {
+  .app-header {
+    background: var(--surface-dark);
+    border-bottom-color: var(--surface-400);
+  }
+  
   .header-container {
-    padding: 0.75rem 1rem;
+    background: var(--surface-dark);
   }
   
-  .logo-main {
-    font-size: 1.5rem;
+  .search-input {
+    background: var(--surface-dark) !important;
+    border-color: var(--surface-400) !important;
+    color: var(--text-primary-dark) !important;
   }
   
-  .logo-sub {
-    font-size: 1rem;
+  .search-input:focus {
+    background: var(--surface-300) !important;
   }
   
-  .search-container {
-    max-width: 250px;
+  .profile-trigger {
+    background: var(--surface-dark) !important;
+    border-color: var(--surface-400) !important;
+    color: var(--text-primary-dark) !important;
+  }
+  
+  .action-btn {
+    background: var(--surface-dark) !important;
+    border-color: var(--surface-400) !important;
   }
   
   .mobile-menu-btn {
-    display: flex;
-  }
-  
-  .profile-menu {
-    width: 300px;
-  }
-  
-  .auth-buttons {
-    gap: 0.5rem;
-  }
-  
-  .login-btn span,
-  .register-btn span {
-    display: none;
-  }
-}
-
-@media (max-width: 640px) {
-  .header-container {
-    grid-template-columns: auto 1fr auto;
-    gap: 0.5rem;
-  }
-  
-  .user-section {
-    gap: 0.5rem;
-  }
-  
-  .search-container {
-    max-width: none;
-  }
-  
-  .authenticated-section .header-action:first-child {
-    display: none;
-  }
-  
-  .profile-menu {
-    width: 280px;
-    right: -1rem;
+    background: var(--surface-dark) !important;
+    border-color: var(--surface-400) !important;
   }
 }
 </style>

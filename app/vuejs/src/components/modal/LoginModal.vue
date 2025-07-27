@@ -235,7 +235,7 @@
 import { ref, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
-import { useAuthStore } from '@/stores/auth' // 👈 Import du store
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps({
   modelValue: {
@@ -253,7 +253,7 @@ const emit = defineEmits(['update:modelValue', 'login-success', 'registration-su
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
-const authStore = useAuthStore() // 👈 Utilisation du store
+const authStore = useAuthStore()
 
 // State
 const isOpen = ref(props.modelValue)
@@ -304,7 +304,6 @@ const handleSubmit = async () => {
   }
 }
 
-// 👈 Méthodes utilisant le store Pinia
 const handleLogin = async () => {
   if (!formData.email || !formData.password) {
     toast.add({
@@ -400,12 +399,19 @@ const handleRegister = async () => {
         severity: 'success',
         summary: 'Inscription réussie',
         detail: result.message,
-        life: 5000
+        life: 3000
       })
       
-      verificationEmail.value = formData.email
-      showVerificationStep.value = true
-      emit('registration-success', result.user)
+      // Si auto-login, pas besoin de vérification
+      if (result.autoLogin) {
+        emit('registration-success', result.user)
+        closeModal()  // Fermer la modal directement
+      } else {
+        // Ancien code pour vérification email
+        verificationEmail.value = formData.email
+        showVerificationStep.value = true
+        emit('registration-success', result.user)
+      }
     } else {
       toast.add({
         severity: 'error',
@@ -495,7 +501,7 @@ const handleForgotPassword = async () => {
   }
 }
 
-// Watchers (inchangés)
+// Watchers
 watch(() => props.modelValue, (newVal) => {
   isOpen.value = newVal
   

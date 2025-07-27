@@ -38,7 +38,7 @@ class AuthController extends AbstractController
                 'Access-Control-Allow-Headers' => 'Content-Type, Authorization',
             ]);
         }
-
+    
         $data = json_decode($request->getContent(), true);
         
         if (!$data || !isset($data['email'], $data['password'])) {
@@ -47,17 +47,17 @@ class AuthController extends AbstractController
                 'message' => 'Email et mot de passe requis'
             ], 400);
         }
-
+    
         // Trouver l'utilisateur
         $user = $this->userRepository->findOneBy(['email' => $data['email']]);
-
+    
         if (!$user) {
             return $this->json([
                 'success' => false,
                 'message' => 'Email ou mot de passe incorrect'
             ], 401);
         }
-
+    
         // Vérifier le mot de passe
         if (!$this->passwordHasher->isPasswordValid($user, $data['password'])) {
             return $this->json([
@@ -65,30 +65,18 @@ class AuthController extends AbstractController
                 'message' => 'Email ou mot de passe incorrect'
             ], 401);
         }
-
-        // Pour le dev, on skip la vérification email
-        // Décommente ça plus tard si tu veux forcer la vérification :
-        /*
-        if (!$user->isVerified()) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Veuillez vérifier votre email avant de vous connecter',
-                'needsVerification' => true
-            ], 403);
-        }
-        */
-
+    
         // Mettre à jour la dernière connexion
         $user->setLastLoginAt(new \DateTimeImmutable());
         $this->entityManager->flush();
-
-        // Générer le token JWT (optionnel pour l'instant)
-        // $token = $this->jwtManager->create($user);
-
+    
+        // Générer le token JWT
+        $token = $this->jwtManager->create($user);
+    
         return $this->json([
             'success' => true,
             'message' => 'Connexion réussie',
-            // 'token' => $token,  // Décommente quand tu veux activer JWT
+            'token' => $token,
             'user' => [
                 'id' => $user->getId(),
                 'email' => $user->getEmail(),
@@ -168,6 +156,7 @@ class AuthController extends AbstractController
 
             // Générer le token de vérification
             $user->generateVerificationToken();
+            $user->setIsVerified(true);
 
             // Validation
             $errors = $this->validator->validate($user);
@@ -185,9 +174,8 @@ class AuthController extends AbstractController
 
             $this->entityManager->persist($user);
             $this->entityManager->flush();
-
-            // Skip email pour le dev
-            // $this->emailService->sendVerificationEmail($user);
+            
+            $token = $this->jwtManager->create($user);
 
             return $this->json([
                 'success' => true,

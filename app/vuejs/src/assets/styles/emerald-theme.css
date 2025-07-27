@@ -1,4 +1,5 @@
 /* 💎 MULLIGAN TCG - Emerald Gaming Theme */
+/* Version optimisée pour PrimeVue */
 
 :root {
   /* Emerald Gaming Palette */
@@ -48,181 +49,76 @@ body {
   background: var(--surface);
   color: var(--text-primary);
   line-height: 1.6;
+  padding-top: 140px; /* Espace pour le header fixe */
 }
 
-/* Override PrimeVue Styles */
+/* Override PrimeVue Global Styles */
 .p-component {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: 'Inter', 'Segoe UI', sans-serif !important;
 }
 
-/* Custom Button Styles */
+/* PrimeVue Button Global Overrides */
 .p-button {
-  background: var(--primary);
-  border: none;
-  border-radius: var(--border-radius);
-  transition: all var(--transition-medium);
-  font-weight: 500;
-  position: relative;
-  overflow: hidden;
+  border-radius: var(--border-radius) !important;
+  transition: all var(--transition-medium) !important;
+  font-weight: 500 !important;
 }
 
-.p-button:enabled:hover {
-  background: var(--primary-dark);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-medium);
-}
-
-.p-button:enabled:active {
-  transform: translateY(0);
-}
-
-/* Ripple effect pour les boutons */
-.p-button::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: width 0.3s, height 0.3s;
-}
-
-.p-button:active::before {
-  width: 300px;
-  height: 300px;
-}
-
-.p-button-secondary {
-  background: var(--secondary);
-}
-
-.p-button-secondary:enabled:hover {
-  background: var(--secondary-dark);
-}
-
-.p-button-accent {
-  background: var(--accent);
-}
-
-.p-button-accent:enabled:hover {
-  background: var(--accent-dark);
-}
-
-.p-button-outlined {
-  background: transparent;
-  color: var(--primary);
-  border: 2px solid var(--primary);
-}
-
-.p-button-outlined:enabled:hover {
-  background: var(--primary);
-  color: var(--text-inverse);
-}
-
-/* Custom Card Styles */
+/* PrimeVue Card Global Overrides */
 .p-card {
-  background: var(--surface);
-  border-radius: var(--border-radius-large);
-  box-shadow: var(--shadow-small);
-  transition: all var(--transition-medium);
-  border: 1px solid var(--surface-200);
-  overflow: hidden;
+  border-radius: var(--border-radius-large) !important;
+  border: 1px solid var(--surface-200) !important;
+  transition: all var(--transition-medium) !important;
 }
 
 .p-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-large);
+  transform: translateY(-4px) !important;
+  box-shadow: var(--shadow-large) !important;
 }
 
-.p-card-body {
-  padding: 1.5rem;
-}
-
-.p-card-title {
-  color: var(--text-primary);
-  margin-bottom: 0.5rem;
-}
-
-.p-card-subtitle {
-  color: var(--text-secondary);
-  margin-bottom: 1rem;
-}
-
-/* Gaming Card Style spécial */
-.gaming-card {
-  position: relative;
-  background: linear-gradient(135deg, var(--surface) 0%, var(--surface-100) 100%);
-}
-
-.gaming-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--primary), var(--accent));
-}
-
-.gaming-card:hover {
-  transform: translateY(-6px) scale(1.02);
-}
-
-/* Input Styles */
+/* PrimeVue Input Global Overrides */
 .p-inputtext {
-  border: 2px solid var(--surface-300);
-  border-radius: var(--border-radius);
-  transition: all var(--transition-fast);
-  background: var(--surface);
-  padding: 0.75rem;
+  border-radius: var(--border-radius) !important;
+  transition: all var(--transition-fast) !important;
 }
 
 .p-inputtext:enabled:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.2);
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.2) !important;
 }
 
-/* Badge Styles */
+/* PrimeVue Badge Global Overrides */
 .p-badge {
-  background: var(--accent);
-  color: var(--text-inverse);
-  border-radius: 50px;
-  font-weight: 600;
-  font-size: 0.75rem;
+  border-radius: 50px !important;
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
 }
 
-.p-badge-danger {
-  background: var(--accent);
+/* PrimeVue Avatar Global Overrides */
+.p-avatar {
+  background: var(--primary-light) !important;
+  color: var(--text-inverse) !important;
 }
 
-/* Toast Styles */
+/* PrimeVue Toast Global Overrides */
 .p-toast-message {
-  border-radius: var(--border-radius);
-  backdrop-filter: blur(10px);
+  border-radius: var(--border-radius) !important;
+  backdrop-filter: blur(10px) !important;
 }
 
 .p-toast-message-success {
-  background: rgba(38, 166, 154, 0.95);
-  border: 1px solid var(--primary);
-  color: var(--text-inverse);
+  background: rgba(38, 166, 154, 0.95) !important;
+  border: 1px solid var(--primary) !important;
+  color: var(--text-inverse) !important;
 }
 
 .p-toast-message-error {
-  background: rgba(255, 87, 34, 0.95);
-  border: 1px solid var(--accent);
-  color: var(--text-inverse);
+  background: rgba(255, 87, 34, 0.95) !important;
+  border: 1px solid var(--accent) !important;
+  color: var(--text-inverse) !important;
 }
 
-/* Avatar Styles */
-.p-avatar {
-  background: var(--primary-light);
-  color: var(--text-inverse);
-}
-
-/* Utility Classes */
+/* Custom Utility Classes */
 .emerald-gradient {
   background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 50%, var(--primary-dark) 100%);
 }
@@ -247,6 +143,35 @@ body {
 
 .text-accent {
   color: var(--accent);
+}
+
+/* Gaming Card Style spécial */
+.gaming-card {
+  position: relative;
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface-100) 100%);
+}
+
+.gaming-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+.gaming-card:hover {
+  transform: translateY(-6px) scale(1.02) !important;
+}
+
+/* Hover effect utility */
+.hover-lift {
+  transition: transform var(--transition-medium);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
 }
 
 /* Animations */
@@ -294,6 +219,11 @@ body {
   100% { transform: rotate(360deg); }
 }
 
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Animation Classes */
 .slide-in-down {
   animation: slideInDown 0.5s ease-out;
@@ -325,43 +255,6 @@ body {
   animation: loading 1.5s infinite;
 }
 
-@keyframes loading {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-/* Responsive Utilities */
-@media (max-width: 1024px) {
-  .p-card-body {
-    padding: 1.25rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .p-card-body {
-    padding: 1rem;
-  }
-  
-  .p-button {
-    width: 100%;
-    margin-bottom: 0.5rem;
-  }
-  
-  .p-button + .p-button {
-    margin-left: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  :root {
-    --border-radius-large: 12px;
-  }
-  
-  .p-card-body {
-    padding: 0.75rem;
-  }
-}
-
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -379,3 +272,44 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
 }
+
+/* Responsive Utilities */
+@media (max-width: 1024px) {
+  .p-card .p-card-body {
+    padding: 1.25rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .p-card .p-card-body {
+    padding: 1rem !important;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --border-radius-large: 12px;
+  }
+  
+  .p-card .p-card-body {
+    padding: 0.75rem !important;
+  }
+  
+  body {
+    padding-top: 120px; /* Header plus compact sur mobile */
+  }
+}
+
+/* Dark mode support (désactivé pour l'instant) */
+/*
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1a1a1a;
+    --surface-100: #2a2a2a;
+    --surface-200: #3a3a3a;
+    --surface-300: #4a4a4a;
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+  }
+}
+*/

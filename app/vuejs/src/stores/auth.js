@@ -13,7 +13,7 @@ export const useAuthStore = defineStore('auth', () => {
   const registrationStep = ref(null) // 'pending-verification', 'verified', null
 
   // Getters
-  const isAuthenticated = computed(() => !!token.value && !!user.value?.isVerified)
+  const isAuthenticated = computed(() => !!token.value && !!user.value) // Skip isVerified pour le dev
   const isRegistered = computed(() => !!user.value)
   const userRoles = computed(() => user.value?.roles || [])
   const isAdmin = computed(() => userRoles.value.includes('ROLE_ADMIN'))
@@ -24,31 +24,38 @@ export const useAuthStore = defineStore('auth', () => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
   }
 
-  // Actions
-  const register = async (userData) => {
-    isLoading.value = true
-    try {
-      const response = await axios.post(`${API_BASE}/register`, userData)
-      
-      // Stocker les infos utilisateur temporaires (non vérifiées)
+// Actions
+const register = async (userData) => {
+  isLoading.value = true
+  try {
+    const response = await axios.post(`${API_BASE}/register`, userData)
+    
+    if (response.data.success) {
+      // Connecter directement l'utilisateur (skip vérification email)
       user.value = response.data.user
-      registrationStep.value = 'pending-verification'
       
       return { 
         success: true, 
-        message: response.data.message,
-        needsVerification: true
+        message: 'Inscription et connexion réussies !',
+        autoLogin: true,  // Indique que l'user est connecté
+        user: response.data.user
       }
-    } catch (error) {
-      console.error('Erreur d\'inscription:', error)
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors de l\'inscription' 
-      }
-    } finally {
-      isLoading.value = false
     }
+    
+    return {
+      success: false,
+      message: response.data.message
+    }
+  } catch (error) {
+    console.error('Erreur d\'inscription:', error)
+    return { 
+      success: false, 
+      message: error.response?.data?.message || 'Erreur lors de l\'inscription' 
+    }
+  } finally {
+    isLoading.value = false
   }
+}
 
   const login = async (credentials) => {
     isLoading.value = true
@@ -60,20 +67,11 @@ export const useAuthStore = defineStore('auth', () => {
       if (response.data.success) {
         user.value = response.data.user
         
-        // Si tu ajoutes JWT plus tard, décommente ça :
-        // const { token: newToken } = response.data
-        // token.value = newToken
-        // localStorage.setItem('token', newToken)
-        // axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
-        
-        // Vérifier si l'utilisateur doit vérifier son email
-        if (user.value && !user.value.isVerified) {
-          return { 
-            success: false, 
-            message: 'Veuillez vérifier votre email avant de vous connecter.',
-            needsVerification: true
-          }
-        }
+        // Gérer le token JWT reçu
+        const { token: newToken } = response.data
+        token.value = newToken
+        localStorage.setItem('token', newToken)
+        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
         
         return { success: true, user: response.data.user }
       }
@@ -108,7 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
     
     try {
       const response = await axios.get(`${API_BASE}/me`)
-      user.value = response.data
+      user.value = response.data.user
       
       // Effacer l'état de registration si l'utilisateur est vérifié
       if (user.value.isVerified) {
@@ -252,6 +250,7 @@ export const useAuthStore = defineStore('auth', () => {
   // Initialisation - récupérer l'utilisateur si token présent
   const initialize = async () => {
     if (token.value) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
       await fetchUser()
     }
   }
