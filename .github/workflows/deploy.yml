@@ -43,18 +43,15 @@ jobs:
           DEBUG=false
           LOG_LEVEL=info
           EOF
-
-          echo "🧹 Removing default .env to prevent fallback..."
-          rm -f app/symfony/.env
           
           echo "📦 Building frontend Vue.js..."
-          cd frontend
+          cd app/vuejs
           npm install
           npm run build
-          cd ..
-          
-          echo "📁 Copying frontend files..."
-          docker cp frontend/dist/ tcg_prod_app:/var/www/frontend/
+          cd ../..
+
+          echo "📁 Copying frontend files to container..."
+          docker cp app/vuejs/dist/ tcg_prod_app:/var/www/frontend/
           
           echo "🗃️ Running database migrations..."
           docker exec tcg_prod_app bash -c "cd /var/www/backend && php bin/console doctrine:migrations:migrate --no-interaction"
@@ -80,5 +77,6 @@ jobs:
           
           echo "✅ Deployment completed successfully!"
           echo "🌐 Site available at: http://51.178.27.41"
+
           echo "🗃️ Database: Migrations applied"
           echo "📦 Frontend: Built and deployed"
