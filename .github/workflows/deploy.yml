@@ -22,7 +22,7 @@ jobs:
           echo "📥 Pulling latest changes..."
           git pull origin main
           echo "📦 Building frontend Vue.js..."          # ✅ NOUVEAU : Build frontend
-          cd frontend
+          cd vuejs
           npm install
           npm run build
           cd ..
