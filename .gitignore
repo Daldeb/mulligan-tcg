@@ -11,8 +11,6 @@ ssl/
 scripts/
 setup.sh
 monitoring/
-docker-compose.yaml
-docker-compose.yaml.backup
 Makefile
 
 # === DEPENDENCIES ===
@@ -41,7 +39,6 @@ app/symfony/var/sessions/
 # === SÉCURITÉ ===
 *.pem
 *.key
-.env
 .env.local
 .env.production
 

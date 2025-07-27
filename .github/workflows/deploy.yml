@@ -22,26 +22,44 @@ jobs:
           echo "📥 Pulling latest changes..."
           git pull origin main
           
+          echo "🔧 Configuring production environment..."
+          cat > .env.local << 'EOF'
+          APP_ENV=prod
+          DATABASE_URL=mysql://tcg_prod_user:tcg_prod_password@tcg_prod_mysql:3306/tcg_prod_db
+          MYSQL_USER=tcg_prod_user
+          MYSQL_PASSWORD=tcg_prod_password
+          MYSQL_DATABASE=tcg_prod_db
+          MYSQL_ROOT_PASSWORD=root_password
+          REDIS_URL=redis://redis:6379
+          JWT_SECRET_KEY=your-jwt-secret-key-change-this
+          MESSENGER_TRANSPORT_DSN=sync://
+          CORS_ALLOW_ORIGIN=https://51.178.27.41
+          VUE_APP_API_URL=http://51.178.27.41/api
+          MAILER_DSN=smtp://localhost:25
+          DEBUG=false
+          LOG_LEVEL=info
+          EOF
+          
           echo "📦 Building frontend Vue.js..."
-          cd app/vuejs
+          cd frontend
           npm install
           npm run build
-          cd ../..
+          cd ..
           
           echo "📁 Copying frontend files..."
-          docker cp app/vuejs/dist/ tcg_prod_app:/var/www/frontend/
+          docker cp frontend/dist/ tcg_prod_app:/var/www/frontend/
           
           echo "🗃️ Running database migrations..."
-          docker exec tcg_prod_app bash -c "cd /var/www/html && php bin/console doctrine:migrations:migrate --no-interaction"
+          docker exec tcg_prod_app bash -c "cd /var/www/backend && php bin/console doctrine:migrations:migrate --no-interaction"
           
           echo "🧹 Clearing Symfony cache..."
-          docker exec tcg_prod_app bash -c "cd /var/www/html && php bin/console cache:clear --env=prod"
+          docker exec tcg_prod_app bash -c "cd /var/www/backend && php bin/console cache:clear --env=prod"
           
           echo "🔄 Installing/updating Symfony dependencies..."
-          docker exec tcg_prod_app bash -c "cd /var/www/html && composer install --no-dev --optimize-autoloader"
+          docker exec tcg_prod_app bash -c "cd /var/www/backend && composer install --no-dev --optimize-autoloader"
           
           echo "🐳 Restarting production containers..."
-          docker-compose restart tcg_prod_app
+          docker compose restart app
           
           echo "⏳ Waiting for services..."
           sleep 10
@@ -50,7 +68,7 @@ jobs:
           curl -f http://localhost/ || echo "Health check failed but continuing..."
           
           echo "📊 Database status check..."
-          docker exec tcg_prod_app bash -c "cd /var/www/html && php bin/console doctrine:migrations:status"
+          docker exec tcg_prod_app bash -c "cd /var/www/backend && php bin/console doctrine:migrations:status"
           
           echo "✅ Deployment completed successfully!"
           echo "🌐 Site available at: http://51.178.27.41"
