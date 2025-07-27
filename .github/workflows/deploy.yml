@@ -1,14 +1,18 @@
 name: 🚀 Deploy to Production
+
 on:
   push:
     branches: [ main ]
+
 jobs:
   deploy:
     name: Deploy to OVH Server
     runs-on: ubuntu-latest
+
     steps:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
+
     - name: 🚀 Deploy to server
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -39,6 +43,9 @@ jobs:
           DEBUG=false
           LOG_LEVEL=info
           EOF
+
+          echo "🧹 Removing default .env to prevent fallback..."
+          rm -f app/symfony/.env
           
           echo "📦 Building frontend Vue.js..."
           cd frontend
