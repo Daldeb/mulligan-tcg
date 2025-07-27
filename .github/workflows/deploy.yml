@@ -58,8 +58,9 @@ jobs:
           echo "🔄 Installing/updating Symfony dependencies..."
           docker exec tcg_prod_app bash -c "cd /var/www/backend && composer install --no-dev --optimize-autoloader"
           
-          echo "🐳 Restarting production containers..."
-          docker compose restart app
+          echo "🐳 Rebuilding production containers..."
+          docker compose down
+          docker compose up -d --build
           
           echo "⏳ Waiting for services..."
           sleep 10
