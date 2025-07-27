@@ -23,7 +23,7 @@ jobs:
           git pull origin main
           
           echo "🔧 Configuring production environment..."
-          cat > .env.local << 'EOF'
+          cat > app/symfony/.env.local << 'EOF'
           APP_ENV=prod
           DATABASE_URL=mysql://tcg_prod_user:tcg_prod_password@tcg_prod_mysql:3306/tcg_prod_db
           MYSQL_USER=tcg_prod_user
