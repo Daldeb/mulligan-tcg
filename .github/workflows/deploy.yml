@@ -1,9 +1,7 @@
 name: 🚀 Deploy to Production
-
 on:
   push:
     branches: [ main ]
-
 jobs:
   deploy:
     name: Deploy to OVH Server
@@ -25,6 +23,9 @@ jobs:
           
           echo "📥 Pulling latest changes..."
           git pull origin main
+          
+          echo "🏗️ Building frontend..."
+          docker exec tcg_prod_app bash -c "cd /var/www/html && npm install && npm run build"
           
           echo "🐳 Rebuilding containers if needed..."
           docker-compose restart nginx
