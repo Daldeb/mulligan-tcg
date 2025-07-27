@@ -1,17 +1,52 @@
-# Dependencies
+# ======================
+# MULLIGAN TCG - .gitignore
+# ======================
+
+# === INFRASTRUCTURE (à garder local) ===
+infrastructure/
+ops/
+docker/
+nginx/
+ssl/
+scripts/
+setup.sh
+monitoring/
+docker-compose.yaml
+docker-compose.yaml.backup
+Makefile
+
+# === DEPENDENCIES ===
 node_modules/
 vendor/
-backend/backend/
+composer.lock
 
-# Cache & logs
-.vite/
-var/log/
-var/cache/
+# === CACHE & BUILD ===
+app/vuejs/dist/
+app/vuejs/.vite/
+app/vuejs/node_modules/
+app/symfony/var/cache/
+app/symfony/var/log/
+app/symfony/var/sessions/
 
-# Environment
+# === DÉVELOPPEMENT ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+*.log
+*.tmp
+*.bak
+
+# === SÉCURITÉ ===
+*.pem
+*.key
+.env
 .env.local
-.env.*.local
+.env.production
 
-# Build
-dist/
-build/
+# === TEMPORARY ===
+test-ssh.txt
+backup*.sql
+tmp/
+temp/

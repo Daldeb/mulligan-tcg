@@ -1,0 +1,36 @@
+security:
+    password_hashers:
+        App\Entity\User:
+            algorithm: auto
+
+    providers:
+        app_user_provider:
+            entity:
+                class: App\Entity\User
+                property: email
+
+    firewalls:
+        dev:
+            pattern: ^/(_(profiler|wdt)|css|images|js)/
+            security: false
+        
+        # Routes publiques (sans authentification)
+        api_public:
+            pattern: ^/api/(register|login|verify-email|forgot-password|resend-verification)
+            stateless: true
+            security: false
+        
+        # Routes protégées (avec JWT)
+        api:
+            pattern: ^/api
+            stateless: true
+            jwt: ~
+
+        main:
+            lazy: true
+
+    access_control:
+        # Routes publiques
+        - { path: ^/api/(register|login|verify-email|forgot-password|resend-verification), roles: PUBLIC_ACCESS }
+        # Routes protégées
+        - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
