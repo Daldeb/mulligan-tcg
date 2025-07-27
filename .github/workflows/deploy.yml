@@ -28,17 +28,31 @@ jobs:
           npm run build
           cd ../..
           
+          echo "📁 Copying frontend files..."
+          docker cp app/vuejs/dist/ tcg_prod_app:/var/www/frontend/
+          
+          echo "🗃️ Running database migrations..."
+          docker exec tcg_prod_app bash -c "cd /var/www/html && php bin/console doctrine:migrations:migrate --no-interaction"
+          
+          echo "🧹 Clearing Symfony cache..."
+          docker exec tcg_prod_app bash -c "cd /var/www/html && php bin/console cache:clear --env=prod"
+          
+          echo "🔄 Installing/updating Symfony dependencies..."
+          docker exec tcg_prod_app bash -c "cd /var/www/html && composer install --no-dev --optimize-autoloader"
+          
           echo "🐳 Restarting production containers..."
-          docker-compose restart tcg_prod_app tcg_prod_nginx
+          docker-compose restart tcg_prod_app
           
           echo "⏳ Waiting for services..."
-          sleep 15
+          sleep 10
           
           echo "🔍 Health check..."
           curl -f http://localhost/ || echo "Health check failed but continuing..."
           
-          echo "📊 Quick status check..."
-          docker-compose ps
+          echo "📊 Database status check..."
+          docker exec tcg_prod_app bash -c "cd /var/www/html && php bin/console doctrine:migrations:status"
           
           echo "✅ Deployment completed successfully!"
           echo "🌐 Site available at: http://51.178.27.41"
+          echo "🗃️ Database: Migrations applied"
+          echo "📦 Frontend: Built and deployed"
