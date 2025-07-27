@@ -1,18 +1,15 @@
+# NOUVEAU WORKFLOW (COMPLET)
 name: 🚀 Deploy to Production
-
 on:
   push:
     branches: [ main ]
-
 jobs:
   deploy:
     name: Deploy to OVH Server
     runs-on: ubuntu-latest
-    
     steps:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
-      
     - name: 🚀 Deploy to server
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -22,21 +19,20 @@ jobs:
         script: |
           echo "🔄 Starting deployment..."
           cd /opt/tcg-hub
-          
           echo "📥 Pulling latest changes..."
           git pull origin main
-          
-          echo "🐳 Rebuilding containers if needed..."
-          docker-compose restart nginx
-          
+          echo "📦 Building frontend Vue.js..."          # ✅ NOUVEAU : Build frontend
+          cd frontend
+          npm install
+          npm run build
+          cd ..
+          echo "🐳 Restarting production containers..."    # ✅ AMÉLIORÉ : Containers spécifiques
+          docker compose restart nginx app
           echo "⏳ Waiting for services..."
-          sleep 10
-          
+          sleep 15
           echo "🔍 Health check..."
-          curl -f http://localhost/health || exit 1
-          
+          curl -f http://localhost/ || exit 1            # ✅ CORRIGÉ : Bonne URL
           echo "📊 Quick status check..."
-          docker-compose ps
-          
+          docker compose ps                              # ✅ CORRIGÉ : Nouvelle syntaxe
           echo "✅ Deployment completed successfully!"
           echo "🌐 Site available at: http://51.178.27.41"
