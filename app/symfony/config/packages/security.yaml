@@ -13,22 +13,24 @@ security:
         dev:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
-
-        login:
-            pattern: ^/api/login
+        
+        # Routes publiques (sans authentification)
+        api_public:
+            pattern: ^/api/(register|login|verify-email|forgot-password|resend-verification)
             stateless: true
-            json_login:
-                check_path: /api/login
-                username_path: email
-                password_path: password
-                success_handler: lexik_jwt_authentication.handler.authentication_success
-                failure_handler: lexik_jwt_authentication.handler.authentication_failure
-
+            security: false
+        
+        # Routes protégées (avec JWT)
         api:
             pattern: ^/api
             stateless: true
             jwt: ~
 
+        main:
+            lazy: true
+
     access_control:
-        - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        # Routes publiques
+        - { path: ^/api/(register|login|verify-email|forgot-password|resend-verification), roles: PUBLIC_ACCESS }
+        # Routes protégées
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }

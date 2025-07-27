@@ -55,24 +55,33 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await axios.post(`${API_BASE}/login`, credentials)
       
-      const { token: newToken } = response.data
-      token.value = newToken
-      localStorage.setItem('token', newToken)
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
-      
-      // Récupérer les infos utilisateur
-      await fetchUser()
-      
-      // Vérifier si l'utilisateur doit vérifier son email
-      if (user.value && !user.value.isVerified) {
-        return { 
-          success: false, 
-          message: 'Veuillez vérifier votre email avant de vous connecter.',
-          needsVerification: true
+      // Ton API répond avec { success: true, user: {...}, message: "..." }
+      // Pas de token JWT pour l'instant
+      if (response.data.success) {
+        user.value = response.data.user
+        
+        // Si tu ajoutes JWT plus tard, décommente ça :
+        // const { token: newToken } = response.data
+        // token.value = newToken
+        // localStorage.setItem('token', newToken)
+        // axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+        
+        // Vérifier si l'utilisateur doit vérifier son email
+        if (user.value && !user.value.isVerified) {
+          return { 
+            success: false, 
+            message: 'Veuillez vérifier votre email avant de vous connecter.',
+            needsVerification: true
+          }
         }
+        
+        return { success: true, user: response.data.user }
       }
       
-      return { success: true }
+      return {
+        success: false,
+        message: response.data.message
+      }
     } catch (error) {
       console.error('Erreur de connexion:', error)
       

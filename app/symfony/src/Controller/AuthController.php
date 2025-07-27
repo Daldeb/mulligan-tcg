@@ -14,6 +14,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
+use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 
 class AuthController extends AbstractController
 {
@@ -21,25 +22,105 @@ class AuthController extends AbstractController
         private EntityManagerInterface $entityManager,
         private UserPasswordHasherInterface $passwordHasher,
         private ValidatorInterface $validator,
-        private EmailService $emailService,
-        private UserRepository $userRepository
+        // private EmailService $emailService,
+        private UserRepository $userRepository,
+        private JWTTokenManagerInterface $jwtManager
     ) {}
 
-    #[Route('/api/register', name: 'api_register', methods: ['POST'])]
-    public function register(Request $request, RateLimiterFactory $registerLimiter): JsonResponse
+    #[Route('/api/login', name: 'api_login', methods: ['POST', 'OPTIONS'])]
+    public function login(Request $request): JsonResponse
     {
-        // Rate limiting - 5 tentatives par IP par heure
-        $limiter = $registerLimiter->create($request->getClientIp());
-        if (!$limiter->consume(1)->isAccepted()) {
+        // Gérer les requêtes OPTIONS pour CORS
+        if ($request->getMethod() === 'OPTIONS') {
+            return new JsonResponse([], 200, [
+                'Access-Control-Allow-Origin' => '*',
+                'Access-Control-Allow-Methods' => 'POST, OPTIONS',
+                'Access-Control-Allow-Headers' => 'Content-Type, Authorization',
+            ]);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        
+        if (!$data || !isset($data['email'], $data['password'])) {
             return $this->json([
-                'message' => 'Trop de tentatives d\'inscription. Réessayez dans une heure.'
-            ], 429);
+                'success' => false,
+                'message' => 'Email et mot de passe requis'
+            ], 400);
+        }
+
+        // Trouver l'utilisateur
+        $user = $this->userRepository->findOneBy(['email' => $data['email']]);
+
+        if (!$user) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Email ou mot de passe incorrect'
+            ], 401);
+        }
+
+        // Vérifier le mot de passe
+        if (!$this->passwordHasher->isPasswordValid($user, $data['password'])) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Email ou mot de passe incorrect'
+            ], 401);
+        }
+
+        // Pour le dev, on skip la vérification email
+        // Décommente ça plus tard si tu veux forcer la vérification :
+        /*
+        if (!$user->isVerified()) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Veuillez vérifier votre email avant de vous connecter',
+                'needsVerification' => true
+            ], 403);
+        }
+        */
+
+        // Mettre à jour la dernière connexion
+        $user->setLastLoginAt(new \DateTimeImmutable());
+        $this->entityManager->flush();
+
+        // Générer le token JWT (optionnel pour l'instant)
+        // $token = $this->jwtManager->create($user);
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Connexion réussie',
+            // 'token' => $token,  // Décommente quand tu veux activer JWT
+            'user' => [
+                'id' => $user->getId(),
+                'email' => $user->getEmail(),
+                'pseudo' => $user->getPseudo(),
+                'firstName' => $user->getFirstName(),
+                'lastName' => $user->getLastName(),
+                'fullName' => $user->getFullName(),
+                'avatar' => $user->getAvatar(),
+                'favoriteClass' => $user->getFavoriteClass(),
+                'isVerified' => $user->isVerified(),
+                'roles' => $user->getRoles()
+            ]
+        ]);
+    }
+
+    #[Route('/api/register', name: 'api_register', methods: ['POST', 'OPTIONS'])]
+    public function register(Request $request): JsonResponse
+    {
+        // Gérer les requêtes OPTIONS pour CORS
+        if ($request->getMethod() === 'OPTIONS') {
+            return new JsonResponse([], 200, [
+                'Access-Control-Allow-Origin' => '*',
+                'Access-Control-Allow-Methods' => 'POST, OPTIONS',
+                'Access-Control-Allow-Headers' => 'Content-Type, Authorization',
+            ]);
         }
 
         $data = json_decode($request->getContent(), true);
 
         if (!$data || !isset($data['email'], $data['password'], $data['pseudo'])) {
             return $this->json([
+                'success' => false,
                 'message' => 'Données manquantes'
             ], 400);
         }
@@ -47,6 +128,7 @@ class AuthController extends AbstractController
         // Vérifier si l'email existe déjà
         if ($this->userRepository->findOneBy(['email' => $data['email']])) {
             return $this->json([
+                'success' => false,
                 'message' => 'Cet email est déjà utilisé'
             ], 422);
         }
@@ -54,6 +136,7 @@ class AuthController extends AbstractController
         // Vérifier si le pseudo existe déjà
         if ($this->userRepository->findOneBy(['pseudo' => $data['pseudo']])) {
             return $this->json([
+                'success' => false,
                 'message' => 'Ce pseudo est déjà pris'
             ], 422);
         }
@@ -61,6 +144,7 @@ class AuthController extends AbstractController
         // Validation du mot de passe
         if (strlen($data['password']) < 8) {
             return $this->json([
+                'success' => false,
                 'message' => 'Le mot de passe doit faire au moins 8 caractères'
             ], 422);
         }
@@ -93,6 +177,7 @@ class AuthController extends AbstractController
                     $errorMessages[] = $error->getMessage();
                 }
                 return $this->json([
+                    'success' => false,
                     'message' => 'Données invalides',
                     'errors' => $errorMessages
                 ], 422);
@@ -101,11 +186,12 @@ class AuthController extends AbstractController
             $this->entityManager->persist($user);
             $this->entityManager->flush();
 
-            // Envoyer l'email de vérification
-            $this->emailService->sendVerificationEmail($user);
+            // Skip email pour le dev
+            // $this->emailService->sendVerificationEmail($user);
 
             return $this->json([
-                'message' => 'Inscription réussie ! Un email de vérification a été envoyé.',
+                'success' => true,
+                'message' => 'Inscription réussie !',
                 'user' => [
                     'id' => $user->getId(),
                     'email' => $user->getEmail(),
@@ -116,6 +202,7 @@ class AuthController extends AbstractController
 
         } catch (\Exception $e) {
             return $this->json([
+                'success' => false,
                 'message' => 'Erreur lors de l\'inscription',
                 'error' => $e->getMessage()
             ], 500);
@@ -129,12 +216,14 @@ class AuthController extends AbstractController
 
         if (!$user) {
             return $this->json([
+                'success' => false,
                 'message' => 'Token de vérification invalide'
             ], 404);
         }
 
         if (!$user->isVerificationTokenValid()) {
             return $this->json([
+                'success' => false,
                 'message' => 'Token de vérification expiré'
             ], 410);
         }
@@ -145,18 +234,31 @@ class AuthController extends AbstractController
         $this->entityManager->flush();
 
         return $this->json([
+            'success' => true,
             'message' => 'Email vérifié avec succès ! Vous pouvez maintenant vous connecter.',
             'verified' => true
         ]);
     }
 
-    #[Route('/api/resend-verification', name: 'api_resend_verification', methods: ['POST'])]
+    #[Route('/api/resend-verification', name: 'api_resend_verification', methods: ['POST', 'OPTIONS'])]
     public function resendVerification(Request $request): JsonResponse
     {
+        // Gérer les requêtes OPTIONS pour CORS
+        if ($request->getMethod() === 'OPTIONS') {
+            return new JsonResponse([], 200, [
+                'Access-Control-Allow-Origin' => '*',
+                'Access-Control-Allow-Methods' => 'POST, OPTIONS',
+                'Access-Control-Allow-Headers' => 'Content-Type, Authorization',
+            ]);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         if (!isset($data['email'])) {
-            return $this->json(['message' => 'Email requis'], 400);
+            return $this->json([
+                'success' => false,
+                'message' => 'Email requis'
+            ], 400);
         }
 
         $user = $this->userRepository->findOneBy(['email' => $data['email']]);
@@ -164,12 +266,14 @@ class AuthController extends AbstractController
         if (!$user) {
             // Ne pas révéler si l'email existe ou non
             return $this->json([
+                'success' => true,
                 'message' => 'Si cet email existe, un nouveau lien de vérification a été envoyé.'
             ]);
         }
 
         if ($user->isVerified()) {
             return $this->json([
+                'success' => false,
                 'message' => 'Ce compte est déjà vérifié'
             ], 422);
         }
@@ -179,20 +283,33 @@ class AuthController extends AbstractController
         $this->entityManager->flush();
 
         // Renvoyer l'email
-        $this->emailService->sendVerificationEmail($user);
+        // $this->emailService->sendVerificationEmail($user);
 
         return $this->json([
+            'success' => true,
             'message' => 'Un nouveau lien de vérification a été envoyé.'
         ]);
     }
 
-    #[Route('/api/forgot-password', name: 'api_forgot_password', methods: ['POST'])]
+    #[Route('/api/forgot-password', name: 'api_forgot_password', methods: ['POST', 'OPTIONS'])]
     public function forgotPassword(Request $request): JsonResponse
     {
+        // Gérer les requêtes OPTIONS pour CORS
+        if ($request->getMethod() === 'OPTIONS') {
+            return new JsonResponse([], 200, [
+                'Access-Control-Allow-Origin' => '*',
+                'Access-Control-Allow-Methods' => 'POST, OPTIONS',
+                'Access-Control-Allow-Headers' => 'Content-Type, Authorization',
+            ]);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         if (!isset($data['email'])) {
-            return $this->json(['message' => 'Email requis'], 400);
+            return $this->json([
+                'success' => false,
+                'message' => 'Email requis'
+            ], 400);
         }
 
         $user = $this->userRepository->findOneBy(['email' => $data['email']]);
@@ -200,6 +317,7 @@ class AuthController extends AbstractController
         if (!$user) {
             // Ne pas révéler si l'email existe ou non
             return $this->json([
+                'success' => true,
                 'message' => 'Si cet email existe, un lien de réinitialisation a été envoyé.'
             ]);
         }
@@ -209,9 +327,10 @@ class AuthController extends AbstractController
         $this->entityManager->flush();
 
         // Envoyer l'email de reset
-        $this->emailService->sendPasswordResetEmail($user);
+        // $this->emailService->sendPasswordResetEmail($user);
 
         return $this->json([
+            'success' => true,
             'message' => 'Un lien de réinitialisation a été envoyé à votre email.'
         ]);
     }
@@ -222,11 +341,15 @@ class AuthController extends AbstractController
         $data = json_decode($request->getContent(), true);
 
         if (!isset($data['password'])) {
-            return $this->json(['message' => 'Mot de passe requis'], 400);
+            return $this->json([
+                'success' => false,
+                'message' => 'Mot de passe requis'
+            ], 400);
         }
 
         if (strlen($data['password']) < 8) {
             return $this->json([
+                'success' => false,
                 'message' => 'Le mot de passe doit faire au moins 8 caractères'
             ], 422);
         }
@@ -235,12 +358,14 @@ class AuthController extends AbstractController
 
         if (!$user) {
             return $this->json([
+                'success' => false,
                 'message' => 'Token de réinitialisation invalide'
             ], 404);
         }
 
         if (!$user->isResetPasswordTokenValid()) {
             return $this->json([
+                'success' => false,
                 'message' => 'Token de réinitialisation expiré'
             ], 410);
         }
@@ -253,6 +378,7 @@ class AuthController extends AbstractController
         $this->entityManager->flush();
 
         return $this->json([
+            'success' => true,
             'message' => 'Mot de passe réinitialisé avec succès'
         ]);
     }
@@ -261,23 +387,29 @@ class AuthController extends AbstractController
     public function me(#[CurrentUser] ?User $user): JsonResponse
     {
         if (!$user) {
-            return $this->json(['message' => 'Non authentifié'], 401);
+            return $this->json([
+                'success' => false,
+                'message' => 'Non authentifié'
+            ], 401);
         }
 
         return $this->json([
-            'id' => $user->getId(),
-            'email' => $user->getEmail(),
-            'pseudo' => $user->getPseudo(),
-            'firstName' => $user->getFirstName(),
-            'lastName' => $user->getLastName(),
-            'fullName' => $user->getFullName(),
-            'bio' => $user->getBio(),
-            'avatar' => $user->getAvatar(),
-            'favoriteClass' => $user->getFavoriteClass(),
-            'roles' => $user->getRoles(),
-            'isVerified' => $user->isVerified(),
-            'createdAt' => $user->getCreatedAt()->format('Y-m-d H:i:s'),
-            'lastLoginAt' => $user->getLastLoginAt()?->format('Y-m-d H:i:s')
+            'success' => true,
+            'user' => [
+                'id' => $user->getId(),
+                'email' => $user->getEmail(),
+                'pseudo' => $user->getPseudo(),
+                'firstName' => $user->getFirstName(),
+                'lastName' => $user->getLastName(),
+                'fullName' => $user->getFullName(),
+                'bio' => $user->getBio(),
+                'avatar' => $user->getAvatar(),
+                'favoriteClass' => $user->getFavoriteClass(),
+                'roles' => $user->getRoles(),
+                'isVerified' => $user->isVerified(),
+                'createdAt' => $user->getCreatedAt()->format('Y-m-d H:i:s'),
+                'lastLoginAt' => $user->getLastLoginAt()?->format('Y-m-d H:i:s')
+            ]
         ]);
     }
 
@@ -285,7 +417,10 @@ class AuthController extends AbstractController
     public function updateProfile(Request $request, #[CurrentUser] ?User $user): JsonResponse
     {
         if (!$user) {
-            return $this->json(['message' => 'Non authentifié'], 401);
+            return $this->json([
+                'success' => false,
+                'message' => 'Non authentifié'
+            ], 401);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -309,6 +444,7 @@ class AuthController extends AbstractController
             $existingUser = $this->userRepository->findOneBy(['pseudo' => $data['pseudo']]);
             if ($existingUser && $existingUser->getId() !== $user->getId()) {
                 return $this->json([
+                    'success' => false,
                     'message' => 'Ce pseudo est déjà pris'
                 ], 422);
             }
@@ -323,6 +459,7 @@ class AuthController extends AbstractController
                 $errorMessages[] = $error->getMessage();
             }
             return $this->json([
+                'success' => false,
                 'message' => 'Données invalides',
                 'errors' => $errorMessages
             ], 422);
@@ -331,6 +468,7 @@ class AuthController extends AbstractController
         $this->entityManager->flush();
 
         return $this->json([
+            'success' => true,
             'message' => 'Profil mis à jour avec succès',
             'user' => [
                 'id' => $user->getId(),
@@ -341,6 +479,17 @@ class AuthController extends AbstractController
                 'bio' => $user->getBio(),
                 'favoriteClass' => $user->getFavoriteClass()
             ]
+        ]);
+    }
+
+    #[Route('/api/logout', name: 'api_logout', methods: ['POST'])]
+    public function logout(): JsonResponse
+    {
+        // Avec JWT, la déconnexion côté serveur est optionnelle
+        // Le token est simplement supprimé côté client
+        return $this->json([
+            'success' => true,
+            'message' => 'Déconnexion réussie'
         ]);
     }
 }

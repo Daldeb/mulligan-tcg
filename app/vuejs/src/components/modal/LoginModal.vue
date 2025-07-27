@@ -235,7 +235,7 @@
 import { ref, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/stores/auth' // 👈 Import du store
 
 const props = defineProps({
   modelValue: {
@@ -253,7 +253,7 @@ const emit = defineEmits(['update:modelValue', 'login-success', 'registration-su
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
-const authStore = useAuthStore()
+const authStore = useAuthStore() // 👈 Utilisation du store
 
 // State
 const isOpen = ref(props.modelValue)
@@ -304,6 +304,7 @@ const handleSubmit = async () => {
   }
 }
 
+// 👈 Méthodes utilisant le store Pinia
 const handleLogin = async () => {
   if (!formData.email || !formData.password) {
     toast.add({
@@ -329,7 +330,7 @@ const handleLogin = async () => {
         life: 3000
       })
       
-      emit('login-success', authStore.user)
+      emit('login-success', result.user)
       closeModal()
     } else {
       if (result.needsVerification) {
@@ -404,7 +405,7 @@ const handleRegister = async () => {
       
       verificationEmail.value = formData.email
       showVerificationStep.value = true
-      emit('registration-success', authStore.user)
+      emit('registration-success', result.user)
     } else {
       toast.add({
         severity: 'error',
@@ -494,11 +495,10 @@ const handleForgotPassword = async () => {
   }
 }
 
-// Watchers
+// Watchers (inchangés)
 watch(() => props.modelValue, (newVal) => {
   isOpen.value = newVal
   
-  // Bloquer/débloquer le scroll de la page
   if (newVal) {
     document.body.style.overflow = 'hidden'
   } else {
@@ -514,7 +514,6 @@ watch(isOpen, (newVal) => {
   if (!newVal) {
     resetForm()
     resetSteps()
-    // Remettre le scroll de la page
     document.body.style.overflow = ''
   }
 })
