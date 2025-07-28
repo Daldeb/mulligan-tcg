@@ -3,7 +3,7 @@ import axios from 'axios'
 
 // Configuration de base
 const api = axios.create({
-  baseURL: 'http://localhost:8000', // URL de votre backend Symfony
+  baseURL: import.meta.env.VITE_API_URL,  // URL de votre backend Symfony
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

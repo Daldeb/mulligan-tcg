@@ -15,10 +15,16 @@ app/symfony/var/
 *.bak
 
 # === ENV & SÉCURITÉ ===
+# Ignorer tous les .env globaux sauf ceux du frontend
 .env
 .env.local
 .env.production
 .env.dev
+
+# MAIS garder ceux du frontend
+!app/vuejs/.env
+!app/vuejs/.env.production
+
 *.pem
 *.key
 
@@ -28,7 +34,6 @@ app/symfony/config/jwt/private.pem
 app/symfony/config/jwt/public.pem
 
 app/vuejs/.env.local
-app/vuejs/.env.production
 
 # === IDEs & OS ===
 .vscode/
