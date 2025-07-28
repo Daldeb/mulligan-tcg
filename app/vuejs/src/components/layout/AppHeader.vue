@@ -84,7 +84,7 @@
       <div class="bg-gray-100 py-3">
         <div class="text-center">
           <h2 class="text-lg font-medium text-gray-700 tracking-wider">
-            NEWS ET ÉVÉNEMENTS
+            NEWS ET EVENTS
           </h2>
         </div>
       </div>
