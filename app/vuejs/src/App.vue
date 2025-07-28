@@ -1,8 +1,5 @@
 <template>
-  <div id="app" class="min-h-screen bg-gray-50">
-
-    <!-- 🔥 THIS IS THE NEW BUILD - VERSION 3 -->
-
+  <div id="app" class="min-h-screen bg-surface">
     <!-- Header principal -->
     <AppHeader @open-login="openLoginModal" />
     
@@ -53,41 +50,22 @@ authStore.checkAuthStatus()
 </script>
 
 <style>
-/* Styles globaux Material Design */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  line-height: 1.6;
-  color: #333;
-}
-
+/* Emerald va override ces styles, on garde juste l'essentiel */
 #app {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
 
-/* Classes utilitaires */
 .container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 2rem;
 }
 
-.section-placeholder {
-  background: #e0e0e0;
-  border-radius: 8px;
-  min-height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #666;
-  font-size: 1.2rem;
-  font-weight: 500;
+@media (max-width: 768px) {
+  .container {
+    padding: 0 1rem;
+  }
 }
 </style>

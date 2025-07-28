@@ -2,11 +2,15 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 
-// ✅ Thème CSS inclus dans primevue@3.45
+// ✅ Thème CSS PrimeVue
 import 'primevue/resources/themes/lara-light-indigo/theme.css'
 import 'primevue/resources/primevue.min.css'
 import 'primeicons/primeicons.css'
 
+// 🎨 Thème Emerald Gaming (priorité sur PrimeVue)
+import './assets/styles/emerald-theme.css'
+
+// Composants PrimeVue essentiels
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
@@ -25,7 +29,6 @@ import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
 import Message from 'primevue/message'
 
-import './assets/styles.css'
 import App from './App.vue'
 import router from './router'
 
@@ -36,6 +39,7 @@ app.use(createPinia())
 app.use(router)
 app.use(ToastService)
 
+// Enregistrement des composants
 app.component('Button', Button)
 app.component('InputText', InputText)
 app.component('Dialog', Dialog)
