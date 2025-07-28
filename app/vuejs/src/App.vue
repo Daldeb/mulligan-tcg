@@ -1,7 +1,7 @@
 <template>
   <div id="app" class="min-h-screen bg-gray-50">
 
-    <!-- 🔥 THIS IS THE NEW BUILD - VERSION 9000 -->
+    <!-- 🔥 THIS IS THE NEW BUILD - VERSION 3 -->
 
     <!-- Header principal -->
     <AppHeader @open-login="openLoginModal" />
