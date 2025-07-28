@@ -20,9 +20,10 @@ jobs:
         username: debian
         password: ${{ secrets.SERVER_PASSWORD }}
         script: |
-          echo "🔄 Pulling latest code..."
+          echo "🔄 Resetting local repo to match origin..."
           cd /opt/tcg-hub
-          git pull origin main
+          git fetch origin
+          git reset --hard origin/main
 
           echo "📦 Building frontend (Vue)..."
           cd app/vuejs
