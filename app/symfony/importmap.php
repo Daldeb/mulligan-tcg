@@ -16,13 +16,19 @@ return [
         'path' => './assets/app.js',
         'entrypoint' => true,
     ],
-    '@hotwired/stimulus' => [
-        'version' => '3.2.2',
+    'vue' => [
+        'version' => '3.5.18',
     ],
-    '@symfony/stimulus-bundle' => [
-        'path' => './vendor/symfony/stimulus-bundle/assets/dist/loader.js',
+    '@vue/runtime-dom' => [
+        'version' => '3.5.18',
     ],
-    '@hotwired/turbo' => [
-        'version' => '7.3.0',
+    '@vue/runtime-core' => [
+        'version' => '3.5.18',
+    ],
+    '@vue/shared' => [
+        'version' => '3.5.18',
+    ],
+    '@vue/reactivity' => [
+        'version' => '3.5.18',
     ],
 ];

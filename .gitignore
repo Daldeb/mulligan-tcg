@@ -2,47 +2,42 @@
 # MULLIGAN TCG - .gitignore
 # ======================
 
-# === INFRASTRUCTURE (à garder local) ===
-infrastructure/
-ops/
-docker/
-nginx/
-ssl/
-scripts/
-setup.sh
-monitoring/
-Makefile
-
 # === DEPENDENCIES ===
-node_modules/
-vendor/
-composer.lock
+**/node_modules/
+**/vendor/
 
-# === CACHE & BUILD ===
+# === BUILD & CACHE ===
 app/vuejs/dist/
 app/vuejs/.vite/
-app/vuejs/node_modules/
-app/symfony/var/cache/
-app/symfony/var/log/
-app/symfony/var/sessions/
+app/symfony/var/
+*.log
+*.tmp
+*.bak
 
-# === DÉVELOPPEMENT ===
+# === ENV & SÉCURITÉ ===
+.env
+.env.local
+.env.production
+.env.dev
+*.pem
+*.key
+
+app/symfony/.env.local
+app/symfony/.env.dev
+app/symfony/config/jwt/private.pem
+app/symfony/config/jwt/public.pem
+
+app/vuejs/.env.local
+app/vuejs/.env.production
+
+# === IDEs & OS ===
 .vscode/
 .idea/
 *.swp
 *.swo
 .DS_Store
-*.log
-*.tmp
-*.bak
 
-# === SÉCURITÉ ===
-*.pem
-*.key
-.env.local
-.env.production
-
-# === TEMPORARY ===
+# === TEMP FILES ===
 test-ssh.txt
 backup*.sql
 tmp/

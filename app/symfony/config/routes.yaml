@@ -3,6 +3,3 @@ controllers:
         path: ../src/Controller/
         namespace: App\Controller
     type: attribute
-
-lexik_jwt_authentication:
-    resource: routes/lexik_jwt_authentication.yaml

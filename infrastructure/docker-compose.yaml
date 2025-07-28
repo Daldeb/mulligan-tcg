@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: ./infrastructure/docker/php/Dockerfile
+    container_name: tcg_local_app
+    working_dir: /var/www/backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../app/symfony:/var/www/backend
+    environment:
+      - APP_ENV=dev
+      - DATABASE_URL=mysql://tcg_user:tcg_pass@mysql:3306/tcg_db
+    depends_on:
+      - mysql
+    networks:
+      - tcg_dev_network
+    command: php -S 0.0.0.0:8000 -t public 
+
+
+  mysql:
+    image: mysql:8.0
+    container_name: tcg_local_mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=tcg_db
+      - MYSQL_USER=tcg_user
+      - MYSQL_PASSWORD=tcg_pass
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - tcg_dev_network
+
+  adminer:
+    image: adminer
+    container_name: tcg_local_adminer
+    ports:
+      - "8081:8080"
+    depends_on:
+      - mysql
+    networks:
+      - tcg_dev_network
+
+volumes:
+  mysql_data:
+
+networks:
+  tcg_dev_network:
+    driver: bridge

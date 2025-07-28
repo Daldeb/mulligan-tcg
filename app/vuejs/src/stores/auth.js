@@ -1,231 +1,89 @@
-// stores/auth.js
+// stores/auth.js - Store Pinia pour l'authentification
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import axios from 'axios'
-
-const API_BASE = import.meta.env.VITE_API_URL
+import api from '../services/api'
 
 export const useAuthStore = defineStore('auth', () => {
-  // State
   const user = ref(null)
-  const token = ref(localStorage.getItem('token'))
+  const token = ref(localStorage.getItem('auth_token'))
   const isLoading = ref(false)
-  const registrationStep = ref(null) // 'pending-verification', 'verified', null
 
-  // Getters
-  const isAuthenticated = computed(() => !!token.value && !!user.value) // Skip isVerified pour le dev
-  const isRegistered = computed(() => !!user.value)
-  const userRoles = computed(() => user.value?.roles || [])
-  const isAdmin = computed(() => userRoles.value.includes('ROLE_ADMIN'))
-  const needsVerification = computed(() => user.value && !user.value.isVerified)
+  const isAuthenticated = computed(() => !!token.value && !!user.value)
 
-  // Configuration Axios par défaut
-  if (token.value) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-  }
-
-// Actions
-const register = async (userData) => {
-  isLoading.value = true
-  try {
-    const response = await axios.post(`${API_BASE}/register`, userData)
-    
-    if (response.data.success) {
-      // Connecter directement l'utilisateur (skip vérification email)
-      user.value = response.data.user
-      
-      return { 
-        success: true, 
-        message: 'Inscription et connexion réussies !',
-        autoLogin: true,  // Indique que l'user est connecté
-        user: response.data.user
-      }
-    }
-    
-    return {
-      success: false,
-      message: response.data.message
-    }
-  } catch (error) {
-    console.error('Erreur d\'inscription:', error)
-    return { 
-      success: false, 
-      message: error.response?.data?.message || 'Erreur lors de l\'inscription' 
-    }
-  } finally {
-    isLoading.value = false
-  }
-}
-
-  const login = async (credentials) => {
+  const login = async (email, password) => {
     isLoading.value = true
+
     try {
-      const response = await axios.post(`${API_BASE}/login`, credentials)
-      
-      // Ton API répond avec { success: true, user: {...}, message: "..." }
-      // Pas de token JWT pour l'instant
-      if (response.data.success) {
-        user.value = response.data.user
-        
-        // Gérer le token JWT reçu
-        const { token: newToken } = response.data
-        token.value = newToken
-        localStorage.setItem('token', newToken)
-        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
-        
-        return { success: true, user: response.data.user }
-      }
-      
-      return {
-        success: false,
-        message: response.data.message
+      const response = await api.post('/api/login', { email, password })
+
+      if (response.data.token) {
+        token.value = response.data.token
+        localStorage.setItem('auth_token', response.data.token)
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`
+
+        try {
+          const profileResponse = await api.get('/api/profile')
+          user.value = profileResponse.data
+        } catch (err) {
+          console.warn('⚠️ Impossible de récupérer le profil après login.')
+          user.value = null
+        }
+
+        return { success: true }
+      } else {
+        return { success: false, errors: ['Identifiants invalides'] }
       }
     } catch (error) {
       console.error('Erreur de connexion:', error)
-      
-      // Si l'erreur indique un compte non vérifié
-      if (error.response?.status === 403) {
-        return { 
-          success: false, 
-          message: 'Compte non vérifié. Vérifiez votre email.',
-          needsVerification: true
-        }
-      }
-      
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur de connexion' 
-      }
-    } finally {
-      isLoading.value = false
-    }
-  }
 
-  const fetchUser = async () => {
-    if (!token.value) return
-    
-    try {
-      const response = await axios.get(`${API_BASE}/me`)
-      user.value = response.data.user
-      
-      // Effacer l'état de registration si l'utilisateur est vérifié
-      if (user.value.isVerified) {
-        registrationStep.value = null
-      }
-    } catch (error) {
-      console.error('Erreur récupération utilisateur:', error)
-      // Si le token est invalide, déconnecter l'utilisateur
+      const msg = error.response?.data?.message || error.response?.data?.error
+
       if (error.response?.status === 401) {
-        logout()
-      }
-    }
-  }
-
-  const verifyEmail = async (token) => {
-    isLoading.value = true
-    try {
-      const response = await axios.get(`${API_BASE}/verify-email/${token}`)
-      
-      // Mettre à jour l'état de vérification
-      if (user.value) {
-        user.value.isVerified = true
-        registrationStep.value = 'verified'
-      }
-      
-      return { 
-        success: true, 
-        message: response.data.message 
-      }
-    } catch (error) {
-      console.error('Erreur vérification email:', error)
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors de la vérification' 
+        return { success: false, errors: ['Email ou mot de passe incorrect'] }
+      } else if (msg) {
+        return { success: false, errors: [msg] }
+      } else {
+        return { success: false, errors: ['Erreur serveur. Veuillez réessayer.'] }
       }
     } finally {
       isLoading.value = false
     }
   }
 
-  const resendVerification = async (email) => {
+  const register = async (userData) => {
     isLoading.value = true
-    try {
-      const response = await axios.post(`${API_BASE}/resend-verification`, { email })
-      
-      return { 
-        success: true, 
-        message: response.data.message 
-      }
-    } catch (error) {
-      console.error('Erreur renvoi vérification:', error)
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors du renvoi' 
-      }
-    } finally {
-      isLoading.value = false
-    }
-  }
 
-  const forgotPassword = async (email) => {
-    isLoading.value = true
     try {
-      const response = await axios.post(`${API_BASE}/forgot-password`, { email })
-      
-      return { 
-        success: true, 
-        message: response.data.message 
-      }
-    } catch (error) {
-      console.error('Erreur mot de passe oublié:', error)
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors de la demande' 
-      }
-    } finally {
-      isLoading.value = false
-    }
-  }
+      const response = await api.post('/api/register', userData)
 
-  const resetPassword = async (token, newPassword) => {
-    isLoading.value = true
-    try {
-      const response = await axios.post(`${API_BASE}/reset-password/${token}`, { 
-        password: newPassword 
-      })
-      
-      return { 
-        success: true, 
-        message: response.data.message 
-      }
-    } catch (error) {
-      console.error('Erreur réinitialisation:', error)
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors de la réinitialisation' 
-      }
-    } finally {
-      isLoading.value = false
-    }
-  }
+      if (response.data.token) {
+        token.value = response.data.token
+        localStorage.setItem('auth_token', response.data.token)
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`
 
-  const updateProfile = async (profileData) => {
-    isLoading.value = true
-    try {
-      const response = await axios.put(`${API_BASE}/profile`, profileData)
-      
-      // Mettre à jour les données utilisateur
-      user.value = { ...user.value, ...response.data.user }
-      
-      return { 
-        success: true, 
-        message: response.data.message 
+        try {
+          const profileResponse = await api.get('/api/profile')
+          user.value = profileResponse.data
+        } catch (err) {
+          console.warn('⚠️ Impossible de récupérer le profil après inscription.')
+          user.value = null
+        }
+
+        return { success: true }
+      } else {
+        return { success: false, errors: ['Erreur lors de l\'inscription'] }
       }
     } catch (error) {
-      console.error('Erreur mise à jour profil:', error)
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erreur lors de la mise à jour' 
+      console.error('Erreur d\'inscription:', error)
+
+      const msg = error.response?.data?.message || error.response?.data?.error
+
+      if (error.response?.status === 409) {
+        return { success: false, errors: ['Email ou nom d\'utilisateur déjà utilisé'] }
+      } else if (error.response?.status === 400 && msg) {
+        return { success: false, errors: [msg] }
+      } else {
+        return { success: false, errors: ['Erreur d\'inscription. Veuillez réessayer.'] }
       }
     } finally {
       isLoading.value = false
@@ -235,51 +93,46 @@ const register = async (userData) => {
   const logout = () => {
     user.value = null
     token.value = null
-    registrationStep.value = null
-    localStorage.removeItem('token')
-    delete axios.defaults.headers.common['Authorization']
+    localStorage.removeItem('auth_token')
+    delete api.defaults.headers.common['Authorization']
   }
 
-  const clearRegistrationState = () => {
-    registrationStep.value = null
-    if (user.value && !user.value.isVerified) {
-      user.value = null
+  const checkAuthStatus = async () => {
+    if (!token.value) return
+
+    try {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+      const response = await api.get('/api/profile')
+      user.value = response.data
+    } catch (error) {
+      console.error('Token invalide:', error)
+      logout()
     }
   }
 
-  // Initialisation - récupérer l'utilisateur si token présent
-  const initialize = async () => {
-    if (token.value) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-      await fetchUser()
+  const updateProfile = async (profileData) => {
+    try {
+      const response = await api.put('/api/profile', profileData)
+      user.value = { ...user.value, ...response.data }
+      return { success: true }
+    } catch (error) {
+      console.error('Erreur de mise à jour du profil:', error)
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Erreur de mise à jour'
+      }
     }
   }
 
   return {
-    // State
     user,
     token,
     isLoading,
-    registrationStep,
-    
-    // Getters
     isAuthenticated,
-    isRegistered,
-    userRoles,
-    isAdmin,
-    needsVerification,
-    
-    // Actions
-    register,
     login,
+    register,
     logout,
-    fetchUser,
-    verifyEmail,
-    resendVerification,
-    forgotPassword,
-    resetPassword,
-    updateProfile,
-    clearRegistrationState,
-    initialize
+    checkAuthStatus,
+    updateProfile
   }
 })

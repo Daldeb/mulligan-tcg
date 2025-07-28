@@ -1,7 +1,6 @@
 security:
     password_hashers:
-        App\Entity\User:
-            algorithm: auto
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
 
     providers:
         app_user_provider:
@@ -13,24 +12,37 @@ security:
         dev:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
-        
-        # Routes publiques (sans authentification)
-        api_public:
-            pattern: ^/api/(register|login|verify-email|forgot-password|resend-verification)
+
+        login:
+            pattern: ^/api/login
             stateless: true
-            security: false
-        
-        # Routes protégées (avec JWT)
+            json_login:
+                check_path: /api/login
+                username_path: email
+                password_path: password
+                success_handler: lexik_jwt_authentication.handler.authentication_success
+                failure_handler: lexik_jwt_authentication.handler.authentication_failure
+
         api:
             pattern: ^/api
             stateless: true
             jwt: ~
+            provider: app_user_provider
 
         main:
             lazy: true
+            provider: app_user_provider
 
     access_control:
-        # Routes publiques
-        - { path: ^/api/(register|login|verify-email|forgot-password|resend-verification), roles: PUBLIC_ACCESS }
-        # Routes protégées
+        - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/register, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
+
+when@test:
+    security:
+        password_hashers:
+            Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface:
+                algorithm: auto
+                cost: 4 # bcrypt
+                time_cost: 3 # argon
+                memory_cost: 10 # argon

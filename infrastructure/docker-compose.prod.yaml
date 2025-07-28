@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: tcg_prod_nginx
+    ports:
+      - "80:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/sites:/etc/nginx/conf.d:ro
+      - ./app/symfony:/var/www/backend:ro
+      - ./app/vuejs/dist:/var/www/frontend:ro
+    depends_on:
+      - app
+    networks:
+      - tcg_prod_network
+
+  app:
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+    container_name: tcg_prod_app
+    working_dir: /var/www/backend
+    ports: 
+      - "2223:22"
+    volumes:
+      - ./app/vuejs/dist:/var/www/frontend
+      - ./app/symfony:/var/www/backend
+    environment:
+      - APP_ENV=prod
+      - DATABASE_URL=mysql://tcg_prod_user:tcg_prod_password@mysql:3306/tcg_prod_db
+      - REDIS_URL=redis://redis:6379
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=tcg_prod_db
+      - MYSQL_USER=tcg_prod_user
+      - MYSQL_PASSWORD=tcg_prod_password
+      - JWT_SECRET_KEY=your-jwt-secret-key-change-this
+      - MESSENGER_TRANSPORT_DSN=sync://
+      - CORS_ALLOW_ORIGIN=http://localhost,https://51.178.27.41
+      - VUE_APP_API_URL=http://51.178.27.41/api
+      - MAILER_DSN=smtp://localhost:25
+      - DEBUG=false
+      - JWT_PASSPHRASE=prodSecretPassphrase
+      - LOG_LEVEL=info
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tcg_prod_network
+  mysql:
+    image: mysql:8.0
+    container_name: tcg_prod_mysql
+    ports:
+      - "3309:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=tcg_prod_db
+      - MYSQL_USER=tcg_prod_user
+      - MYSQL_PASSWORD=tcg_prod_password
+    volumes:
+      - mysql_prod_data:/var/lib/mysql
+    networks:
+      tcg_prod_network:
+        aliases:
+          - mysql
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "tcg_prod_user", "-ptcg_prod_password"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: tcg_prod_redis
+    ports:
+      - "6382:6379"
+    volumes:
+      - redis_prod_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - tcg_prod_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_prod_data:
+  redis_prod_data:
+
+networks:
+  tcg_prod_network:
+    driver: bridge

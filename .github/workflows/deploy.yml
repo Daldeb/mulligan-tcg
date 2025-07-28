@@ -10,66 +10,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 📥 Checkout code
+    - name: 📥 Checkout repository
       uses: actions/checkout@v4
 
-    - name: 🚀 Deploy to server
+    - name: 🚀 SSH & Deploy to Server
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: 51.178.27.41
+        host: ${{ secrets.SERVER_IP }}
         username: debian
         password: ${{ secrets.SERVER_PASSWORD }}
         script: |
-          echo "🔄 Starting deployment..."
+          echo "🔄 Pulling latest code..."
           cd /opt/tcg-hub
-          
-          echo "📥 Pulling latest changes..."
           git pull origin main
 
-          echo "🧹 Removing legacy .env file (if any)..."
-          rm -f app/symfony/.env
-
-          echo "🔧 Creating fresh .env.local..."
-          cat > app/symfony/.env.local << 'EOF'
-          APP_ENV=prod
-          DATABASE_URL=mysql://tcg_prod_user:tcg_prod_password@tcg_prod_mysql:3306/tcg_prod_db
-          MYSQL_USER=tcg_prod_user
-          MYSQL_PASSWORD=tcg_prod_password
-          MYSQL_DATABASE=tcg_prod_db
-          MYSQL_ROOT_PASSWORD=root_password
-          REDIS_URL=redis://redis:6379
-          JWT_SECRET_KEY=your-jwt-secret-key-change-this
-          MESSENGER_TRANSPORT_DSN=sync://
-          CORS_ALLOW_ORIGIN=https://51.178.27.41
-          VUE_APP_API_URL=http://51.178.27.41/api
-          MAILER_DSN=smtp://localhost:25
-          DEBUG=false
-          LOG_LEVEL=info
-          EOF
-
-          echo "📦 Building frontend Vue.js..."
+          echo "📦 Building frontend (Vue)..."
           cd app/vuejs
           npm install
           npm run build
-          cd ../..
+          cd ../../
 
-          echo "📁 Copying frontend build to container..."
-          docker cp app/vuejs/dist/ tcg_prod_app:/var/www/frontend/
+          echo "🐳 Rebuilding Docker stack..."
+          docker compose -f docker-compose.prod.yaml down
+          docker compose -f docker-compose.prod.yaml up -d --build
 
-          echo "🔄 Installing Symfony dependencies..."
-          docker exec tcg_prod_app bash -c "cd /var/www/backend && composer install --no-dev --optimize-autoloader"
-
-          echo "🗃️ Running database migrations..."
-          docker exec tcg_prod_app bash -c "cd /var/www/backend && php bin/console doctrine:migrations:migrate --no-interaction"
+          echo "📁 Installing Symfony dependencies..."
+          docker exec tcg_prod_app composer install --no-dev --optimize-autoloader
 
           echo "🧹 Clearing Symfony cache..."
-          docker exec tcg_prod_app bash -c "cd /var/www/backend && php bin/console cache:clear --env=prod"
+          docker exec tcg_prod_app php bin/console cache:clear --env=prod
 
-          echo "🔍 Health check..."
-          curl -f http://localhost/ || echo "Health check failed but continuing..."
+          echo "🗃️ Running Doctrine migrations..."
+          docker exec tcg_prod_app php bin/console doctrine:migrations:migrate --no-interaction
 
-          echo "📊 Database migration status..."
-          docker exec tcg_prod_app bash -c "cd /var/www/backend && php bin/console doctrine:migrations:status"
-
-          echo "✅ Deployment completed successfully!"
-          echo "🌐 Site available at: http://51.178.27.41"
+          echo "✅ Deployed successfully!"

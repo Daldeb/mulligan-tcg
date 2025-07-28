@@ -1,0 +1,34 @@
+{
+    "app": {
+        "path": "\/assets\/app-u5j6WHP.js",
+        "type": "js"
+    },
+    "\/assets\/css\/app.css": {
+        "path": "\/assets\/css\/app-pHTDzFV.css",
+        "type": "css"
+    },
+    "\/assets\/js\/components\/App.js": {
+        "path": "\/assets\/js\/components\/App-fbtYVD0.js",
+        "type": "js"
+    },
+    "vue": {
+        "path": "\/assets\/vendor\/vue\/vue.index-CuobA1z.js",
+        "type": "js"
+    },
+    "@vue\/runtime-dom": {
+        "path": "\/assets\/vendor\/@vue\/runtime-dom\/runtime-dom.index-8DyjXNG.js",
+        "type": "js"
+    },
+    "@vue\/runtime-core": {
+        "path": "\/assets\/vendor\/@vue\/runtime-core\/runtime-core.index-uwmawrd.js",
+        "type": "js"
+    },
+    "@vue\/shared": {
+        "path": "\/assets\/vendor\/@vue\/shared\/shared.index-iste2pb.js",
+        "type": "js"
+    },
+    "@vue\/reactivity": {
+        "path": "\/assets\/vendor\/@vue\/reactivity\/reactivity.index-wADzGho.js",
+        "type": "js"
+    }
+}
