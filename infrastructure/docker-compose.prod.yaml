@@ -45,17 +45,17 @@ services:
       - JWT_PASSPHRASE=
       - LOG_LEVEL=info
     depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - mysql
+      - redis
     networks:
       - tcg_prod_network
+
   mysql:
     image: mysql:8.0
     container_name: tcg_prod_mysql
     ports:
       - "3309:3306"
+    restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=root_password
       - MYSQL_DATABASE=tcg_prod_db
@@ -79,6 +79,7 @@ services:
     container_name: tcg_prod_redis
     ports:
       - "6382:6379"
+    restart: always
     volumes:
       - redis_prod_data:/data
     command: redis-server --appendonly yes

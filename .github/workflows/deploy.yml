@@ -1,58 +1,49 @@
-name: 🚀 Deploy to Production
+- name: 🚀 SSH & Deploy to Server
+  uses: appleboy/ssh-action@v1.0.3
+  with:
+    host: ${{ secrets.SERVER_IP }}
+    username: debian
+    password: ${{ secrets.SERVER_PASSWORD }}
+    script: |
+      echo "🔄 Resetting local repo to match origin..."
+      cd /opt/tcg-hub
+      git fetch origin
+      git reset --hard origin/main
 
-on:
-  push:
-    branches: [ main ]
+      echo "📦 Building frontend (Vue)..."
+      cd app/vuejs
+      npm install
+      npm run build
+      cd ../../
 
-jobs:
-  deploy:
-    name: Deploy to OVH Server
-    runs-on: ubuntu-latest
+      echo "💾 Sauvegarde de la base de données MySQL..."
+      mkdir -p /opt/tcg-hub/backups
+      NOW=$(date +"%Y%m%d_%H%M%S")
+      BACKUP_FILE="/opt/tcg-hub/backups/mysql_backup_$NOW.sql"
+      docker exec tcg_prod_mysql mysqldump -u tcg_prod_user -ptcg_prod_password tcg_prod_db > "$BACKUP_FILE"
 
-    steps:
-    - name: 📥 Checkout repository
-      uses: actions/checkout@v4
+      echo "🧹 Nettoyage des anciens backups (garder les 15 derniers)..."
+      ls -1t /opt/tcg-hub/backups/mysql_backup_*.sql | tail -n +16 | xargs -r rm -f
 
-    - name: 🚀 SSH & Deploy to Server
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SERVER_IP }}
-        username: debian
-        password: ${{ secrets.SERVER_PASSWORD }}
-        script: |
-          echo "🔄 Resetting local repo to match origin..."
-          cd /opt/tcg-hub
-          git fetch origin
-          git reset --hard origin/main
+      echo "🧹 Cleaning containers but keeping data..."
+      docker compose -f infrastructure/docker-compose.prod.yaml down --remove-orphans
 
-          echo "📦 Building frontend (Vue)..."
-          cd app/vuejs
-          npm install
-          npm run build
-          cd ../../
+      echo "🐳 Rebuilding Docker stack..."
+      docker compose -f infrastructure/docker-compose.prod.yaml up -d --build --force-recreate
 
-          echo "🧹 Cleaning containers but keeping data..."
-          docker compose -f infrastructure/docker-compose.prod.yaml down --remove-orphans
+      echo "⏳ Waiting for all services to be ready..."
+      sleep 5
 
-          echo "🐳 Rebuilding Docker stack..."
-          docker compose -f infrastructure/docker-compose.prod.yaml up -d --build --force-recreate
+      echo "🔍 Ensuring all services are running..."
+      docker compose -f infrastructure/docker-compose.prod.yaml up -d
 
-          echo "⏳ Waiting for all services to be ready..."
-          sleep 30
+      echo "📁 Installing Symfony dependencies..."
+      docker exec tcg_prod_app composer install --no-dev --optimize-autoloader
 
-          echo "🔍 Ensuring all services are running..."
-          docker compose -f infrastructure/docker-compose.prod.yaml up -d
+      echo "🧹 Clearing Symfony cache..."
+      docker exec tcg_prod_app php bin/console cache:clear --env=prod
 
-          echo "🏥 Checking service health..."
-          docker ps --format "table {{.Names}}\t{{.Status}}"
+      echo "🗃️ Running Doctrine migrations..."
+      docker exec tcg_prod_app php bin/console doctrine:migrations:migrate --no-interaction || echo "Migration failed, but continuing..."
 
-          echo "📁 Installing Symfony dependencies..."
-          docker exec tcg_prod_app composer install --no-dev --optimize-autoloader
-
-          echo "🧹 Clearing Symfony cache..."
-          docker exec tcg_prod_app php bin/console cache:clear --env=prod
-
-          echo "🗃️ Running Doctrine migrations..."
-          docker exec tcg_prod_app php bin/console doctrine:migrations:migrate --no-interaction || echo "Migration failed, but continuing..."
-
-          echo "✅ Deployed successfully!"
+      echo "✅ Deployed successfully!"

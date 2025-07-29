@@ -185,3 +185,65 @@ Le projet est maintenant :
 * Multi-environnement, multi-machine, avec une stratégie de dev claire et durable
 
 Bon dev 🚀
+
+
+
+
+
+
+
+
+# 🔍 MONITORING POST-DÉPLOIEMENT
+
+# =====================================
+# 1. État général des containers
+# =====================================
+echo "📊 État des containers prod :"
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep tcg_prod
+
+# =====================================
+# 2. Santé des services critiques
+# =====================================
+echo "🏥 Santé MySQL :"
+docker exec tcg_prod_mysql mysql -u tcg_prod_user -ptcg_prod_password -e "SELECT 'MySQL OK' as status;" tcg_prod_db
+
+echo "🔗 Test connectivité App → MySQL :"
+docker exec tcg_prod_app php bin/console doctrine:query:sql "SELECT COUNT(*) as user_count FROM user"
+
+# =====================================
+# 3. Test JWT fonctionnel
+# =====================================
+echo "🔐 Test génération JWT :"
+docker exec tcg_prod_app php bin/console lexik:jwt:generate-token $(docker exec tcg_prod_mysql mysql -u tcg_prod_user -ptcg_prod_password -se "SELECT email FROM user LIMIT 1;" tcg_prod_db 2>/dev/null | tail -1 || echo "test@example.com")
+
+# =====================================
+# 4. Réseaux Docker
+# =====================================
+echo "🌐 Réseaux utilisés :"
+docker network ls | grep -E "(tcg|infra)"
+
+echo "🔌 Containers sur le réseau prod :"
+docker network inspect infrastructure_tcg_prod_network --format '{{range .Containers}}{{.Name}} {{end}}'
+
+# =====================================
+# 5. Volumes et persistance
+# =====================================
+echo "💾 Volumes de données :"
+docker volume ls | grep -E "(mysql|redis).*prod"
+
+# =====================================
+# 6. Test site web
+# =====================================
+echo "🌐 Test site web :"
+curl -s -o /dev/null -w "Status: %{http_code}\n" http://51.178.27.41
+
+echo "🔍 Test API register (sans données) :"
+curl -s -o /dev/null -w "API Status: %{http_code}\n" -X POST http://51.178.27.41/api/register
+
+# =====================================
+# 7. Logs récents si problème
+# =====================================
+echo "📋 Logs récents de l'app (si erreur) :"
+docker logs tcg_prod_app --tail=10 --since=2m
+
+echo "✅ Monitoring terminé !"
