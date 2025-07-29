@@ -41,6 +41,12 @@ jobs:
             ls -1t /opt/tcg-hub/backups/mysql_backup_*.sql | tail -n +16 | xargs -r rm -f
 
             echo "🧹 Cleaning containers but keeping data..."
+
+            echo "🧹 Nettoyage dur des containers orphelins..."
+            docker rm -f tcg_prod_app || true
+            docker rm -f tcg_prod_mysql || true
+            docker rm -f tcg_prod_redis || true
+
             docker compose -f infrastructure/docker-compose.prod.yaml down --remove-orphans
 
             echo "🐳 Rebuilding Docker stack..."
