@@ -11,10 +11,32 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Attribute\AsController;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
 #[AsController]
 class AuthController extends AbstractController
 {
+    #[Route('/api/login', name: 'api_login', methods: ['POST'])]
+    public function login(
+        #[CurrentUser] ?User $user,
+        JWTTokenManagerInterface $jwtManager
+    ): JsonResponse {
+        if (null === $user) {
+            return $this->json(['error' => 'Invalid credentials'], 401);
+        }
+
+        $token = $jwtManager->create($user);
+
+        return $this->json([
+            'token' => $token,
+            'user' => [
+                'id' => $user->getId(),
+                'email' => $user->getEmail(),
+                'pseudo' => $user->getPseudo(),
+            ]
+        ]);
+    }
+
     #[Route('/api/register', name: 'api_register', methods: ['POST'])]
     public function register(
         Request $request,
