@@ -83,7 +83,7 @@
 
       <!-- Section NEWS ET ÉVÉNEMENTS -->
       <div class="news-section">
-        <h2 class="news-title">NEWS ET EVENTS</h2>
+        <h2 class="news-title">NEWS ET EVENEMENTS</h2>
       </div>
 
       <!-- Navigation principale -->
