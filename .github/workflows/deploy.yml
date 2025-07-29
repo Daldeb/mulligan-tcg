@@ -40,17 +40,23 @@ jobs:
             echo "🧹 Nettoyage des anciens backups (garder les 15 derniers)..."
             ls -1t /opt/tcg-hub/backups/mysql_backup_*.sql | tail -n +16 | xargs -r rm -f
 
-            echo "🧹 Cleaning containers but keeping data..."
-
             echo "🧹 Nettoyage dur des containers orphelins..."
             docker rm -f tcg_prod_app || true
             docker rm -f tcg_prod_mysql || true
             docker rm -f tcg_prod_redis || true
+            docker rm -f tcg_prod_nginx || true
 
+            echo "📉 Stopping and removing containers (but keeping data)..."
             docker compose -f infrastructure/docker-compose.prod.yaml down --remove-orphans
 
             echo "🐳 Rebuilding Docker stack..."
             docker compose -f infrastructure/docker-compose.prod.yaml up -d --build --force-recreate
+
+            echo "🚀 Forcer le démarrage des containers en état 'Created'..."
+            docker start tcg_prod_mysql || true
+            docker start tcg_prod_redis || true
+            docker start tcg_prod_app || true
+            docker start tcg_prod_nginx || true
 
             echo "⏳ Waiting for all services to be ready..."
             sleep 5
