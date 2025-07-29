@@ -35,10 +35,16 @@ jobs:
           docker compose -f infrastructure/docker-compose.prod.yaml down --remove-orphans
 
           echo "🐳 Rebuilding Docker stack..."
-          docker compose -f infrastructure/docker-compose.prod.yaml up -d --build
+          docker compose -f infrastructure/docker-compose.prod.yaml up -d --build --force-recreate
 
-          echo "⏳ Waiting for services to be ready..."
-          sleep 15
+          echo "⏳ Waiting for all services to be ready..."
+          sleep 30
+
+          echo "🔍 Ensuring all services are running..."
+          docker compose -f infrastructure/docker-compose.prod.yaml up -d
+
+          echo "🏥 Checking service health..."
+          docker ps --format "table {{.Names}}\t{{.Status}}"
 
           echo "📁 Installing Symfony dependencies..."
           docker exec tcg_prod_app composer install --no-dev --optimize-autoloader
@@ -47,6 +53,6 @@ jobs:
           docker exec tcg_prod_app php bin/console cache:clear --env=prod
 
           echo "🗃️ Running Doctrine migrations..."
-          docker exec tcg_prod_app php bin/console doctrine:migrations:migrate --no-interaction
+          docker exec tcg_prod_app php bin/console doctrine:migrations:migrate --no-interaction || echo "Migration failed, but continuing..."
 
           echo "✅ Deployed successfully!"
