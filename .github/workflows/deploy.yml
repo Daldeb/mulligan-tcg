@@ -22,6 +22,8 @@ jobs:
           script: |
             echo "🔄 Resetting local repo to match origin..."
             cd /opt/tcg-hub
+            sudo chown -R debian:debian /opt/tcg-hub
+            chmod -R u+w /opt/tcg-hub
             git fetch origin
             git reset --hard origin/main
 
@@ -48,6 +50,7 @@ jobs:
             docker rm -f tcg_prod_mysql || true
             docker rm -f tcg_prod_redis || true
             docker rm -f tcg_prod_nginx || true
+            docker rm -f tcg_prod_adminer || true
 
             echo "📉 Stopping and removing containers (but keeping data)..."
             docker compose -f docker-compose.prod.yaml down --remove-orphans
@@ -60,6 +63,7 @@ jobs:
             docker start tcg_prod_redis || true
             docker start tcg_prod_app || true
             docker start tcg_prod_nginx || true
+            docker start tcg_prod_adminer || true
 
             echo "⏳ Waiting for all services to be ready..."
             sleep 5
