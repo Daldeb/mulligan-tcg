@@ -12,6 +12,10 @@ RUN chmod +x /usr/local/bin/wait-for-mysql.sh
 
 WORKDIR /var/www/backend
 
+RUN chown -R www-data:www-data /var/www/backend/config/jwt \
+ && chmod 640 /var/www/backend/config/jwt/private.pem \
+ && chmod 644 /var/www/backend/config/jwt/public.pem
+
 # EntryPoint pour attendre MySQL avant démarrage
 ENTRYPOINT ["wait-for-mysql.sh"]
 CMD ["php-fpm"]
