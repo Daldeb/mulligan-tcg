@@ -40,6 +40,9 @@ jobs:
             echo "🧹 Nettoyage des anciens backups (garder les 15 derniers)..."
             ls -1t /opt/tcg-hub/backups/mysql_backup_*.sql | tail -n +16 | xargs -r rm -f
 
+            echo "📄 Copie de docker-compose.prod.yaml à la racine..."
+            cp infrastructure/docker-compose.prod.yaml docker-compose.prod.yaml
+
             echo "🧹 Nettoyage dur des containers orphelins..."
             docker rm -f tcg_prod_app || true
             docker rm -f tcg_prod_mysql || true
@@ -47,10 +50,10 @@ jobs:
             docker rm -f tcg_prod_nginx || true
 
             echo "📉 Stopping and removing containers (but keeping data)..."
-            docker compose -f infrastructure/docker-compose.prod.yaml down --remove-orphans
+            docker compose -f docker-compose.prod.yaml down --remove-orphans
 
             echo "🐳 Rebuilding Docker stack..."
-            docker compose -f infrastructure/docker-compose.prod.yaml up -d --build --force-recreate
+            docker compose -f docker-compose.prod.yaml up -d --build --force-recreate
 
             echo "🚀 Forcer le démarrage des containers en état 'Created'..."
             docker start tcg_prod_mysql || true
@@ -62,7 +65,7 @@ jobs:
             sleep 5
 
             echo "🔍 Ensuring all services are running..."
-            docker compose -f infrastructure/docker-compose.prod.yaml up -d
+            docker compose -f docker-compose.prod.yaml up -d
 
             echo "📁 Installing Symfony dependencies..."
             docker exec tcg_prod_app composer install --no-dev --optimize-autoloader
