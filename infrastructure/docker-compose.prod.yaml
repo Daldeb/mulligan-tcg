@@ -90,6 +90,14 @@ services:
       timeout: 10s
       retries: 3
 
+  adminer:
+    image: adminer
+    container_name: tcg_prod_adminer
+    ports:
+      - "8084:8080"
+    networks:
+      - tcg_prod_network
+
 volumes:
   mysql_prod_data:
   redis_prod_data:
