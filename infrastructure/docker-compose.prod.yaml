@@ -36,13 +36,13 @@ services:
       - MYSQL_DATABASE=tcg_prod_db
       - MYSQL_USER=tcg_prod_user
       - MYSQL_PASSWORD=tcg_prod_password
-      - JWT_SECRET_KEY=your-jwt-secret-key-change-this
+      - JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem
       - MESSENGER_TRANSPORT_DSN=sync://
       - CORS_ALLOW_ORIGIN=http://localhost,https://51.178.27.41
       - VUE_APP_API_URL=http://51.178.27.41/api
       - MAILER_DSN=smtp://localhost:25
       - DEBUG=false
-      - JWT_PASSPHRASE=prodSecretPassphrase
+      - JWT_PASSPHRASE=
       - LOG_LEVEL=info
     depends_on:
       mysql:
