@@ -86,4 +86,8 @@ jobs:
            docker exec tcg_prod_app chmod 600 /var/www/backend/config/jwt/private.pem
            docker exec tcg_prod_app chmod 644 /var/www/backend/config/jwt/public.pem
 
+           echo "📁 Setting uploads directory permissions..."
+           docker exec tcg_prod_app chown -R www-data:www-data /var/www/backend/public/uploads/
+           docker exec tcg_prod_app chmod -R 755 /var/www/backend/public/uploads/
+
            echo "✅ Deployed successfully!"
