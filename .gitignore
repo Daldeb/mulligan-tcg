@@ -51,5 +51,7 @@ temp/
 # === UPLOADS ===
 # Ignorer le contenu des uploads mais garder la structure
 app/symfony/public/uploads/*
+!app/symfony/public/uploads/.gitkeep
 !app/symfony/public/uploads/avatars/
 app/symfony/public/uploads/avatars/*
+!app/symfony/public/uploads/avatars/.gitkeep
