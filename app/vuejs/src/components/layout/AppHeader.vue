@@ -266,7 +266,9 @@ const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
 
 // 🆕 Méthodes notifications
 const toggleNotifications = () => {
+  console.log('Toggle notifications clicked, current state:', showNotifications.value)
   showNotifications.value = !showNotifications.value
+  console.log('New state:', showNotifications.value)
 }
 
 const closeNotifications = () => {
@@ -280,7 +282,7 @@ const handleMarkAllAsRead = async () => {
 
 const goToNotifications = () => {
   showNotifications.value = false
-  router.push('/notifications') // Page future pour toutes les notifications
+  router.push('/profile') 
 }
 
 // Methods existantes
@@ -303,7 +305,14 @@ const handleLogout = () => {
 const vClickOutside = {
   mounted(el, binding) {
     el.clickOutsideEvent = (event) => {
-      if (!(el === event.target || el.contains(event.target))) {
+      // Récupérer l'élément bouton notifications
+      const notificationButton = el.parentElement.querySelector('.notifications-button')
+      
+      // Vérifier si le clic est sur le dropdown, le bouton, ou leurs enfants
+      const isClickOnDropdown = el === event.target || el.contains(event.target)
+      const isClickOnButton = notificationButton && (notificationButton === event.target || notificationButton.contains(event.target))
+      
+      if (!isClickOnDropdown && !isClickOnButton) {
         binding.value()
       }
     }
