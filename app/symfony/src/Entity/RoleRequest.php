@@ -67,12 +67,25 @@ class RoleRequest
     #[ORM\Column(type: 'string', length: 100, nullable: true)]
     private ?string $siretNumber = null;
 
+    // 🆕 NOUVELLES COLONNES POUR VÉRIFICATION AUTOMATIQUE
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $sirenData = null;
+
+    #[ORM\Column(type: 'integer', nullable: true)]
+    private ?int $verificationScore = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $verificationDate = null;
+
+    #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    private ?string $googlePlaceId = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    // Getters and Setters
+    // Getters and Setters existants
 
     public function getId(): ?int
     {
@@ -227,6 +240,54 @@ class RoleRequest
         return $this;
     }
 
+    // 🆕 GETTERS/SETTERS POUR NOUVELLES COLONNES
+
+    public function getSirenData(): ?array
+    {
+        return $this->sirenData;
+    }
+
+    public function setSirenData(?array $sirenData): static
+    {
+        $this->sirenData = $sirenData;
+        return $this;
+    }
+
+    public function getVerificationScore(): ?int
+    {
+        return $this->verificationScore;
+    }
+
+    public function setVerificationScore(?int $verificationScore): static
+    {
+        $this->verificationScore = $verificationScore;
+        return $this;
+    }
+
+    public function getVerificationDate(): ?\DateTimeImmutable
+    {
+        return $this->verificationDate;
+    }
+
+    public function setVerificationDate(?\DateTimeImmutable $verificationDate): static
+    {
+        $this->verificationDate = $verificationDate;
+        return $this;
+    }
+
+    public function getGooglePlaceId(): ?string
+    {
+        return $this->googlePlaceId;
+    }
+
+    public function setGooglePlaceId(?string $googlePlaceId): static
+    {
+        $this->googlePlaceId = $googlePlaceId;
+        return $this;
+    }
+
+    // Méthodes utilitaires existantes
+
     public function isPending(): bool
     {
         return $this->status === self::STATUS_PENDING;
@@ -277,8 +338,48 @@ class RoleRequest
         };
     }
 
+    // 🆕 NOUVELLES MÉTHODES UTILITAIRES
+
     /**
-     * Validation spécifique des données boutique
+     * Vérifie si les données de vérification sont récentes (< 7 jours)
+     */
+    public function hasRecentVerification(): bool
+    {
+        if (!$this->verificationDate) {
+            return false;
+        }
+
+        $weekAgo = new \DateTimeImmutable('-7 days');
+        return $this->verificationDate > $weekAgo;
+    }
+
+    /**
+     * Retourne le niveau de confiance basé sur le score
+     */
+    public function getConfidenceLevel(): string
+    {
+        if ($this->verificationScore === null) {
+            return 'unknown';
+        }
+
+        return match(true) {
+            $this->verificationScore >= 80 => 'high',
+            $this->verificationScore >= 60 => 'medium',
+            $this->verificationScore >= 40 => 'low',
+            default => 'very_low'
+        };
+    }
+
+    /**
+     * Vérifie si une nouvelle vérification est nécessaire
+     */
+    public function needsVerification(): bool
+    {
+        return !$this->hasRecentVerification() && $this->requestedRole === self::ROLE_SHOP;
+    }
+
+    /**
+     * Validation spécifique des données boutique (mise à jour avec SIRET Luhn)
      */
     public function validateShopData(): array
     {
@@ -291,8 +392,15 @@ class RoleRequest
             
             if (!$this->siretNumber) {
                 $errors['siretNumber'] = 'Le numéro SIRET est obligatoire';
-            } elseif (!preg_match('/^\d{14}$/', str_replace(' ', '', $this->siretNumber))) {
-                $errors['siretNumber'] = 'Le SIRET doit contenir exactement 14 chiffres';
+            } else {
+                // Validation SIRET améliorée
+                $cleanSiret = str_replace([' ', '-', '.'], '', $this->siretNumber);
+                
+                if (!preg_match('/^\d{14}$/', $cleanSiret)) {
+                    $errors['siretNumber'] = 'Le SIRET doit contenir exactement 14 chiffres';
+                } elseif (!$this->validateSiretLuhn($cleanSiret)) {
+                    $errors['siretNumber'] = 'Le numéro SIRET est invalide (clé de contrôle incorrecte)';
+                }
             }
             
             if (!$this->shopPhone) {
@@ -307,5 +415,38 @@ class RoleRequest
         }
         
         return $errors;
+    }
+
+    /**
+     * Validation SIRET avec algorithme de Luhn officiel français
+     */
+    private function validateSiretLuhn(string $siret): bool
+    {
+        if (strlen($siret) !== 14) {
+            return false;
+        }
+
+        $sum = 0;
+        $length = strlen($siret);
+
+        // Parcourir de droite à gauche
+        for ($i = $length - 1; $i >= 0; $i--) {
+            $digit = (int) $siret[$i];
+            $position = $length - $i; // Position depuis la droite (1, 2, 3, ...)
+            
+            // Multiplier par 2 les chiffres en position PAIRE (2, 4, 6, ...) depuis la droite
+            if ($position % 2 === 0) {
+                $digit *= 2;
+                
+                // Si résultat > 9, soustraire 9 (équivalent à additionner les chiffres)
+                if ($digit > 9) {
+                    $digit -= 9;
+                }
+            }
+            
+            $sum += $digit;
+        }
+
+        return $sum % 10 === 0;
     }
 }
