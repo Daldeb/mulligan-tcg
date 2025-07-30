@@ -54,8 +54,9 @@ class RoleRequest
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
     private ?string $shopName = null;
 
-    #[ORM\Column(type: 'string', length: 255, nullable: true)]
-    private ?string $shopAddress = null;
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Address $shopAddress = null;
 
     #[ORM\Column(type: 'string', length: 50, nullable: true)]
     private ?string $shopPhone = null;
@@ -177,15 +178,20 @@ class RoleRequest
         return $this;
     }
 
-    public function getShopAddress(): ?string
+    public function getShopAddress(): ?Address
     {
         return $this->shopAddress;
     }
 
-    public function setShopAddress(?string $shopAddress): static
+    public function setShopAddress(?Address $shopAddress): static
     {
         $this->shopAddress = $shopAddress;
         return $this;
+    }
+
+    public function getShopAddressString(): ?string
+    {
+        return $this->shopAddress?->getFullAddress();
     }
 
     public function getShopPhone(): ?string
@@ -269,5 +275,37 @@ class RoleRequest
             self::STATUS_REJECTED => 'Refusée',
             default => 'Inconnu'
         };
+    }
+
+    /**
+     * Validation spécifique des données boutique
+     */
+    public function validateShopData(): array
+    {
+        $errors = [];
+        
+        if ($this->requestedRole === self::ROLE_SHOP) {
+            if (!$this->shopName) {
+                $errors['shopName'] = 'Le nom de la boutique est obligatoire';
+            }
+            
+            if (!$this->siretNumber) {
+                $errors['siretNumber'] = 'Le numéro SIRET est obligatoire';
+            } elseif (!preg_match('/^\d{14}$/', str_replace(' ', '', $this->siretNumber))) {
+                $errors['siretNumber'] = 'Le SIRET doit contenir exactement 14 chiffres';
+            }
+            
+            if (!$this->shopPhone) {
+                $errors['shopPhone'] = 'Le téléphone est obligatoire';
+            } elseif (!preg_match('/^(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]*\d{2}){4}$/', $this->shopPhone)) {
+                $errors['shopPhone'] = 'Numéro de téléphone français invalide';
+            }
+            
+            if (!$this->shopAddress) {
+                $errors['shopAddress'] = 'L\'adresse de la boutique est obligatoire';
+            }
+        }
+        
+        return $errors;
     }
 }

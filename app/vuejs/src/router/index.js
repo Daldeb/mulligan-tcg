@@ -1,4 +1,4 @@
-// router/index.js - Version avec Profile
+// router/index.js - Version avec Profile et guard async
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '../stores/auth'
@@ -79,18 +79,37 @@ const router = createRouter({
   }
 })
 
-// Guard pour les routes qui nécessitent une authentification
-router.beforeEach((to, from, next) => {
+// Guard async pour les routes qui nécessitent une authentification
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   
-  // Vérifier si la route nécessite une authentification
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    // Rediriger vers l'accueil et déclencher l'ouverture de la modal de connexion
-    // Tu peux aussi stocker la route de destination pour rediriger après login
-    next({ name: 'home' })
-  } else {
-    next()
+  // Si la route nécessite une auth
+  if (to.meta.requiresAuth) {
+    // Si pas de token du tout, rediriger
+    if (!authStore.token) {
+      next({ name: 'home' })
+      return
+    }
+    
+    // Si token mais pas d'user, attendre la vérification
+    if (authStore.token && !authStore.user) {
+      try {
+        await authStore.checkAuthStatus()
+      } catch (error) {
+        console.error('Erreur vérification auth:', error)
+        next({ name: 'home' })
+        return
+      }
+    }
+    
+    // Vérifier à nouveau après checkAuthStatus
+    if (!authStore.isAuthenticated) {
+      next({ name: 'home' })
+      return
+    }
   }
+  
+  next()
 })
 
 export default router

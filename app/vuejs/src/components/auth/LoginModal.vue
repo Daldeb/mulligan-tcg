@@ -204,6 +204,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from 'primevue/usetoast'
+import { useRouter } from 'vue-router'
 
 // Props
 const props = defineProps({ visible: Boolean })
@@ -213,6 +214,7 @@ const emit = defineEmits(['update:visible', 'login-success'])
 const isLoginMode = ref(true)
 const tabIndex = ref(0)
 const isLoading = ref(false)
+const router = useRouter()
 
 // Password visibility
 const showLoginPassword = ref(false)
@@ -307,6 +309,8 @@ const handleLogin = async () => {
       toast.add({ severity: 'success', summary: 'Connexion réussie', detail: `Bienvenue`, life: 3000 })
       emit('login-success')
       resetForms()
+      // Redirection vers /profile
+      router.push('/profile')
     } else {
       loginGlobalErrors.value = res.errors || ['Erreur de connexion']
     }
@@ -331,6 +335,8 @@ const handleRegister = async () => {
       toast.add({ severity: 'success', summary: 'Inscription réussie', detail: `Bienvenue`, life: 3000 })
       emit('login-success')
       resetForms()
+      // Redirection vers /profile
+      router.push('/profile')
     } else {
       registerGlobalErrors.value = res.errors || ['Erreur d\'inscription']
     }

@@ -28,16 +28,28 @@ import ToastService from 'primevue/toastservice'
 import TabView from 'primevue/tabview'
 import TabPanel from 'primevue/tabpanel'
 import Message from 'primevue/message'
+import Textarea from 'primevue/textarea'
+import Tooltip from 'primevue/tooltip'
 
 import App from './App.vue'
 import router from './router'
 
 const app = createApp(App)
+const pinia = createPinia()
 
 app.use(PrimeVue)
-app.use(createPinia())
+app.use(pinia)
 app.use(router)
 app.use(ToastService)
+
+// ✅ Initialisation du store auth après création de Pinia
+const { useAuthStore } = await import('./stores/auth')
+const authStore = useAuthStore()
+
+// Si un token existe, recharger les données utilisateur
+if (authStore.token) {
+  await authStore.checkAuthStatus()
+}
 
 // Enregistrement des composants
 app.component('Button', Button)
@@ -56,5 +68,9 @@ app.component('Toast', Toast)
 app.component('TabView', TabView)
 app.component('TabPanel', TabPanel)
 app.component('Message', Message)
+app.component('Textarea', Textarea)
+
+// Enregistrement des directives 
+app.directive('tooltip', Tooltip)
 
 app.mount('#app')

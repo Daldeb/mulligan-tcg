@@ -4,8 +4,11 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Entity\RoleRequest;
+use App\Entity\Address;
 use App\Repository\RoleRequestRepository;
+use App\Repository\AddressRepository;
 use App\Service\FileUploadService;
+use App\Service\AddressService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,7 +26,9 @@ class ProfileController extends AbstractController
         private ValidatorInterface $validator,
         private UserPasswordHasherInterface $passwordHasher,
         private FileUploadService $fileUploadService,
-        private RoleRequestRepository $roleRequestRepository
+        private RoleRequestRepository $roleRequestRepository,
+        private AddressRepository $addressRepository,
+        private AddressService $addressService
     ) {}
 
     #[Route('/api/profile', name: 'api_profile', methods: ['GET'])]
@@ -36,6 +41,23 @@ class ProfileController extends AbstractController
         // Récupérer les demandes de rôle de l'utilisateur
         $roleRequests = $this->roleRequestRepository->findByUser($user);
 
+        // Sérialiser l'adresse utilisateur si elle existe
+        $userAddress = null;
+        if ($user->getAddress()) {
+            $address = $user->getAddress();
+            $userAddress = [
+                'id' => $address->getId(),
+                'streetAddress' => $address->getStreetAddress(),
+                'city' => $address->getCity(),
+                'postalCode' => $address->getPostalCode(),
+                'country' => $address->getCountry(),
+                'fullAddress' => $address->getFullAddress(),
+                'latitude' => $address->getLatitude(),
+                'longitude' => $address->getLongitude(),
+                'hasCoordinates' => $address->hasCoordinates()
+            ];
+        }
+
         return $this->json([
             'id' => $user->getId(),
             'email' => $user->getUserIdentifier(),
@@ -47,16 +69,38 @@ class ProfileController extends AbstractController
             'favoriteClass' => $user->getFavoriteClass(),
             'roles' => $user->getRoles(),
             'isVerified' => $user->isVerified(),
+            'address' => $userAddress,
             'createdAt' => $user->getCreatedAt()?->format('c'),
             'lastLoginAt' => $user->getLastLoginAt()?->format('c'),
-            'roleRequests' => array_map(fn($request) => [
-                'id' => $request->getId(),
-                'requestedRole' => $request->getRequestedRole(),
-                'status' => $request->getStatus(),
-                'createdAt' => $request->getCreatedAt()->format('c'),
-                'reviewedAt' => $request->getReviewedAt()?->format('c'),
-                'adminResponse' => $request->getAdminResponse()
-            ], $roleRequests)
+            'roleRequests' => array_map(function($request) {
+                $shopAddress = null;
+                if ($request->getShopAddress()) {
+                    $address = $request->getShopAddress();
+                    $shopAddress = [
+                        'id' => $address->getId(),
+                        'streetAddress' => $address->getStreetAddress(),
+                        'city' => $address->getCity(),
+                        'postalCode' => $address->getPostalCode(),
+                        'country' => $address->getCountry(),
+                        'fullAddress' => $address->getFullAddress()
+                    ];
+                }
+
+                return [
+                    'id' => $request->getId(),
+                    'requestedRole' => $request->getRequestedRole(),
+                    'status' => $request->getStatus(),
+                    'message' => $request->getMessage(),
+                    'shopName' => $request->getShopName(),
+                    'shopAddress' => $shopAddress,
+                    'shopPhone' => $request->getShopPhone(),
+                    'shopWebsite' => $request->getShopWebsite(),
+                    'siretNumber' => $request->getSiretNumber(),
+                    'createdAt' => $request->getCreatedAt()->format('c'),
+                    'reviewedAt' => $request->getReviewedAt()?->format('c'),
+                    'adminResponse' => $request->getAdminResponse()
+                ];
+            }, $roleRequests)
         ]);
     }
 
@@ -68,7 +112,7 @@ class ProfileController extends AbstractController
         $user = $this->getUser();
         $data = json_decode($request->getContent(), true);
 
-        // Mise à jour des champs autorisés
+        // Mise à jour des champs de profil classiques
         if (isset($data['pseudo'])) {
             $user->setPseudo($data['pseudo']);
         }
@@ -89,7 +133,50 @@ class ProfileController extends AbstractController
             $user->setFavoriteClass($data['favoriteClass']);
         }
 
-        // Validation
+        // Gestion de l'adresse utilisateur (optionnelle)
+        if (isset($data['address'])) {
+            $addressData = $data['address'];
+            
+            // Si adresse fournie et complète
+            if (!empty($addressData['streetAddress']) && !empty($addressData['city']) && !empty($addressData['postalCode'])) {
+                
+                // Validation de l'adresse via AddressService
+                $addressErrors = $this->addressService->validateFrenchAddress(
+                    $addressData['streetAddress'],
+                    $addressData['city'],
+                    $addressData['postalCode']
+                );
+
+                if (!empty($addressErrors)) {
+                    return $this->json([
+                        'error' => 'Adresse invalide',
+                        'addressErrors' => $addressErrors
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+
+                // Rechercher ou créer l'adresse
+                $address = $this->addressRepository->findOrCreateSimilar(
+                    $addressData['streetAddress'],
+                    $addressData['city'],
+                    $addressData['postalCode'],
+                    $addressData['country'] ?? 'France'
+                );
+
+                // Enrichir avec coordonnées si nécessaire
+                if (!$address->hasCoordinates()) {
+                    $this->addressService->enrichAddressWithCoordinates($address);
+                }
+
+                // Associer l'adresse à l'utilisateur
+                $user->setAddress($address);
+                
+            } elseif (isset($addressData['remove']) && $addressData['remove'] === true) {
+                // Supprimer l'adresse utilisateur
+                $user->setAddress(null);
+            }
+        }
+
+        // Validation du user mis à jour
         $errors = $this->validator->validate($user);
         if (count($errors) > 0) {
             $errorMessages = [];
@@ -102,6 +189,23 @@ class ProfileController extends AbstractController
         try {
             $this->entityManager->flush();
             
+            // Sérialiser l'adresse mise à jour
+            $userAddress = null;
+            if ($user->getAddress()) {
+                $address = $user->getAddress();
+                $userAddress = [
+                    'id' => $address->getId(),
+                    'streetAddress' => $address->getStreetAddress(),
+                    'city' => $address->getCity(),
+                    'postalCode' => $address->getPostalCode(),
+                    'country' => $address->getCountry(),
+                    'fullAddress' => $address->getFullAddress(),
+                    'latitude' => $address->getLatitude(),
+                    'longitude' => $address->getLongitude(),
+                    'hasCoordinates' => $address->hasCoordinates()
+                ];
+            }
+            
             return $this->json([
                 'message' => 'Profil mis à jour avec succès',
                 'user' => [
@@ -110,7 +214,8 @@ class ProfileController extends AbstractController
                     'firstName' => $user->getFirstName(),
                     'lastName' => $user->getLastName(),
                     'bio' => $user->getBio(),
-                    'favoriteClass' => $user->getFavoriteClass()
+                    'favoriteClass' => $user->getFavoriteClass(),
+                    'address' => $userAddress
                 ]
             ]);
         } catch (\Exception $e) {
@@ -212,13 +317,52 @@ class ProfileController extends AbstractController
         // Informations spécifiques aux boutiques
         if ($data['role'] === RoleRequest::ROLE_SHOP) {
             $roleRequest->setShopName($data['shopName'] ?? null);
-            $roleRequest->setShopAddress($data['shopAddress'] ?? null);
             $roleRequest->setShopPhone($data['shopPhone'] ?? null);
             $roleRequest->setShopWebsite($data['shopWebsite'] ?? null);
             $roleRequest->setSiretNumber($data['siretNumber'] ?? null);
+
+            // Gestion de l'adresse boutique (OBLIGATOIRE pour les boutiques)
+            if (!isset($data['shopAddress']) || empty($data['shopAddress']['streetAddress']) || 
+                empty($data['shopAddress']['city']) || empty($data['shopAddress']['postalCode'])) {
+                return $this->json([
+                    'error' => 'Adresse boutique obligatoire',
+                    'details' => ['Une adresse complète est requise pour les demandes de rôle boutique']
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $shopAddressData = $data['shopAddress'];
+            
+            // Validation de l'adresse boutique
+            $addressErrors = $this->addressService->validateFrenchAddress(
+                $shopAddressData['streetAddress'],
+                $shopAddressData['city'],
+                $shopAddressData['postalCode']
+            );
+
+            if (!empty($addressErrors)) {
+                return $this->json([
+                    'error' => 'Adresse boutique invalide',
+                    'addressErrors' => $addressErrors
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Rechercher ou créer l'adresse boutique
+            $shopAddress = $this->addressRepository->findOrCreateSimilar(
+                $shopAddressData['streetAddress'],
+                $shopAddressData['city'],
+                $shopAddressData['postalCode'],
+                $shopAddressData['country'] ?? 'France'
+            );
+
+            // Enrichir avec coordonnées si nécessaire
+            if (!$shopAddress->hasCoordinates()) {
+                $this->addressService->enrichAddressWithCoordinates($shopAddress);
+            }
+
+            $roleRequest->setShopAddress($shopAddress);
         }
 
-        // Validation
+        // Validation de la demande complète
         $errors = $this->validator->validate($roleRequest);
         if (count($errors) > 0) {
             $errorMessages = [];
@@ -232,12 +376,28 @@ class ProfileController extends AbstractController
             $this->entityManager->persist($roleRequest);
             $this->entityManager->flush();
 
+            // Sérialiser l'adresse boutique si présente
+            $shopAddress = null;
+            if ($roleRequest->getShopAddress()) {
+                $address = $roleRequest->getShopAddress();
+                $shopAddress = [
+                    'id' => $address->getId(),
+                    'streetAddress' => $address->getStreetAddress(),
+                    'city' => $address->getCity(),
+                    'postalCode' => $address->getPostalCode(),
+                    'country' => $address->getCountry(),
+                    'fullAddress' => $address->getFullAddress()
+                ];
+            }
+
             return $this->json([
                 'message' => 'Demande de rôle envoyée avec succès',
                 'request' => [
                     'id' => $roleRequest->getId(),
                     'requestedRole' => $roleRequest->getRequestedRole(),
                     'status' => $roleRequest->getStatus(),
+                    'shopName' => $roleRequest->getShopName(),
+                    'shopAddress' => $shopAddress,
                     'createdAt' => $roleRequest->getCreatedAt()->format('c')
                 ]
             ], Response::HTTP_CREATED);
@@ -254,16 +414,37 @@ class ProfileController extends AbstractController
         $user = $this->getUser();
         $requests = $this->roleRequestRepository->findByUser($user);
 
-        return $this->json(array_map(fn($request) => [
-            'id' => $request->getId(),
-            'requestedRole' => $request->getRequestedRole(),
-            'status' => $request->getStatus(),
-            'message' => $request->getMessage(),
-            'adminResponse' => $request->getAdminResponse(),
-            'createdAt' => $request->getCreatedAt()->format('c'),
-            'reviewedAt' => $request->getReviewedAt()?->format('c'),
-            'shopName' => $request->getShopName(),
-            'shopAddress' => $request->getShopAddress()
-        ], $requests));
+        return $this->json(array_map(function($request) {
+            $shopAddress = null;
+            if ($request->getShopAddress()) {
+                $address = $request->getShopAddress();
+                $shopAddress = [
+                    'id' => $address->getId(),
+                    'streetAddress' => $address->getStreetAddress(),
+                    'city' => $address->getCity(),
+                    'postalCode' => $address->getPostalCode(),
+                    'country' => $address->getCountry(),
+                    'fullAddress' => $address->getFullAddress(),
+                    'latitude' => $address->getLatitude(),
+                    'longitude' => $address->getLongitude(),
+                    'hasCoordinates' => $address->hasCoordinates()
+                ];
+            }
+
+            return [
+                'id' => $request->getId(),
+                'requestedRole' => $request->getRequestedRole(),
+                'status' => $request->getStatus(),
+                'message' => $request->getMessage(),
+                'adminResponse' => $request->getAdminResponse(),
+                'createdAt' => $request->getCreatedAt()->format('c'),
+                'reviewedAt' => $request->getReviewedAt()?->format('c'),
+                'shopName' => $request->getShopName(),
+                'shopAddress' => $shopAddress,
+                'shopPhone' => $request->getShopPhone(),
+                'shopWebsite' => $request->getShopWebsite(),
+                'siretNumber' => $request->getSiretNumber()
+            ];
+        }, $requests));
     }
 }

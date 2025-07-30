@@ -37,7 +37,7 @@
     --border-radius-small: 4px;
     --border-radius-large: 16px;
 
-    --header-height: 300px;
+    --header-height: 200px;
   }
   
   /* Reset & Base */
@@ -300,6 +300,132 @@
     body {
       padding-top: 120px; /* Header plus compact sur mobile */
     }
+  }
+
+  /* === CORRECTIONS BOUTONS PRIMEVUE === */
+
+  /* Boutons avec severity success/danger */
+  .p-button.p-button-success {
+    background: #22c55e !important;
+    border-color: #22c55e !important;
+    color: white !important;
+  }
+
+  .p-button.p-button-success:hover {
+    background: #16a34a !important;
+    border-color: #16a34a !important;
+    color: white !important;
+    transform: translateY(-1px) !important;
+  }
+
+  .p-button.p-button-danger {
+    background: #ef4444 !important;
+    border-color: #ef4444 !important;
+    color: white !important;
+  }
+
+  .p-button.p-button-danger:hover {
+    background: #dc2626 !important;
+    border-color: #dc2626 !important;
+    color: white !important;
+    transform: translateY(-1px) !important;
+  }
+
+  /* Correction boutons emerald-btn (boutons pleins verts) */
+  .emerald-btn,
+  .p-button.emerald-btn {
+    background: var(--emerald-gradient) !important;
+    border: none !important;
+    color: white !important;
+    opacity: 1 !important;
+  }
+
+  .emerald-btn:hover,
+  .p-button.emerald-btn:hover {
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary)) !important;
+    color: white !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3) !important;
+  }
+
+  .emerald-btn:not(:disabled):not(.p-button-loading),
+  .p-button.emerald-btn:not(:disabled):not(.p-button-loading) {
+    background: var(--emerald-gradient) !important;
+    color: white !important;
+    opacity: 1 !important;
+  }
+
+  /* Boutons emerald dans les modals - Version basique qui marche */
+  .emerald-button.primary,
+  .p-button.emerald-button.primary,
+  button.p-button.p-component.emerald-button.primary {
+    background: var(--primary) !important;
+    border: 2px solid var(--primary) !important;
+    color: white !important;
+    opacity: 1 !important;
+  }
+
+  .emerald-button.primary:hover,
+  .p-button.emerald-button.primary:hover,
+  button.p-button.p-component.emerald-button.primary:hover {
+    background: var(--primary-dark) !important;
+    border-color: var(--primary-dark) !important;
+    color: white !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3) !important;
+  }
+
+  /* Force le texte blanc */
+  .emerald-button.primary *,
+  .p-button.emerald-button.primary * {
+    color: white !important;
+  }
+
+  /* Correction générale pour tous les boutons emerald */
+  [class*="emerald-button"] {
+    opacity: 1 !important;
+  }
+
+  /* Override PrimeVue default button styles */
+  .p-button:not([class*="p-button-"]):not(.p-button-outlined):not(.p-button-text) {
+    opacity: 1 !important;
+  }
+
+  /* Bouton outline rouge pour annuler */
+  .emerald-outline-btn.cancel,
+  .p-button.emerald-outline-btn.cancel {
+    background: transparent !important;
+    border: 2px solid #ef4444 !important;
+    color: #ef4444 !important;
+  }
+
+  .emerald-outline-btn.cancel:hover,
+  .p-button.emerald-outline-btn.cancel:hover {
+    background: #ef4444 !important;
+    border-color: #ef4444 !important;
+    color: white !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+  }
+
+  .emerald-outline-btn.cancel *,
+  .p-button.emerald-outline-btn.cancel * {
+    color: #ef4444 !important;
+  }
+
+  .emerald-outline-btn.cancel:hover *,
+  .p-button.emerald-outline-btn.cancel:hover * {
+    color: white !important;
+  }
+
+  /* États disabled et loading */
+  .p-button:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+  }
+
+  .p-button.p-button-loading {
+    pointer-events: none !important;
   }
   
   /* Dark mode support (désactivé pour l'instant) */

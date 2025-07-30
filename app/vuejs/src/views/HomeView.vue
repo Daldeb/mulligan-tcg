@@ -45,11 +45,11 @@
                         <span class="tournament-date">Prochain tournoi dans</span>
                         <span class="countdown">3 jours</span>
                       </div>
-                      <Button 
-                        icon="pi pi-play" 
-                        label="S'inscrire maintenant"
-                        class="emerald-btn pulse-emerald"
-                      />
+                    <Button 
+                      label="Voir tous les résultats"
+                      icon="pi pi-external-link"
+                      class="emerald-outline-btn"
+                    />
                     </div>
                   </div>
                 </div>

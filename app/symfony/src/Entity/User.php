@@ -81,6 +81,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $lastLoginAt = null;
 
+    /**
+     * Adresse de l'utilisateur (optionnelle)
+     */
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(name: 'address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Address $address = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -302,6 +309,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->lastLoginAt = $lastLoginAt;
         return $this;
+    }
+
+    /**
+     * Gestion de l'adresse utilisateur
+     */
+    public function getAddress(): ?Address
+    {
+        return $this->address;
+    }
+
+    public function setAddress(?Address $address): static
+    {
+        $this->address = $address;
+        return $this;
+    }
+
+    public function hasAddress(): bool
+    {
+        return $this->address !== null;
     }
 
     public function generateVerificationToken(): void

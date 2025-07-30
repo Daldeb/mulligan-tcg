@@ -75,7 +75,6 @@
                       </div>
                     </div>
                   </div>
-                  
                   <!-- Actions rapides -->
                   <div class="quick-actions">
                     <Button 
@@ -83,12 +82,6 @@
                       label="Modifier profil"
                       class="emerald-outline-btn"
                       @click="editMode = !editMode"
-                    />
-                    <Button 
-                      icon="pi pi-sign-out"
-                      class="logout-btn"
-                      @click="handleLogout"
-                      v-tooltip="'Se déconnecter'"
                     />
                   </div>
                 </div>
@@ -165,19 +158,44 @@
                     />
                   </div>
                   
+                  <!-- 🆕 ADRESSE UTILISATEUR (OPTIONNELLE) -->
+                  <div class="address-section">
+                    <h4 class="section-title">
+                      <i class="pi pi-map-marker"></i>
+                      Adresse personnelle
+                    </h4>
+                    <p class="section-description">
+                      Renseignez votre adresse pour faciliter vos futures demandes de rôles boutique
+                    </p>
+                    
+                    <AddressAutocomplete
+                      ref="profileAddressRef"
+                      v-model="editForm.address"
+                      mode="detailed"
+                      label="Mon adresse"
+                      placeholder="Rechercher votre adresse..."
+                      field-id="profile-address"
+                      :required="false"
+                      :allow-remove="true"
+                      @address-validated="handleAddressValidated"
+                      @address-removed="handleAddressRemoved"
+                      @validation-error="handleAddressError"
+                    />
+                  </div>
+                  
                   <div class="form-actions">
                     <Button 
                       type="submit"
                       label="Sauvegarder"
                       icon="pi pi-check"
-                      class="emerald-btn"
+                      class="emerald-button primary"
                       :loading="isLoading"
                     />
                     <Button 
                       type="button"
                       label="Annuler"
                       icon="pi pi-times"
-                      class="emerald-outline-btn"
+                      class="emerald-outline-btn cancel"
                       @click="cancelEdit"
                     />
                   </div>
@@ -190,97 +208,377 @@
           <section class="role-request-section slide-in-up">
             <Card class="gaming-card role-card">
               <template #header>
-                <div class="card-header-custom role-header">
+                <div class="card-header-custom role-header" @click="toggleRoleSection">
                   <i class="pi pi-users header-icon"></i>
                   <h3 class="header-title">Gestion des rôles</h3>
+                  <Button 
+                    :icon="isRoleSectionExpanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+                    class="collapse-btn"
+                    @click.stop="toggleRoleSection"
+                  />
                 </div>
               </template>
-              <template #content>
+              <template #content v-if="isRoleSectionExpanded">
                 <div class="role-content">
-                  <div class="current-role">
-                    <h4 class="role-section-title">Rôle actuel</h4>
-                    <div class="current-role-display">
-                      <span :class="['role-badge', 'large', userRole]">
-                        <i :class="getRoleIcon(userRole)"></i>
-                        {{ getRoleLabel(userRole) }}
-                      </span>
-                      <p class="role-description">
-                        {{ getRoleDescription(userRole) }}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div v-if="userRole === 'user'" class="role-upgrade">
-                    <h4 class="role-section-title">Demander un nouveau rôle</h4>
-                    <div class="role-options">
-                      
-                      <!-- Option Organisateur -->
-                      <div class="role-option">
-                        <div class="role-option-header">
-                          <span class="role-badge organizer">
-                            <i class="pi pi-calendar"></i>
-                            Organisateur
-                          </span>
-                          <span class="role-benefits">Organiser des tournois et événements</span>
-                        </div>
-                        <p class="role-option-description">
-                          Créez et gérez des tournois, organisez des événements communautaires, 
-                          et animez la scène TCG locale.
-                        </p>
-                        <Button 
-                          label="Demander le rôle"
-                          icon="pi pi-calendar"
-                          class="emerald-outline-btn role-request-btn"
-                          @click="requestRole('organizer')"
-                          :disabled="hasRequestPending('organizer')"
-                        />
-                      </div>
-                      
-                      <!-- Option Boutique -->
-                      <div class="role-option">
-                        <div class="role-option-header">
-                          <span class="role-badge shop">
-                            <i class="pi pi-shop"></i>
-                            Boutique
-                          </span>
-                          <span class="role-benefits">Vendre des produits et organiser des événements</span>
-                        </div>
-                        <p class="role-option-description">
-                          Gérez votre boutique physique, vendez des produits, organisez des tournois 
-                          et événements dans votre établissement.
-                        </p>
-                        <Button 
-                          label="Demander le rôle"
-                          icon="pi pi-shop"
-                          class="emerald-outline-btn role-request-btn"
-                          @click="requestRole('shop')"
-                          :disabled="hasRequestPending('shop')"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- Demandes en cours -->
-                  <div v-if="roleRequests.length > 0" class="pending-requests">
-                    <h4 class="role-section-title">Demandes en cours</h4>
-                    <div class="request-list">
-                      <div 
-                        v-for="request in roleRequests" 
-                        :key="request.id"
-                        class="request-item"
-                      >
-                        <div class="request-info">
-                          <span :class="['role-badge', getRoleClassFromString(request.requestedRole)]">
-                            <i :class="getRoleIcon(getRoleClassFromString(request.requestedRole))"></i>
-                            {{ getRoleLabel(getRoleClassFromString(request.requestedRole)) }}
-                          </span>
-                          <span class="request-date">
-                            Demandé le {{ formatDate(request.createdAt) }}
-                          </span>
-                        </div>
-                        <span :class="['request-status', request.status]">
-                          {{ getStatusLabel(request.status) }}
+                  <!-- Interface ADMIN -->
+                  <div v-if="userRole === 'admin'" class="admin-role-management">
+                    <div class="current-role">
+                      <h4 class="role-section-title">Rôle actuel</h4>
+                      <div class="current-role-display">
+                        <span :class="['role-badge', 'large', userRole]">
+                          <i :class="getRoleIcon(userRole)"></i>
+                          {{ getRoleLabel(userRole) }}
                         </span>
+                        <p class="role-description">
+                          {{ getRoleDescription(userRole) }}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <!-- Interface de gestion des demandes pour admin -->
+                    <div class="admin-requests-section">
+                      <h4 class="role-section-title">Demandes de rôles en attente</h4>
+                      <p class="admin-info">Gérez les demandes de rôles des utilisateurs de la plateforme.</p>
+                        <div v-if="adminRequests.length === 0" class="empty-admin-requests">
+                          <i class="pi pi-inbox empty-icon"></i>
+                          <p>Aucune demande de rôle en attente</p>
+                        </div>
+
+                        <div v-else class="admin-requests-list">
+                          <div 
+                            v-for="request in adminRequests" 
+                            :key="request.id"
+                            class="admin-request-item"
+                          >
+                            <div class="request-user-info">
+                              <h5>{{ request.user.pseudo }}</h5>
+                              <span class="user-email">{{ request.user.email }}</span>
+                            </div>
+                            
+                            <div class="request-details">
+                              <span :class="['role-badge', getRoleClassFromString(request.requestedRole)]">
+                                {{ getRoleLabel(getRoleClassFromString(request.requestedRole)) }}
+                              </span>
+                              <p class="request-message">{{ request.message }}</p>
+                              <span class="request-date">{{ formatDate(request.createdAt) }}</span>
+                            </div>
+                            
+                            <div class="admin-actions">
+                              <Button 
+                                label="Approuver"
+                                icon="pi pi-check"
+                                class="emerald-btn small"
+                                severity="success"
+                              />
+                              <Button 
+                                label="Rejeter"
+                                icon="pi pi-times"
+                                class="p-button-danger small"
+                                severity="danger"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Interface UTILISATEUR NORMAL -->
+                  <div v-else class="user-role-management">
+                    <div class="current-role">
+                      <h4 class="role-section-title">Rôle actuel</h4>
+                      <div class="current-role-display">
+                        <span :class="['role-badge', 'large', userRole]">
+                          <i :class="getRoleIcon(userRole)"></i>
+                          {{ getRoleLabel(userRole) }}
+                        </span>
+                        <p class="role-description">
+                          {{ getRoleDescription(userRole) }}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div v-if="userRole === 'user'" class="role-upgrade">
+                      <!-- ÉTAT INITIAL : Choix du rôle -->
+                      <div v-if="!roleRequestMode">
+                        <h4 class="role-section-title">Demander un nouveau rôle</h4>
+                        <div class="role-options">
+                          
+                          <!-- Option Organisateur -->
+                          <div class="role-option">
+                            <div class="role-option-header">
+                              <span class="role-badge organizer">
+                                <i class="pi pi-calendar"></i>
+                                Organisateur
+                              </span>
+                              <span class="role-benefits">Organiser des tournois et événements</span>
+                            </div>
+                            <p class="role-option-description">
+                              Créez et gérez des tournois, organisez des événements communautaires, 
+                              et animez la scène TCG locale.
+                            </p>
+                            <Button 
+                              label="Demander le rôle"
+                              icon="pi pi-calendar"
+                              class="emerald-outline-btn role-request-btn"
+                              @click="startRoleRequest('organizer')"
+                              :disabled="hasRequestPending('organizer')"
+                            />
+                          </div>
+                          
+                          <!-- Option Boutique -->
+                          <div class="role-option">
+                            <div class="role-option-header">
+                              <span class="role-badge shop">
+                                <i class="pi pi-shop"></i>
+                                Boutique
+                              </span>
+                              <span class="role-benefits">Vendre des produits et organiser des événements</span>
+                            </div>
+                            <p class="role-option-description">
+                              Gérez votre boutique physique, vendez des produits, organisez des tournois 
+                              et événements dans votre établissement.
+                            </p>
+                            <Button 
+                              label="Demander le rôle"
+                              icon="pi pi-shop"
+                              class="emerald-outline-btn role-request-btn"
+                              @click="startRoleRequest('shop')"
+                              :disabled="hasRequestPending('shop')"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- ÉTAT FORMULAIRE : Demande organisateur -->
+                      <div v-else-if="roleRequestMode === 'organizer'" class="role-request-form slide-in-up">
+                        <div class="form-header">
+                          <Button 
+                            icon="pi pi-arrow-left"
+                            class="p-button-text back-btn"
+                            @click="cancelRoleRequest"
+                          />
+                          <h4 class="role-section-title">
+                            <i class="pi pi-calendar"></i>
+                            Demande de rôle Organisateur
+                          </h4>
+                        </div>
+                        
+                        <div class="request-form-content">
+                          <div class="field-group">
+                            <label for="organizerMessage" class="field-label">Motivation *</label>
+                            <Textarea 
+                              id="organizerMessage"
+                              v-model="organizerRequestForm.message"
+                              placeholder="Expliquez votre motivation, votre expérience dans l'organisation d'événements TCG, vos projets..."
+                              rows="5"
+                              class="emerald-input"
+                              :class="{ 'error': !!roleRequestErrors.message }"
+                            />
+                            <small v-if="roleRequestErrors.message" class="field-error">{{ roleRequestErrors.message }}</small>
+                            <small v-else class="field-help">Minimum 30 caractères - Décrivez votre expérience et vos projets</small>
+                          </div>
+                          
+                          <div class="form-actions">
+                            <Button 
+                              label="Annuler"
+                              icon="pi pi-times"
+                              class="emerald-outline-btn cancel"
+                              @click="cancelRoleRequest"
+                            />
+                            <Button 
+                              label="Soumettre la demande"
+                              icon="pi pi-send"
+                              class="emerald-button primary"
+                              @click="prepareRoleRequestSubmission"
+                              :disabled="!organizerRequestForm.message.trim()"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- 🆕 ÉTAT FORMULAIRE : Demande boutique avec AddressAutocomplete -->
+                      <div v-else-if="roleRequestMode === 'shop'" class="role-request-form slide-in-up">
+                        <div class="form-header">
+                          <Button 
+                            icon="pi pi-arrow-left"
+                            class="p-button-text back-btn"
+                            @click="cancelRoleRequest"
+                          />
+                          <h4 class="role-section-title">
+                            <i class="pi pi-shop"></i>
+                            Demande de rôle Boutique
+                          </h4>
+                        </div>
+                        
+                        <div class="request-form-content">
+                          <div class="form-section">
+                            <h5 class="section-subtitle">
+                              <i class="pi pi-building"></i>
+                              Informations boutique
+                            </h5>
+                            
+                            <div class="form-grid">
+                              <div class="field-group">
+                                <label for="shopName" class="field-label">Nom de la boutique *</label>
+                                <InputText 
+                                  id="shopName"
+                                  v-model="shopRequestForm.shopName"
+                                  placeholder="ex: Gaming Paradise"
+                                  class="emerald-input"
+                                  :class="{ 'error': !!roleRequestErrors.shopName }"
+                                />
+                                <small v-if="roleRequestErrors.shopName" class="field-error">{{ roleRequestErrors.shopName }}</small>
+                              </div>
+                              
+                              <div class="field-group">
+                                <label for="siretNumber" class="field-label">Numéro SIRET *</label>
+                                <InputText 
+                                  id="siretNumber"
+                                  v-model="shopRequestForm.siretNumber"
+                                  placeholder="12345678901234"
+                                  class="emerald-input"
+                                  :class="{ 'error': !!roleRequestErrors.siretNumber }"
+                                  maxlength="17"
+                                />
+                                <small v-if="roleRequestErrors.siretNumber" class="field-error">{{ roleRequestErrors.siretNumber }}</small>
+                                <small v-else class="field-help">14 chiffres, nécessaire pour vérifier votre entreprise</small>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <!-- 🆕 ADRESSE BOUTIQUE AVEC AUTOCOMPLÉTION -->
+                          <div class="form-section">
+                            <h5 class="section-subtitle">
+                              <i class="pi pi-map-marker"></i>
+                              Adresse de la boutique
+                            </h5>
+                            
+                            <!-- Message si adresse utilisateur disponible -->
+                            <div v-if="user.address && !shopRequestForm.shopAddress" class="address-prefill-notice">
+                              <div class="notice-content">
+                                <i class="pi pi-info-circle"></i>
+                                <div class="notice-text">
+                                  <strong>Adresse trouvée dans votre profil</strong>
+                                  <p>{{ user.address.fullAddress }}</p>
+                                </div>
+                                <Button
+                                  label="Utiliser cette adresse"
+                                  icon="pi pi-copy"
+                                  class="emerald-outline-btn small"
+                                  @click="prefillShopAddress"
+                                />
+                              </div>
+                            </div>
+                            
+                            <AddressAutocomplete
+                              ref="shopAddressRef"
+                              v-model="shopRequestForm.shopAddress"
+                              mode="detailed"
+                              label="Adresse complète de la boutique"
+                              placeholder="Rechercher l'adresse de votre boutique..."
+                              field-id="shop-address"
+                              :required="true"
+                              :allow-remove="false"
+                              @address-validated="handleShopAddressValidated"
+                              @validation-error="handleShopAddressError"
+                            />
+                            
+                            <small v-if="roleRequestErrors.shopAddress" class="field-error">{{ roleRequestErrors.shopAddress }}</small>
+                          </div>
+                          
+                          <div class="form-section">
+                            <h5 class="section-subtitle">
+                              <i class="pi pi-phone"></i>
+                              Contact
+                            </h5>
+                            
+                            <div class="form-grid">
+                              <div class="field-group">
+                                <label for="shopPhone" class="field-label">Téléphone *</label>
+                                <InputText 
+                                  id="shopPhone"
+                                  v-model="shopRequestForm.shopPhone"
+                                  placeholder="01 23 45 67 89"
+                                  class="emerald-input"
+                                  :class="{ 'error': !!roleRequestErrors.shopPhone }"
+                                />
+                                <small v-if="roleRequestErrors.shopPhone" class="field-error">{{ roleRequestErrors.shopPhone }}</small>
+                              </div>
+                              
+                              <div class="field-group">
+                                <label for="shopWebsite" class="field-label">Site web</label>
+                                <InputText 
+                                  id="shopWebsite"
+                                  v-model="shopRequestForm.shopWebsite"
+                                  placeholder="https://www.maboutique.com"
+                                  class="emerald-input"
+                                />
+                                <small class="field-help">Optionnel mais recommandé</small>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div class="form-section">
+                            <h5 class="section-subtitle">
+                              <i class="pi pi-comment"></i>
+                              Présentation
+                            </h5>
+                            
+                            <div class="field-group">
+                              <label for="shopMessage" class="field-label">Décrivez votre boutique *</label>
+                              <Textarea 
+                                id="shopMessage"
+                                v-model="shopRequestForm.message"
+                                placeholder="Parlez-nous de votre boutique, vos spécialités TCG, votre expérience, les événements que vous organisez..."
+                                rows="4"
+                                class="emerald-input"
+                                :class="{ 'error': !!roleRequestErrors.message }"
+                              />
+                              <small v-if="roleRequestErrors.message" class="field-error">{{ roleRequestErrors.message }}</small>
+                              <small v-else class="field-help">Minimum 50 caractères - Détaillez vos spécialités et services</small>
+                            </div>
+                          </div>
+                          
+                          <div class="form-actions">
+                            <Button 
+                              label="Annuler"
+                              icon="pi pi-times"
+                              class="emerald-outline-btn cancel"
+                              @click="cancelRoleRequest"
+                            />
+                            <Button 
+                              label="Soumettre la demande"
+                              icon="pi pi-send"
+                              class="emerald-btn"
+                              @click="prepareRoleRequestSubmission"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Demandes en cours -->
+                    <div v-if="roleRequests.length > 0" class="pending-requests">
+                      <h4 class="role-section-title">Demandes en cours</h4>
+                      <div class="request-list">
+                        <div 
+                          v-for="request in roleRequests" 
+                          :key="request.id"
+                          class="request-item"
+                        >
+                          <div class="request-info">
+                            <span :class="['role-badge', getRoleClassFromString(request.requestedRole)]">
+                              <i :class="getRoleIcon(getRoleClassFromString(request.requestedRole))"></i>
+                              {{ getRoleLabel(getRoleClassFromString(request.requestedRole)) }}
+                            </span>
+                            <span class="request-date">
+                              Demandé le {{ formatDate(request.createdAt) }}
+                            </span>
+                          </div>
+                          <span :class="['request-status', request.status]">
+                            {{ getStatusLabel(request.status) }}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -401,27 +699,34 @@
       </div>
     </div>
     
-    <!-- Modal de confirmation déconnexion -->
+    <!-- Modal de confirmation soumission -->
     <Dialog 
-      v-model:visible="showLogoutConfirm"
+      v-model:visible="showConfirmSubmitModal"
       modal
-      header="Confirmation"
-      :style="{ width: '400px' }"
+      header="Confirmer la demande"
+      :style="{ width: '500px' }"
       class="emerald-modal"
     >
-      <p>Êtes-vous sûr de vouloir vous déconnecter ?</p>
+      <div class="confirm-content">
+        <i class="pi pi-exclamation-triangle confirm-icon"></i>
+        <div class="confirm-text">
+          <p><strong>Êtes-vous sûr de vouloir soumettre cette demande ?</strong></p>
+          <p>Une fois envoyée, vous devrez attendre la réponse d'un administrateur avant de pouvoir faire une nouvelle demande de changement de rôle.</p>
+        </div>
+      </div>
       <template #footer>
         <Button 
           label="Annuler" 
           icon="pi pi-times" 
-          class="emerald-outline-btn"
-          @click="showLogoutConfirm = false" 
+          class="emerald-outline-btn cancel"
+          @click="showConfirmSubmitModal = false" 
         />
         <Button 
-          label="Déconnecter" 
-          icon="pi pi-sign-out" 
+          label="Confirmer" 
+          icon="pi pi-check" 
           class="emerald-btn"
-          @click="confirmLogout" 
+          @click="confirmRoleRequestSubmission"
+          :loading="isSubmittingRoleRequest"
         />
       </template>
     </Dialog>
@@ -429,11 +734,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import api from '../services/api'
+// 🆕 Import du composant AddressAutocomplete
+import AddressAutocomplete from '../components/form/AddressAutocomplete.vue'
 
 // Stores et router
 const authStore = useAuthStore()
@@ -443,16 +750,45 @@ const toast = useToast()
 // State
 const editMode = ref(false)
 const isLoading = ref(false)
-const showLogoutConfirm = ref(false)
 const avatarFile = ref(null)
 const avatarPreview = ref(null)
+const isRoleSectionExpanded = ref(false)
+const adminRequests = ref([])
+const isLoadingRequests = ref(false)
+const profileAddressRef = ref(null)
+const shopAddressRef = ref(null)
 
+// Gestion des demandes de rôles inline
+const roleRequestMode = ref(null) // null, 'organizer', 'shop'
+const showConfirmSubmitModal = ref(false)
+const isSubmittingRoleRequest = ref(false)
+
+// Formulaire organisateur
+const organizerRequestForm = reactive({
+  message: ''
+})
+
+// 🆕 Formulaire boutique avec adresse
+const shopRequestForm = reactive({
+  shopName: '',
+  siretNumber: '',
+  shopAddress: null, // 🔄 Objet Address au lieu de string
+  shopPhone: '',
+  shopWebsite: '',
+  message: ''
+})
+
+// Erreurs communes
+const roleRequestErrors = reactive({})
+
+// 🆕 Formulaire d'édition avec adresse
 const editForm = reactive({
   pseudo: '',
   firstName: '',
   lastName: '',
   bio: '',
-  favoriteClass: ''
+  favoriteClass: '',
+  address: null // 🔄 Objet Address au lieu de string
 })
 
 const editErrors = reactive({
@@ -467,7 +803,16 @@ const user = computed(() => authStore.user || {})
 const roleRequests = ref([])
 const recentActivity = ref([])
 
-// Computed
+// 🆕 Computed pour validation formulaire boutique
+const isShopFormValid = computed(() => {
+  return shopRequestForm.shopName.trim() && 
+         shopRequestForm.siretNumber.trim() && 
+         shopRequestForm.shopAddress && 
+         shopRequestForm.shopPhone.trim() && 
+         shopRequestForm.message.trim()
+})
+
+// Computed existants
 const isCurrentUser = computed(() => {
   return authStore.user?.id === user.value.id
 })
@@ -537,16 +882,83 @@ const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString('fr-FR')
 }
 
-// Actions
+// 🆕 Handlers pour AddressAutocomplete dans l'édition de profil
+const handleAddressValidated = (address) => {
+  console.log('✅ Adresse utilisateur validée:', address)
+  editForm.address = address
+}
+
+const handleAddressRemoved = () => {
+  console.log('🗑️ Adresse utilisateur supprimée')
+  editForm.address = null
+}
+
+const handleAddressError = (errors) => {
+  console.warn('❌ Erreurs validation adresse utilisateur:', errors)
+  toast.add({
+    severity: 'warn',
+    summary: 'Validation adresse',
+    detail: 'Veuillez corriger les erreurs dans l\'adresse',
+    life: 3000
+  })
+}
+
+// 🆕 Handlers pour AddressAutocomplete dans demande boutique
+const handleShopAddressValidated = (address) => {
+  console.log('✅ Adresse boutique validée:', address)
+  shopRequestForm.shopAddress = address
+  // Clear les erreurs d'adresse
+  roleRequestErrors.shopAddress = ''
+}
+
+const handleShopAddressError = (errors) => {
+  console.warn('❌ Erreurs validation adresse boutique:', errors)
+  roleRequestErrors.shopAddress = 'Veuillez saisir une adresse valide'
+}
+
+// 🆕 Pré-remplir l'adresse boutique avec l'adresse utilisateur
+const prefillShopAddress = () => {
+  if (user.value.address) {
+    shopRequestForm.shopAddress = { ...user.value.address }
+    toast.add({
+      severity: 'info',
+      summary: 'Adresse pré-remplie',
+      detail: 'Adresse de votre profil utilisée pour la boutique',
+      life: 3000
+    })
+  }
+}
+
+// Actions existantes
 const loadUserProfile = async () => {
   try {
     const response = await api.get('/api/profile')
     // Mettre à jour le store avec les données fraîches
     authStore.user = response.data
     roleRequests.value = response.data.roleRequests || []
+    
+    // 🆕 Initialiser l'adresse dans le formulaire d'édition
+    editForm.address = response.data.address || null
+    
   } catch (error) {
     console.error('Erreur lors du chargement du profil:', error)
     toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger le profil', life: 3000 })
+  }
+}
+
+const loadAdminRequests = async () => {
+  if (userRole.value !== 'admin') return
+  
+  isLoadingRequests.value = true
+  try {
+    const response = await api.get('/api/admin/role-requests')
+    adminRequests.value = response.data.requests
+    console.log('📋 Demandes admin chargées:', response.data)
+  } catch (error) {
+    console.error('Erreur chargement demandes admin:', error)
+    toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les demandes', life: 3000 })
+  } finally {
+    isLoadingRequests.value = false
   }
 }
 
@@ -608,10 +1020,12 @@ const cancelEdit = () => {
   editForm.lastName = user.value.lastName || ''
   editForm.bio = user.value.bio || ''
   editForm.favoriteClass = user.value.favoriteClass || ''
+  editForm.address = user.value.address || null // 🆕 Reset adresse
   // Clear errors
   Object.keys(editErrors).forEach(key => editErrors[key] = '')
 }
 
+// 🆕 Sauvegarde profil avec adresse
 const saveProfile = async () => {
   // Validation
   Object.keys(editErrors).forEach(key => editErrors[key] = '')
@@ -624,19 +1038,44 @@ const saveProfile = async () => {
   isLoading.value = true
   
   try {
-    const response = await api.put('/api/profile/update', {
+    // 🆕 Valider l'adresse automatiquement si présente
+    if (profileAddressRef.value && editForm.address) {
+      try {
+        const result = await profileAddressRef.value.validateAddress()
+        editForm.address = result.address
+      } catch (error) {
+        toast.add({
+          severity: 'error',
+          summary: 'Erreur adresse',
+          detail: 'Veuillez corriger l\'adresse avant de sauvegarder',
+          life: 3000
+        })
+        isLoading.value = false
+        return
+      }
+    }
+    
+    const payload = {
       pseudo: editForm.pseudo,
       firstName: editForm.firstName,
       lastName: editForm.lastName,
       bio: editForm.bio,
-      favoriteClass: editForm.favoriteClass
-    })
+      favoriteClass: editForm.favoriteClass,
+      address: editForm.address
+    }
+    
+    const response = await api.put('/api/profile/update', payload)
     
     // Mise à jour du store
     Object.assign(authStore.user, response.data.user)
     
     editMode.value = false
-    toast.add({ severity: 'success', summary: 'Profil mis à jour', detail: 'Vos informations ont été sauvegardées', life: 3000 })
+    toast.add({ 
+      severity: 'success', 
+      summary: 'Profil mis à jour', 
+      detail: 'Vos informations ont été sauvegardées', 
+      life: 3000 
+    })
   } catch (error) {
     const errorMsg = error.response?.data?.error || 'Impossible de sauvegarder le profil'
     toast.add({ severity: 'error', summary: 'Erreur', detail: errorMsg, life: 3000 })
@@ -645,42 +1084,144 @@ const saveProfile = async () => {
   }
 }
 
-const requestRole = async (role) => {
-  const roleMapping = {
-    'organizer': 'ROLE_ORGANIZER',
-    'shop': 'ROLE_SHOP'
+const startRoleRequest = (role) => {
+  roleRequestMode.value = role
+  // Reset erreurs
+  Object.keys(roleRequestErrors).forEach(key => roleRequestErrors[key] = '')
+  
+  // Reset formulaires
+  if (role === 'organizer') {
+    organizerRequestForm.message = ''
+  } else if (role === 'shop') {
+    Object.keys(shopRequestForm).forEach(key => {
+      if (key === 'shopAddress') {
+        shopRequestForm[key] = null // 🆕 Reset à null pour objet Address
+      } else {
+        shopRequestForm[key] = ''
+      }
+    })
+  }
+}
+
+const cancelRoleRequest = () => {
+  roleRequestMode.value = null
+  Object.keys(roleRequestErrors).forEach(key => roleRequestErrors[key] = '')
+}
+
+// 🆕 Validation mise à jour pour adresse boutique
+const validateRoleRequest = () => {
+  Object.keys(roleRequestErrors).forEach(key => roleRequestErrors[key] = '')
+  let isValid = true
+  
+  if (roleRequestMode.value === 'organizer') {
+    if (!organizerRequestForm.message.trim()) {
+      roleRequestErrors.message = 'Veuillez expliquer votre motivation'
+      isValid = false
+    } else if (organizerRequestForm.message.length < 30) {
+      roleRequestErrors.message = 'Le message doit contenir au moins 30 caractères'
+      isValid = false
+    }
+  } else if (roleRequestMode.value === 'shop') {
+    if (!shopRequestForm.shopName.trim()) {
+      roleRequestErrors.shopName = 'Le nom de la boutique est obligatoire'
+      isValid = false
+    }
+    
+    if (!shopRequestForm.siretNumber.trim()) {
+      roleRequestErrors.siretNumber = 'Le numéro SIRET est obligatoire'
+      isValid = false
+    } else if (!/^\d{14}$/.test(shopRequestForm.siretNumber.replace(/\s/g, ''))) {
+      roleRequestErrors.siretNumber = 'Le SIRET doit contenir exactement 14 chiffres'
+      isValid = false
+    }
+    
+    // 🆕 Validation adresse boutique
+    if (!shopRequestForm.shopAddress) {
+      roleRequestErrors.shopAddress = 'L\'adresse de la boutique est obligatoire'
+      isValid = false
+    }
+    
+    if (!shopRequestForm.shopPhone.trim()) {
+      roleRequestErrors.shopPhone = 'Le téléphone est obligatoire'
+      isValid = false
+    }
+    
+    if (!shopRequestForm.message.trim()) {
+      roleRequestErrors.message = 'Veuillez expliquer votre demande'
+      isValid = false
+    } else if (shopRequestForm.message.length < 50) {
+      roleRequestErrors.message = 'Le message doit contenir au moins 50 caractères'
+      isValid = false
+    }
   }
   
+  return isValid
+}
+
+const prepareRoleRequestSubmission = () => {
+  if (!validateRoleRequest()) return
+  showConfirmSubmitModal.value = true
+}
+
+// 🆕 Soumission mise à jour avec adresse boutique
+const confirmRoleRequestSubmission = async () => {
+  showConfirmSubmitModal.value = false
+  isSubmittingRoleRequest.value = true
+  
   try {
-    const response = await api.post('/api/profile/request-role', {
-      role: roleMapping[role],
-      message: `Demande de rôle ${getRoleLabel(role)}`
-    })
+    // 🆕 Valider l'adresse boutique automatiquement si demande shop
+    if (roleRequestMode.value === 'shop' && shopAddressRef.value) {
+      try {
+        const result = await shopAddressRef.value.validateAddress()
+        shopRequestForm.shopAddress = result.address
+      } catch (error) {
+        toast.add({
+          severity: 'error',
+          summary: 'Erreur adresse boutique',
+          detail: 'Veuillez corriger l\'adresse de la boutique',
+          life: 3000
+        })
+        isSubmittingRoleRequest.value = false
+        return
+      }
+    }
     
-    // Recharger les demandes
+    const payload = {
+      role: roleRequestMode.value === 'organizer' ? 'ROLE_ORGANIZER' : 'ROLE_SHOP',
+      message: roleRequestMode.value === 'organizer' ? organizerRequestForm.message : shopRequestForm.message
+    }
+    
+    // Ajouter les données boutique avec adresse validée
+    if (roleRequestMode.value === 'shop') {
+      payload.shopName = shopRequestForm.shopName
+      payload.siretNumber = shopRequestForm.siretNumber.replace(/\s/g, '')
+      payload.shopAddress = shopRequestForm.shopAddress
+      payload.shopPhone = shopRequestForm.shopPhone
+      payload.shopWebsite = shopRequestForm.shopWebsite
+    }
+    
+    await api.post('/api/profile/request-role', payload)
+    
+    roleRequestMode.value = null
     await loadUserProfile()
     
-    toast.add({ 
-      severity: 'success', 
-      summary: 'Demande envoyée', 
-      detail: `Votre demande de rôle ${getRoleLabel(role)} a été envoyée`, 
-      life: 4000 
+    toast.add({
+      severity: 'success',
+      summary: 'Demande envoyée',
+      detail: 'Votre demande de changement de rôle a été envoyée avec succès',
+      life: 4000
     })
   } catch (error) {
     const errorMsg = error.response?.data?.error || 'Impossible d\'envoyer la demande'
-    toast.add({ severity: 'error', summary: 'Erreur', detail: errorMsg, life: 3000 })
+    toast.add({ 
+      severity: 'error', 
+      summary: 'Erreur', 
+      detail: errorMsg, 
+      life: 3000 
+    })
+  } finally {
+    isSubmittingRoleRequest.value = false
   }
-}
-
-const handleLogout = () => {
-  showLogoutConfirm.value = true
-}
-
-const confirmLogout = () => {
-  authStore.logout()
-  showLogoutConfirm.value = false
-  router.push('/')
-  toast.add({ severity: 'success', summary: 'Déconnecté', detail: 'À bientôt !', life: 2000 })
 }
 
 const goToMyTopics = () => {
@@ -695,8 +1236,16 @@ const manageEvents = () => {
   router.push('/events/manage')
 }
 
+const toggleRoleSection = () => {
+  isRoleSectionExpanded.value = !isRoleSectionExpanded.value
+}
+
 // Lifecycle
 onMounted(async () => {
+  if (userRole.value === 'admin') {
+    await loadAdminRequests()
+  }
+
   // Charger les données du profil
   await loadUserProfile()
   
@@ -706,6 +1255,7 @@ onMounted(async () => {
   editForm.lastName = user.value.lastName || ''
   editForm.bio = user.value.bio || ''
   editForm.favoriteClass = user.value.favoriteClass || ''
+  editForm.address = user.value.address || null // 🆕 Initialiser adresse
   
   console.log('🔍 Profil chargé pour:', user.value.pseudo)
 })
@@ -926,22 +1476,6 @@ onMounted(async () => {
   align-items: flex-start;
 }
 
-.logout-btn {
-  width: 44px !important;
-  height: 44px !important;
-  border-radius: 50% !important;
-  background: rgba(255, 87, 34, 0.1) !important;
-  border: 2px solid rgba(255, 87, 34, 0.2) !important;
-  color: var(--accent) !important;
-  transition: all var(--transition-fast) !important;
-}
-
-.logout-btn:hover {
-  background: var(--accent) !important;
-  color: white !important;
-  border-color: var(--accent) !important;
-}
-
 /* Edit section */
 .edit-header {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
@@ -972,6 +1506,70 @@ onMounted(async () => {
   letter-spacing: 0.5px;
 }
 
+/* 🆕 Section adresse */
+.address-section {
+  background: rgba(38, 166, 154, 0.05);
+  border: 1px solid rgba(38, 166, 154, 0.1);
+  border-radius: var(--border-radius-large);
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1rem 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.section-description {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
+/* 🆕 Pré-remplissage adresse boutique */
+.address-prefill-notice {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.notice-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.notice-content .pi {
+  color: #3b82f6;
+  font-size: 1.25rem;
+  margin-top: 0.25rem;
+  flex-shrink: 0;
+}
+
+.notice-text {
+  flex: 1;
+}
+
+.notice-text strong {
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.notice-text p {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
 :deep(.emerald-input) {
   width: 100% !important;
   padding: 0.875rem 1rem !important;
@@ -1000,6 +1598,12 @@ onMounted(async () => {
   font-weight: 500;
 }
 
+.field-help {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
 .form-actions {
   display: flex;
   gap: 1rem;
@@ -1012,6 +1616,22 @@ onMounted(async () => {
 /* Role section */
 .role-header {
   background: linear-gradient(135deg, var(--secondary), var(--secondary-dark));
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  justify-content: space-between;
+}
+
+.role-header:hover {
+  background: linear-gradient(135deg, var(--secondary-dark), var(--secondary));
+}
+
+.collapse-btn {
+  background: none !important;
+  border: none !important;
+  color: white !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0.5rem !important;
 }
 
 .role-content {
@@ -1164,6 +1784,142 @@ onMounted(async () => {
   background: rgba(239, 68, 68, 0.1);
   color: #dc2626;
   border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Admin interface */
+.admin-role-management {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.admin-requests-section {
+  background: rgba(139, 92, 246, 0.05);
+  border: 1px solid rgba(139, 92, 246, 0.1);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+}
+
+.admin-info {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
+.empty-admin-requests {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.empty-admin-requests .empty-icon {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.admin-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-request-item {
+  background: white;
+  border: 1px solid var(--surface-200);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr 2fr auto;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.request-user-info h5 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.user-email {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.request-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.request-message {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.4;
+  font-size: 0.9rem;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.user-role-management {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Formulaires de demande de rôles inline */
+.role-request-form {
+  background: white;
+  border: 2px solid var(--primary);
+  border-radius: var(--border-radius-large);
+  padding: 2rem;
+  margin-top: 1rem;
+}
+
+.form-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--surface-200);
+}
+
+.back-btn {
+  color: var(--text-secondary) !important;
+  padding: 0.5rem !important;
+}
+
+.back-btn:hover {
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1) !important;
+}
+
+.request-form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.section-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--surface-200);
 }
 
 /* Sidebar */
@@ -1427,6 +2183,31 @@ onMounted(async () => {
   gap: 1rem !important;
 }
 
+/* Modal de confirmation */
+.confirm-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.confirm-icon {
+  font-size: 2rem;
+  color: #f59e0b;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.confirm-text p {
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+}
+
+.confirm-text p:last-child {
+  margin-bottom: 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .profile-grid {
@@ -1483,6 +2264,15 @@ onMounted(async () => {
     align-items: flex-start;
     gap: 0.5rem;
   }
+  
+  .admin-request-item {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .admin-actions {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1511,6 +2301,15 @@ onMounted(async () => {
   
   .event-actions {
     gap: 0.5rem;
+  }
+  
+  .notice-content {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .address-section {
+    padding: 1.5rem;
   }
 }
 </style>

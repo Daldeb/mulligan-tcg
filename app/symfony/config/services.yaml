@@ -25,3 +25,8 @@ services:
             $uploadsDirectory: '%kernel.project_dir%/public/uploads'
             $publicPath: ''
             $slugger: '@Symfony\Component\String\Slugger\SluggerInterface'
+    # Configuration pour AddressService
+    App\Service\AddressService:
+        arguments:
+            $httpClient: '@http_client'
+            $logger: '@logger'

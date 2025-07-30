@@ -41,43 +41,52 @@
           </div>
 
           <!-- Profil / Connexion -->
-          <div class="action-item">
-            <template v-if="authStore.isAuthenticated">
-              <Avatar 
-                :label="authStore.user?.username?.charAt(0).toUpperCase() ?? 'U'" 
-                shape="circle"
-                size="normal"
-                class="user-avatar"
-                @click="onAvatarClick"
+          <template v-if="authStore.isAuthenticated">
+            <!-- Section profil avec avatar + pseudo -->
+            <div class="action-item profile-section" @click="goToProfile">
+              <!-- Avatar avec photo -->
+              <div class="avatar-container">
+                <img 
+                  v-if="authStore.user?.avatar"
+                  :src="`${backendUrl}/uploads/${authStore.user.avatar}`"
+                  class="user-avatar-image"
+                  alt="Avatar"
+                  @error="showFallbackAvatar = true"
+                />
+                <Avatar 
+                  v-else
+                  :label="authStore.user?.pseudo?.charAt(0).toUpperCase() ?? 'U'" 
+                  shape="circle"
+                  size="normal"
+                  class="user-avatar-fallback"
+                />
+              </div>
+              
+              <!-- Pseudo -->
+              <span class="user-pseudo">{{ authStore.user?.pseudo ?? 'Utilisateur' }}</span>
+            </div>
+            
+            <!-- Bouton déconnexion -->
+            <div class="action-item">
+              <Button 
+                icon="pi pi-sign-out"
+                class="logout-button"
+                @click="handleLogout"
+                v-tooltip="'Se déconnecter'"
               />
-            </template>
+            </div>
+          </template>
 
-            <template v-else>
+          <template v-else>
+            <div class="action-item">
               <Button 
                 icon="pi pi-user" 
                 label="Connexion"
                 class="login-button"
                 @click="$emit('open-login')"
               />
-            </template>
-
-            <!-- Menu utilisateur -->
-            <Menu 
-              ref="menu"
-              :model="userMenuItems"
-              popup
-              class="user-menu"
-            />
-          </div>
-
-          <!-- Menu hamburger -->
-          <div class="action-item">
-            <Button 
-              icon="pi pi-bars" 
-              class="mobile-menu-button"
-              @click="toggleMobileMenu"
-            />
-          </div>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -148,7 +157,6 @@ import { useAuthStore } from '../../stores/auth'
 import { useRouter } from 'vue-router'
 
 onMounted(() => {
-  console.log('🔍 Menu ref on mount:', menu.value)
 })
 
 // Props et émissions
@@ -159,50 +167,31 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 // State local
-const menu = ref(null)
 const searchQuery = ref('')
-const userMenuVisible = ref(false)
 const mobileMenuVisible = ref(false)
 const unreadMessages = ref(3) // Exemple
+const showFallbackAvatar = ref(false)
 
-// Menu utilisateur
-const userMenuItems = computed(() => [
-  {
-    label: 'Mon Profil',
-    icon: 'pi pi-user',
-    command: () => router.push('/profile')
-  },
-  {
-    separator: true
-  },
-  {
-    label: 'Déconnexion',
-    icon: 'pi pi-sign-out',
-    command: () => authStore.logout()
-  }
-])
+// Computed
+const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
 
 // Methods
-const toggleUserMenu = () => {
-  userMenuVisible.value = !userMenuVisible.value
-}
-
-// Clic handler sur l'avatar pour acceder au menu
-const onAvatarClick = (event) => {
-  console.log('🖱 Avatar click event:', event)
-  if (menu.value) {
-    menu.value.toggle(event)
-  } else {
-    console.warn('⚠️ Menu ref is not defined')
-  }
-}
-
 const toggleMobileMenu = () => {
   mobileMenuVisible.value = !mobileMenuVisible.value
 }
 
 const openMessages = () => {
   router.push('/messages')
+}
+
+const goToProfile = () => {
+  router.push('/profile')
+}
+
+const handleLogout = () => {
+  authStore.logout()
+  // Redirection vers la page d'accueil
+  router.push('/')
 }
 </script>
 
@@ -315,6 +304,84 @@ const openMessages = () => {
   align-items: center;
 }
 
+/* 🆕 Section profil avec avatar + pseudo */
+.profile-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-radius: 25px;
+  border: 2px solid var(--surface-300);
+  background: var(--surface-100);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.profile-section:hover {
+  border-color: var(--primary);
+  background: rgba(38, 166, 154, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(38, 166, 154, 0.2);
+}
+
+.avatar-container {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.user-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+:deep(.user-avatar-fallback) {
+  background: var(--primary) !important;
+  color: white !important;
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 1rem !important;
+}
+
+.user-pseudo {
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 120px;
+}
+
+/* Bouton déconnexion */
+:deep(.logout-button) {
+  background: none !important;
+  border: 2px solid rgba(255, 87, 34, 0.3) !important;
+  color: var(--accent) !important;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all var(--transition-fast) !important;
+}
+
+:deep(.logout-button:hover) {
+  border-color: var(--accent) !important;
+  color: white !important;
+  background: var(--accent) !important;
+  transform: scale(1.05) !important;
+}
+
 :deep(.action-button) {
   background: none !important;
   border: 2px solid var(--surface-300) !important;
@@ -347,20 +414,6 @@ const openMessages = () => {
   min-width: 18px;
   text-align: center;
   line-height: 1.2;
-}
-
-:deep(.user-avatar) {
-  background: var(--primary) !important;
-  color: white !important;
-  cursor: pointer !important;
-  transition: all var(--transition-fast) !important;
-  width: 44px !important;
-  height: 44px !important;
-}
-
-:deep(.user-avatar:hover) {
-  transform: scale(1.05) !important;
-  box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3) !important;
 }
 
 :deep(.login-button) {
@@ -458,13 +511,6 @@ const openMessages = () => {
   box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3) !important;
 }
 
-/* Menu utilisateur custom */
-:deep(.user-menu) {
-  border-radius: var(--border-radius) !important;
-  box-shadow: var(--shadow-large) !important;
-  border: 1px solid var(--surface-200) !important;
-}
-
 /* Responsive */
 @media (max-width: 1024px) {
   .container {
@@ -474,6 +520,10 @@ const openMessages = () => {
   .search-section {
     margin: 0 1rem;
     max-width: 300px;
+  }
+  
+  .user-pseudo {
+    max-width: 100px;
   }
 }
 
@@ -499,6 +549,15 @@ const openMessages = () => {
     gap: 0.75rem;
   }
   
+  .profile-section {
+    padding: 0.25rem 0.75rem;
+  }
+  
+  .user-pseudo {
+    font-size: 0.8rem;
+    max-width: 80px;
+  }
+  
   .nav-buttons {
     gap: 0.75rem;
     justify-content: center;
@@ -513,6 +572,19 @@ const openMessages = () => {
 @media (max-width: 640px) {
   .nav-buttons {
     gap: 0.5rem;
+  }
+  
+  .user-pseudo {
+    display: none;
+  }
+  
+  .profile-section {
+    padding: 0.5rem;
+    border-radius: 50%;
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+    justify-content: center;
   }
   
   :deep(.nav-button .p-button-label) {
