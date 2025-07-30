@@ -36,6 +36,8 @@
     --border-radius: 8px;
     --border-radius-small: 4px;
     --border-radius-large: 16px;
+
+    --header-height: 300px;
   }
   
   /* Reset & Base */
@@ -49,7 +51,7 @@
     background: var(--surface);
     color: var(--text-primary);
     line-height: 1.6;
-    padding-top: 140px; /* Espace pour le header fixe */
+    padding-top: var(--header-height); /* Espace pour le header fixe */
   }
   
   /* Override PrimeVue Global Styles */

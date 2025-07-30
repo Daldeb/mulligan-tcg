@@ -168,19 +168,9 @@ const unreadMessages = ref(3) // Exemple
 // Menu utilisateur
 const userMenuItems = computed(() => [
   {
-    label: 'Profil',
+    label: 'Mon Profil',
     icon: 'pi pi-user',
     command: () => router.push('/profile')
-  },
-  {
-    label: 'Favoris',
-    icon: 'pi pi-heart',
-    command: () => router.push('/favorites')
-  },
-  {
-    label: 'Préférences',
-    icon: 'pi pi-cog',
-    command: () => router.push('/preferences')
   },
   {
     separator: true

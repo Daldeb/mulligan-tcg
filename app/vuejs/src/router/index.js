@@ -1,6 +1,7 @@
-// router/index.js - Version simplifiée pour commencer
+// router/index.js - Version avec Profile
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
+import { useAuthStore } from '../stores/auth'
 
 const routes = [
   {
@@ -11,6 +12,15 @@ const routes = [
       title: 'Accueil - MULLIGAN TCG'
     }
   },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: () => import('../views/ProfileView.vue'),
+    meta: {
+      title: 'Mon Profil - MULLIGAN TCG',
+      requiresAuth: true
+    }
+  },
   // Temporairement commentées jusqu'à création des vues
   /*
   {
@@ -19,6 +29,30 @@ const routes = [
     component: () => import('../views/DiscussionsView.vue'),
     meta: {
       title: 'Discussions - MULLIGAN TCG'
+    }
+  },
+  {
+    path: '/decks',
+    name: 'decks',
+    component: () => import('../views/DecksView.vue'),
+    meta: {
+      title: 'Decks - MULLIGAN TCG'
+    }
+  },
+  {
+    path: '/classements',
+    name: 'classements',
+    component: () => import('../views/ClassementsView.vue'),
+    meta: {
+      title: 'Classements - MULLIGAN TCG'
+    }
+  },
+  {
+    path: '/boutiques',
+    name: 'boutiques',
+    component: () => import('../views/BoutiquesView.vue'),
+    meta: {
+      title: 'Boutiques - MULLIGAN TCG'
     }
   },
   */
@@ -42,6 +76,20 @@ const router = createRouter({
     } else {
       return { top: 0 }
     }
+  }
+})
+
+// Guard pour les routes qui nécessitent une authentification
+router.beforeEach((to, from, next) => {
+  const authStore = useAuthStore()
+  
+  // Vérifier si la route nécessite une authentification
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    // Rediriger vers l'accueil et déclencher l'ouverture de la modal de connexion
+    // Tu peux aussi stocker la route de destination pour rediriger après login
+    next({ name: 'home' })
+  } else {
+    next()
   }
 })
 

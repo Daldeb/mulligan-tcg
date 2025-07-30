@@ -6,7 +6,7 @@ Bienvenue dans le guide de développement du projet **MULLIGAN TCG**. Ce documen
 
 ## ✅ Environnements & URLs
 
-| Environnement | URL d’accès                                          | Description                                |
+| Environnement | URL d'accès                                          | Description                                |
 | ------------- | ---------------------------------------------------- | ------------------------------------------ |
 | **Prod**      | [http://51.178.27.41](http://51.178.27.41)           | Site en ligne avec le frontend Vite buildé |
 | **Legacy**    | [http://51.178.27.41:8080](http://51.178.27.41:8080) | Ancienne version du site                   |
@@ -14,9 +14,9 @@ Bienvenue dans le guide de développement du projet **MULLIGAN TCG**. Ce documen
 
 ---
 
-## 🚀 Cloner & Démarrer le projet (hors Docker)
+## 🚀 Développement local (Docker - Recommandé)
 
-> Requis : PHP 8.3+, Composer, Node.js, npm, MySQL local (si besoin)
+**Workflow simplifié pour le développement quotidien :**
 
 ```bash
 # 1. Cloner le repo
@@ -26,90 +26,63 @@ cd mulligan-tcg
 # 2. Installer les dépendances frontend
 cd app/vuejs
 npm install
+cd ../..
 
-# 3. Installer les dépendances backend
-cd ../symfony
-composer install
+# 3. Démarrer l'environnement backend (Docker)
+cd infrastructure
+make up
 
-# 4. Lancer les serveurs (dans deux terminaux)
-make sf     # Backend Symfony sur http://localhost:8000
-make front  # Frontend Vite sur http://localhost:5173
+# 4. Démarrer le frontend (dans un autre terminal)
+cd app/vuejs
+npm run dev
 ```
+
+**URLs de développement :**
+- **Frontend** : http://localhost:5173 (avec hot reload)
+- **API Backend** : http://localhost:8000/api (auto-démarré via Docker)
+- **Adminer BDD locale** : http://localhost:8081
+
+**Le serveur Symfony se lance automatiquement** dans le container Docker, plus besoin de commandes manuelles !
 
 ---
 
-## 📂 Lancer Symfony avec accès base de données (local/Docker)
-
-Symfony accède à la base de données via Docker. Pour éviter toute erreur (ex: "getaddrinfo for mysql failed"), voici la méthode correcte :
+## 📋 Logs et debugging
 
 ```bash
-# 1. Démarrer Docker si ce n’est pas déjà fait
-make up
+# Logs Docker en temps réel
+docker logs tcg_local_app -f
 
-# 2. Entrer dans le container Symfony
+# Logs Symfony détaillés (dans le container)
+cd infrastructure
 make shell
+tail -f var/log/dev.log
 
-# 3. Lancer le serveur Symfony depuis le container
-php -S 0.0.0.0:8000 -t public
-```
-
-Tu peux maintenant accéder à [http://localhost:8000](http://localhost:8000) en toute sécurité avec une connexion fonctionnelle à la BDD.
-
-### 🔒 JWT : Initialisation locale
-
-Si tu viens de cloner le repo, génère les clés JWT :
-
-```bash
-php bin/console lexik:jwt:generate-keypair
-```
-
-Vérifie que la passphrase correspond bien à `JWT_PASSPHRASE` dans `.env`. Les fichiers suivants doivent apparaître :
-
-* `config/jwt/private.pem`
-* `config/jwt/public.pem`
-
-### 🚀 Migrations
-
-Toujours depuis `make shell` :
-
-```bash
-php bin/console doctrine:migrations:migrate --no-interaction
-```
-
-Tu peux aussi exécuter d’autres commandes utiles :
-
-```bash
-php bin/console doctrine:fixtures:load --no-interaction
-php bin/console doctrine:schema:validate
+# Web Profiler Symfony (recommandé pour le debug)
+# → http://localhost:8000/_profiler
 ```
 
 ---
 
-## 📂 Accès à la base de données locale (via Docker + Adminer)
-
-Lorsque tu travailles **en local avec Docker**, la base de données MySQL tourne dans un container dédié, automatiquement géré par Docker Compose. Pour y accéder :
-
-### ▶️ Lancer l’environnement Docker local
-
-Depuis le dossier `infrastructure` :
+## 🐳 Commandes Docker utiles
 
 ```bash
-make up
-# ou :
-docker compose up -d
+cd infrastructure
+
+make up       # Démarrer l'environnement complet
+make down     # Arrêter l'environnement  
+make shell    # Entrer dans le container Symfony
+make logs     # Voir les logs des containers
 ```
 
-Cela démarre les services suivants :
+---
 
-* `tcg_local_mysql` → base de données
-* `tcg_local_app` → backend Symfony
-* `tcg_local_adminer` → interface BDD web
+## 📂 Accès à la base de données locale
 
-### 🌐 Accéder à Adminer
+### 🌐 Adminer (Interface web)
 
 Ouvre [http://localhost:8081](http://localhost:8081) dans ton navigateur.
 
-**Identifiants à utiliser :**
+**Identifiants :**
 
 | Champ        | Valeur    |
 | ------------ | --------- |
@@ -119,7 +92,48 @@ Ouvre [http://localhost:8081](http://localhost:8081) dans ton navigateur.
 | Mot de passe | tcg\_pass |
 | Base         | tcg\_db   |
 
-Ces identifiants sont définis dans `docker-compose.yaml`.
+### 🔧 Commandes Symfony (dans le container)
+
+```bash
+# Entrer dans le container
+make shell
+
+# Commandes utiles
+php bin/console debug:router                    # Voir toutes les routes
+php bin/console doctrine:migrations:migrate     # Appliquer les migrations
+php bin/console doctrine:fixtures:load          # Charger des données de test
+php bin/console cache:clear                     # Vider le cache
+php bin/console lexik:jwt:generate-token email@example.com  # Tester JWT
+```
+
+---
+
+## 🔒 JWT et authentification
+
+### Génération des clés JWT
+
+Si tu viens de cloner le repo :
+
+```bash
+# Dans le container (make shell)
+php bin/console lexik:jwt:generate-keypair
+```
+
+Les clés sont générées sans passphrase (compatible avec la config `.env.local`).
+
+### Test API en local
+
+```bash
+# Test register
+curl -X POST http://localhost:8000/api/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@test.com","password":"password","pseudo":"testuser"}'
+
+# Test login
+curl -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@test.com","password":"password"}'
+```
 
 ---
 
@@ -133,7 +147,7 @@ Ces identifiants sont définis dans `docker-compose.yaml`.
 
 ---
 
-## 🚀 Déploiement auto (CI/CD)
+## 🚀 Déploiement automatique (CI/CD)
 
 Chaque push sur `main` déclenche automatiquement :
 
@@ -141,37 +155,73 @@ Chaque push sur `main` déclenche automatiquement :
 * Build du frontend Vite
 * Rebuild des containers
 * Migration DB Doctrine
+* **Correction automatique des permissions JWT** ✨
 * Cache clear
 
-### Marker visible dans `index.html` :
-
-```html
-<!-- 🔥 STATIC MARKER: VERSION 9000 -->
-```
-
-Pour vérifier que la bonne version est en prod :
+### Test de déploiement
 
 ```bash
-curl -s http://51.178.27.41 | grep "VERSION 9000"
+# Commit et push
+git add .
+git commit -m "✨ Feature description"
+git push
+
+# Vérifier le déploiement
+curl -s http://51.178.27.41 | grep "VERSION"
+
+# Tester l'API après déploiement
+curl -X POST http://51.178.27.41/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"daldeb.daldeb@gmail.com","password":"12Avenue"}'
 ```
+
+**Le login API fonctionne automatiquement après chaque déploiement** grâce aux corrections de permissions JWT intégrées dans le pipeline.
 
 ---
 
-## 🤪 Test de déploiement rapide
+## 🛠️ Development Workflow
+
+### Démarrage quotidien
 
 ```bash
-# Ajouter une modif visible dans App.vue ou AppFooter.vue
-# Build localement
-cd app/vuejs
-npm run build
+# Terminal 1 - Backend
+cd ~/mulligan-tcg/infrastructure
+make up
 
-# Commit & push
-git add .
-git commit -m "🚀 Test de déploiement auto"
-git push
+# Terminal 2 - Frontend  
+cd ~/mulligan-tcg/app/vuejs
+npm run dev
+```
 
-# Vérifier :
-curl -s http://51.178.27.41 | grep "VERSION"
+### Debugging
+
+- **Logs détaillés** : `tail -f var/log/dev.log` (dans le container)
+- **Web Profiler** : http://localhost:8000/_profiler
+- **Dump variables** : `dump($var)` dans le code PHP
+
+### Gestion des rôles
+
+Les tokens JWT contiennent automatiquement les rôles utilisateur :
+- **Vérification côté Symfony** : `$this->isGranted('ROLE_ADMIN')`
+- **Performance** : Pas de requête BDD pour les vérifications de rôles basiques
+- **Sécurité** : Vérifications BDD pour les actions critiques (bannissement, etc.)
+
+---
+
+## 🔍 Monitoring et maintenance
+
+```bash
+# État des containers prod
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep tcg_prod
+
+# Test santé MySQL
+docker exec tcg_prod_mysql mysql -u tcg_prod_user -ptcg_prod_password -e "SELECT 'MySQL OK' as status;" tcg_prod_db
+
+# Test API fonctionnelle
+curl -s -o /dev/null -w "API Status: %{http_code}\n" -X POST http://51.178.27.41/api/register
+
+# Logs récents en cas de problème
+docker logs tcg_prod_app --tail=20 --since=5m
 ```
 
 ---
@@ -180,70 +230,10 @@ curl -s http://51.178.27.41 | grep "VERSION"
 
 Le projet est maintenant :
 
-* 100% **opérationnel en local avec ou sans Docker**
-* 100% **déployable automatiquement en prod**
-* Multi-environnement, multi-machine, avec une stratégie de dev claire et durable
+* ✅ **Développement local simplifié** avec Docker auto-configuré
+* ✅ **API d'authentification fonctionnelle** avec JWT
+* ✅ **Déploiement automatique fiable** avec corrections JWT
+* ✅ **Logs et debugging intégrés** pour un développement efficace
+* ✅ **Architecture scalable** prête pour les fonctionnalités avancées
 
-Bon dev 🚀
-
-
-
-
-
-
-
-
-# 🔍 MONITORING POST-DÉPLOIEMENT
-
-# =====================================
-# 1. État général des containers
-# =====================================
-echo "📊 État des containers prod :"
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep tcg_prod
-
-# =====================================
-# 2. Santé des services critiques
-# =====================================
-echo "🏥 Santé MySQL :"
-docker exec tcg_prod_mysql mysql -u tcg_prod_user -ptcg_prod_password -e "SELECT 'MySQL OK' as status;" tcg_prod_db
-
-echo "🔗 Test connectivité App → MySQL :"
-docker exec tcg_prod_app php bin/console doctrine:query:sql "SELECT COUNT(*) as user_count FROM user"
-
-# =====================================
-# 3. Test JWT fonctionnel
-# =====================================
-echo "🔐 Test génération JWT :"
-docker exec tcg_prod_app php bin/console lexik:jwt:generate-token $(docker exec tcg_prod_mysql mysql -u tcg_prod_user -ptcg_prod_password -se "SELECT email FROM user LIMIT 1;" tcg_prod_db 2>/dev/null | tail -1 || echo "test@example.com")
-
-# =====================================
-# 4. Réseaux Docker
-# =====================================
-echo "🌐 Réseaux utilisés :"
-docker network ls | grep -E "(tcg|infra)"
-
-echo "🔌 Containers sur le réseau prod :"
-docker network inspect infrastructure_tcg_prod_network --format '{{range .Containers}}{{.Name}} {{end}}'
-
-# =====================================
-# 5. Volumes et persistance
-# =====================================
-echo "💾 Volumes de données :"
-docker volume ls | grep -E "(mysql|redis).*prod"
-
-# =====================================
-# 6. Test site web
-# =====================================
-echo "🌐 Test site web :"
-curl -s -o /dev/null -w "Status: %{http_code}\n" http://51.178.27.41
-
-echo "🔍 Test API register (sans données) :"
-curl -s -o /dev/null -w "API Status: %{http_code}\n" -X POST http://51.178.27.41/api/register
-
-# =====================================
-# 7. Logs récents si problème
-# =====================================
-echo "📋 Logs récents de l'app (si erreur) :"
-docker logs tcg_prod_app --tail=10 --since=2m
-
-echo "✅ Monitoring terminé !"
+**Ready to build amazing features! 🚀**
