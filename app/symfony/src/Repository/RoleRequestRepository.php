@@ -31,6 +31,21 @@ class RoleRequestRepository extends ServiceEntityRepository
     }
 
     /**
+     * 🆕 Trouve les demandes de rôle d'un utilisateur SAUF les rejetées
+     */
+    public function findNonRejectedByUser(User $user): array
+    {
+        return $this->createQueryBuilder('r')
+            ->andWhere('r.user = :user')
+            ->andWhere('r.status != :rejectedStatus')
+            ->setParameter('user', $user)
+            ->setParameter('rejectedStatus', RoleRequest::STATUS_REJECTED)
+            ->orderBy('r.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Vérifie si un utilisateur a une demande en cours pour un rôle spécifique
      */
     public function hasPendingRequestForRole(User $user, string $role): bool

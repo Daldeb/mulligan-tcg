@@ -5,6 +5,7 @@ namespace App\Controller\Api;
 use App\Entity\User;
 use App\Repository\RoleRequestRepository;
 use App\Service\ShopVerificationService;
+use App\Service\NotificationManager;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,6 +17,10 @@ use Doctrine\ORM\EntityManagerInterface;
 #[IsGranted('ROLE_ADMIN')]
 class AdminController extends AbstractController
 {
+    public function __construct(
+        private NotificationManager $notificationManager
+    ) {}
+
     #[Route('/role-requests', name: 'role_requests', methods: ['GET'])]
     public function getRoleRequests(
         RoleRequestRepository $roleRequestRepository,
@@ -141,6 +146,10 @@ class AdminController extends AbstractController
                 $user->setRoles(array_unique($roles));
             }
             
+            // 🆕 CRÉER LA NOTIFICATION D'APPROBATION
+            $notification = $this->notificationManager->createRoleApprovedNotification($request);
+            
+            // Sauvegarder tout en une transaction
             $entityManager->flush();
             
             return $this->json([
@@ -153,6 +162,11 @@ class AdminController extends AbstractController
                         'id' => $admin->getId(),
                         'pseudo' => $admin->getPseudo()
                     ]
+                ],
+                'notification' => [
+                    'id' => $notification->getId(),
+                    'created' => true,
+                    'message' => 'Notification envoyée à l\'utilisateur'
                 ]
             ]);
         } catch (\Exception $e) {
@@ -188,6 +202,10 @@ class AdminController extends AbstractController
             // Utiliser la méthode reject de l'entité
             $roleRequest->reject($admin, $adminResponse);
             
+            // 🆕 CRÉER LA NOTIFICATION DE REJET
+            $notification = $this->notificationManager->createRoleRejectedNotification($roleRequest);
+            
+            // Sauvegarder tout en une transaction
             $entityManager->flush();
             
             return $this->json([
@@ -201,6 +219,11 @@ class AdminController extends AbstractController
                         'id' => $admin->getId(),
                         'pseudo' => $admin->getPseudo()
                     ]
+                ],
+                'notification' => [
+                    'id' => $notification->getId(),
+                    'created' => true,
+                    'message' => 'Notification envoyée à l\'utilisateur'
                 ]
             ]);
         } catch (\Exception $e) {

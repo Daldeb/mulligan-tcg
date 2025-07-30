@@ -52,4 +52,42 @@ api.interceptors.response.use(
   }
 )
 
+// 🆕 MÉTHODES NOTIFICATIONS
+// Ajout des méthodes spécifiques aux notifications
+
+/**
+ * API Notifications - Méthodes pour gérer les notifications utilisateur
+ */
+api.notifications = {
+  // Header notifications (4 non lues max)
+  getHeader: () => api.get('/api/notifications/header'),
+  
+  // Compteur notifications non lues
+  getUnreadCount: () => api.get('/api/notifications/unread-count'),
+  
+  // Notifications récentes pour ProfileView (paginées)
+  getRecent: (page = 1, limit = 6) => 
+    api.get(`/api/notifications/recent?page=${page}&limit=${limit}`),
+  
+  // Toutes les notifications (pagination complète)
+  getAll: (page = 1, limit = 10) => 
+    api.get(`/api/notifications?page=${page}&limit=${limit}`),
+  
+  // Actions sur les notifications
+  markAsRead: (id) => api.post(`/api/notifications/${id}/read`),
+  markAllAsRead: () => api.post('/api/notifications/mark-all-read'),
+  delete: (id) => api.delete(`/api/notifications/${id}`),
+  
+  // Polling pour temps réel
+  poll: (since = null) => {
+    const params = since ? `?since=${since}` : ''
+    return api.get(`/api/notifications/poll${params}`)
+  },
+  
+  // Méthodes avancées
+  getStats: () => api.get('/api/notifications/stats'),
+  getByType: (type, limit = 10) => 
+    api.get(`/api/notifications/type/${type}?limit=${limit}`)
+}
+
 export default api

@@ -27,6 +27,82 @@
 
         <!-- Actions utilisateur -->
         <div class="user-actions">
+          <!-- 🆕 NOTIFICATIONS -->
+          <template v-if="authStore.isAuthenticated">
+            <div class="action-item">
+              <Button 
+                icon="pi pi-bell" 
+                class="action-button notifications-button"
+                :class="{ 'has-notifications': hasUnread }"
+                @click="toggleNotifications"
+                v-tooltip.bottom="'Notifications'"
+              />
+              <span v-if="displayBadge" class="notification-badge">
+                {{ badgeText }}
+              </span>
+              
+              <!-- Dropdown notifications -->
+              <div 
+                v-if="showNotifications" 
+                class="notifications-dropdown"
+                v-click-outside="closeNotifications"
+              >
+                <div class="notifications-header">
+                  <h4>Notifications</h4>
+                  <div class="notifications-actions">
+                    <Button 
+                      v-if="hasUnread"
+                      label="Tout marquer lu"
+                      icon="pi pi-check"
+                      class="mark-all-btn"
+                      size="small"
+                      @click="handleMarkAllAsRead"
+                    />
+                  </div>
+                </div>
+                
+                <div class="notifications-content">
+                  <!-- Liste des notifications -->
+                  <div v-if="notifications.length > 0" class="notifications-list">
+                    <div 
+                      v-for="notification in notifications" 
+                      :key="notification.id"
+                      class="notification-item"
+                      :class="{ 'notification-unread': !notification.isRead }"
+                      @click="handleNotificationClick(notification)"
+                    >
+                      <div class="notification-icon">
+                        {{ notification.icon || '🔔' }}
+                      </div>
+                      <div class="notification-content">
+                        <div class="notification-title">{{ notification.title }}</div>
+                        <div class="notification-message">{{ truncateMessage(notification.message, 60) }}</div>
+                        <div class="notification-time">{{ notification.timeAgo }}</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- État vide -->
+                  <div v-else class="notifications-empty">
+                    <i class="pi pi-bell-slash empty-icon"></i>
+                    <p>Aucune notification</p>
+                  </div>
+                </div>
+                
+                <!-- Footer avec lien vers toutes les notifications -->
+                <div class="notifications-footer">
+                  <Button 
+                    label="Voir toutes les notifications"
+                    icon="pi pi-external-link"
+                    class="view-all-btn"
+                    @click="goToNotifications"
+                    text
+                  />
+                </div>
+              </div>
+            </div>
+          </template>
+
           <!-- Messages -->
           <div class="action-item">
             <Button 
@@ -34,6 +110,7 @@
               class="action-button"
               :class="{ 'has-badge': unreadMessages > 0 }"
               @click="openMessages"
+              v-tooltip.bottom="'Messages'"
             />
             <span v-if="unreadMessages > 0" class="notification-badge">
               {{ unreadMessages }}
@@ -72,6 +149,7 @@
                 icon="pi pi-sign-out"
                 class="logout-button"
                 @click="handleLogout"
+                v-tooltip.bottom="'Déconnexion'"
               />
             </div>
           </template>
@@ -151,12 +229,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { useNotifications } from '../../composables/useNotifications'
 import { useRouter } from 'vue-router'
-
-onMounted(() => {
-})
 
 // Props et émissions
 defineEmits(['open-login'])
@@ -165,20 +241,49 @@ defineEmits(['open-login'])
 const authStore = useAuthStore()
 const router = useRouter()
 
+// 🆕 Composable notifications
+const {
+  notifications,
+  unreadCount,
+  hasUnread,
+  displayBadge,
+  badgeText,
+  handleNotificationClick,
+  markAllAsRead,
+  initialize: initializeNotifications,
+  cleanup: cleanupNotifications,
+  truncateMessage
+} = useNotifications()
+
 // State local
 const searchQuery = ref('')
-const mobileMenuVisible = ref(false)
 const unreadMessages = ref(3) // Exemple
 const showFallbackAvatar = ref(false)
+const showNotifications = ref(false)
 
 // Computed
 const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
 
-// Methods
-const toggleMobileMenu = () => {
-  mobileMenuVisible.value = !mobileMenuVisible.value
+// 🆕 Méthodes notifications
+const toggleNotifications = () => {
+  showNotifications.value = !showNotifications.value
 }
 
+const closeNotifications = () => {
+  showNotifications.value = false
+}
+
+const handleMarkAllAsRead = async () => {
+  await markAllAsRead()
+  showNotifications.value = false
+}
+
+const goToNotifications = () => {
+  showNotifications.value = false
+  router.push('/notifications') // Page future pour toutes les notifications
+}
+
+// Methods existantes
 const openMessages = () => {
   router.push('/messages')
 }
@@ -188,10 +293,42 @@ const goToProfile = () => {
 }
 
 const handleLogout = () => {
+  // 🆕 Cleanup notifications avant logout
+  cleanupNotifications()
   authStore.logout()
-  // Redirection vers la page d'accueil
   router.push('/')
 }
+
+// 🆕 Directive click outside
+const vClickOutside = {
+  mounted(el, binding) {
+    el.clickOutsideEvent = (event) => {
+      if (!(el === event.target || el.contains(event.target))) {
+        binding.value()
+      }
+    }
+    document.addEventListener('click', el.clickOutsideEvent)
+  },
+  unmounted(el) {
+    document.removeEventListener('click', el.clickOutsideEvent)
+  }
+}
+
+// Lifecycle
+onMounted(async () => {
+  // 🆕 Initialiser notifications si utilisateur connecté
+  if (authStore.isAuthenticated) {
+    await initializeNotifications()
+  }
+})
+
+onUnmounted(() => {
+  // 🆕 Cleanup au démontage du composant
+  cleanupNotifications()
+})
+
+// 🆕 Watcher pour initialiser les notifications au login
+// (sera géré par le store auth plus tard)
 </script>
 
 <style scoped>
@@ -303,7 +440,191 @@ const handleLogout = () => {
   align-items: center;
 }
 
-/* 🆕 Section profil avec avatar + pseudo */
+/* 🆕 NOTIFICATIONS DROPDOWN */
+.notifications-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 380px;
+  background: white;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-large);
+  border: 1px solid var(--surface-200);
+  z-index: 1000;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notifications-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--surface-200);
+  background: var(--surface-50);
+  border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
+}
+
+.notifications-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+:deep(.mark-all-btn) {
+  background: none !important;
+  border: 1px solid var(--primary) !important;
+  color: var(--primary) !important;
+  padding: 0.25rem 0.75rem !important;
+  font-size: 0.8rem !important;
+  border-radius: 15px !important;
+}
+
+:deep(.mark-all-btn:hover) {
+  background: var(--primary) !important;
+  color: white !important;
+}
+
+.notifications-content {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.notifications-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--surface-100);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.notification-item:hover {
+  background: var(--surface-50);
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-unread {
+  background: rgba(38, 166, 154, 0.05);
+  border-left: 3px solid var(--primary);
+}
+
+.notification-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.notification-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.notification-message {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+}
+
+.notification-time {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.notifications-empty {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  color: var(--text-secondary);
+}
+
+.empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  color: var(--surface-400);
+}
+
+.notifications-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--surface-200);
+  background: var(--surface-50);
+  border-radius: 0 0 var(--border-radius-large) var(--border-radius-large);
+}
+
+:deep(.view-all-btn) {
+  width: 100% !important;
+  justify-content: center !important;
+  color: var(--primary) !important;
+  font-weight: 500 !important;
+  padding: 0.5rem !important;
+}
+
+:deep(.view-all-btn:hover) {
+  background: rgba(38, 166, 154, 0.1) !important;
+}
+
+/* 🆕 Bouton notifications avec badge */
+:deep(.notifications-button) {
+  background: none !important;
+  border: 2px solid var(--surface-300) !important;
+  color: var(--text-secondary) !important;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all var(--transition-fast) !important;
+}
+
+:deep(.notifications-button:hover) {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1) !important;
+}
+
+:deep(.notifications-button.has-notifications) {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1) !important;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(38, 166, 154, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(38, 166, 154, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(38, 166, 154, 0); }
+}
+
+/* Section profil avec avatar + pseudo */
 .profile-section {
   display: flex;
   align-items: center;
@@ -413,6 +734,7 @@ const handleLogout = () => {
   min-width: 18px;
   text-align: center;
   line-height: 1.2;
+  z-index: 10;
 }
 
 :deep(.login-button) {
@@ -429,22 +751,6 @@ const handleLogout = () => {
   background: var(--primary-dark) !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3) !important;
-}
-
-:deep(.mobile-menu-button) {
-  background: none !important;
-  border: 2px solid var(--surface-300) !important;
-  color: var(--text-secondary) !important;
-  width: 44px !important;
-  height: 44px !important;
-  border-radius: 8px !important;
-  transition: all var(--transition-fast) !important;
-}
-
-:deep(.mobile-menu-button:hover) {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: rgba(38, 166, 154, 0.1) !important;
 }
 
 /* News section */
@@ -524,6 +830,10 @@ const handleLogout = () => {
   .user-pseudo {
     max-width: 100px;
   }
+  
+  .notifications-dropdown {
+    width: 320px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -566,6 +876,11 @@ const handleLogout = () => {
     padding: 0.5rem 1rem !important;
     font-size: 0.875rem !important;
   }
+  
+  .notifications-dropdown {
+    width: 300px;
+    right: -50px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -595,6 +910,11 @@ const handleLogout = () => {
     height: 44px !important;
     padding: 0 !important;
     border-radius: 50% !important;
+  }
+  
+  .notifications-dropdown {
+    width: 280px;
+    right: -100px;
   }
 }
 </style>

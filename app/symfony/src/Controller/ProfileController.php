@@ -40,7 +40,7 @@ class ProfileController extends AbstractController
         $user = $this->getUser();
         
         // Récupérer les demandes de rôle de l'utilisateur
-        $roleRequests = $this->roleRequestRepository->findByUser($user);
+        $roleRequests = $this->roleRequestRepository->findNonRejectedByUser($user);
 
         // Sérialiser l'adresse utilisateur si elle existe
         $userAddress = null;
@@ -436,7 +436,7 @@ class ProfileController extends AbstractController
     {
         /** @var User $user */
         $user = $this->getUser();
-        $requests = $this->roleRequestRepository->findByUser($user);
+        $requests = $this->roleRequestRepository->findNonRejectedByUser($user);
 
         return $this->json(array_map(function($request) {
             $shopAddress = null;
