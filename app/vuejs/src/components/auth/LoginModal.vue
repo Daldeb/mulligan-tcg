@@ -306,7 +306,7 @@ const handleLogin = async () => {
   try {
     const res = await authStore.login(loginForm.email, loginForm.password)
     if (res.success) {
-      toast.add({ severity: 'success', summary: 'Connexion réussie', detail: `Bienvenue`, life: 3000 })
+      // toast.add({ severity: 'success', summary: 'Connexion réussie', detail: `Bienvenue`, life: 3000 })
       emit('login-success')
       resetForms()
       // Redirection vers /profile

@@ -72,7 +72,6 @@
                 icon="pi pi-sign-out"
                 class="logout-button"
                 @click="handleLogout"
-                v-tooltip="'Se déconnecter'"
               />
             </div>
           </template>

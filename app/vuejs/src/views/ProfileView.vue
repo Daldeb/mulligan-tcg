@@ -235,10 +235,11 @@
                       </div>
                     </div>
                     
-                    <!-- Interface de gestion des demandes pour admin -->
-                    <div class="admin-requests-section">
-                      <h4 class="role-section-title">Demandes de rôles en attente</h4>
-                      <p class="admin-info">Gérez les demandes de rôles des utilisateurs de la plateforme.</p>
+                      <!-- Section admin enrichie à remplacer dans ProfileView.vue -->
+                      <div class="admin-requests-section">
+                        <h4 class="role-section-title">Demandes de rôles en attente</h4>
+                        <p class="admin-info">Gérez les demandes de rôles des utilisateurs de la plateforme.</p>
+                        
                         <div v-if="adminRequests.length === 0" class="empty-admin-requests">
                           <i class="pi pi-inbox empty-icon"></i>
                           <p>Aucune demande de rôle en attente</p>
@@ -248,38 +249,198 @@
                           <div 
                             v-for="request in adminRequests" 
                             :key="request.id"
-                            class="admin-request-item"
+                            class="admin-request-card"
+                            :class="{ 'expanded': expandedRequest === request.id }"
                           >
-                            <div class="request-user-info">
-                              <h5>{{ request.user.pseudo }}</h5>
-                              <span class="user-email">{{ request.user.email }}</span>
+                            <!-- En-tête cliquable -->
+                            <div 
+                              class="request-header" 
+                              @click="toggleRequestDetails(request.id)"
+                            >
+                              <div class="request-user-info">
+                                <h5>{{ request.user.pseudo }}</h5>
+                                <span class="user-email">{{ request.user.email }}</span>
+                              </div>
+                              
+                              <div class="request-summary">
+                                <span :class="['role-badge', getRoleClassFromString(request.requestedRole)]">
+                                  <i :class="getRoleIcon(getRoleClassFromString(request.requestedRole))"></i>
+                                  {{ getRoleLabel(getRoleClassFromString(request.requestedRole)) }}
+                                </span>
+                                <span class="request-date">{{ formatDate(request.createdAt) }}</span>
+                              </div>
+
+                              <!-- Score de confiance -->
+                              <div v-if="request.verification && request.verification.score !== null" class="confidence-score">
+                                <div class="score-wrapper">
+                                  <span :class="['score-badge', getScoreClass(request.verification.score)]">
+                                    {{ request.verification.score }}/100
+                                  </span>
+                                  <span class="confidence-level">{{ getConfidenceLabel(request.verification.confidence_level) }}</span>
+                                </div>
+                              </div>
+
+                              <div class="expand-icon">
+                                <i :class="expandedRequest === request.id ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
+                              </div>
                             </div>
-                            
-                            <div class="request-details">
-                              <span :class="['role-badge', getRoleClassFromString(request.requestedRole)]">
-                                {{ getRoleLabel(getRoleClassFromString(request.requestedRole)) }}
-                              </span>
-                              <p class="request-message">{{ request.message }}</p>
-                              <span class="request-date">{{ formatDate(request.createdAt) }}</span>
-                            </div>
-                            
-                            <div class="admin-actions">
-                              <Button 
-                                label="Approuver"
-                                icon="pi pi-check"
-                                class="emerald-btn small"
-                                severity="success"
-                              />
-                              <Button 
-                                label="Rejeter"
-                                icon="pi pi-times"
-                                class="p-button-danger small"
-                                severity="danger"
-                              />
+
+                            <!-- Détails expandables -->
+                            <div v-if="expandedRequest === request.id" class="request-details-expanded">
+                              
+                              <!-- Message de base -->
+                              <div class="basic-details">
+                                <h6>Message de motivation</h6>
+                                <p class="request-message">{{ request.message }}</p>
+                              </div>
+
+                              <!-- Détails boutique si applicable -->
+                              <div v-if="request.shop_data" class="shop-details">
+                                <h6>
+                                  <i class="pi pi-shop"></i>
+                                  Informations boutique
+                                </h6>
+                                
+                                <div class="shop-info-grid">
+                                  <div class="info-item">
+                                    <label>Nom de la boutique</label>
+                                    <span>{{ request.shop_data.name }}</span>
+                                  </div>
+                                  
+                                  <div class="info-item">
+                                    <label>SIRET</label>
+                                    <span class="siret-number">{{ formatSiret(request.shop_data.siret) }}</span>
+                                  </div>
+                                  
+                                  <div class="info-item">
+                                    <label>Téléphone</label>
+                                    <span>{{ request.shop_data.phone }}</span>
+                                  </div>
+                                  
+                                  <div class="info-item" v-if="request.shop_data.website">
+                                    <label>Site web</label>
+                                    <a :href="request.shop_data.website" target="_blank" class="website-link">
+                                      {{ request.shop_data.website }}
+                                      <i class="pi pi-external-link"></i>
+                                    </a>
+                                  </div>
+                                  
+                                  <div class="info-item full-width">
+                                    <label>Adresse</label>
+                                    <span>{{ request.shop_data.address?.full_address }}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <!-- Données de vérification -->
+                              <div v-if="request.verification" class="verification-details">
+                                <h6>
+                                  <i class="pi pi-verified"></i>
+                                  Vérification automatique
+                                </h6>
+                                
+                                <div class="verification-grid">
+                                  <!-- Score détaillé -->
+                                  <div class="verification-score-detail">
+                                    <div class="score-display">
+                                      <div :class="['score-circle', getScoreClass(request.verification.score)]">
+                                        <span class="score-value">{{ request.verification.score || 0 }}</span>
+                                        <span class="score-max">/100</span>
+                                      </div>
+                                      <div class="score-info">
+                                        <span class="confidence-text">{{ getConfidenceLabel(request.verification.confidence_level) }}</span>
+                                        <span class="verification-date">
+                                          Vérifié le {{ formatDate(request.verification.verification_date) }}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <!-- Statuts de vérification -->
+                                  <div class="verification-statuses">
+                                    <div class="status-item">
+                                      <div class="status-header">
+                                        <i class="pi pi-building"></i>
+                                        <span>Données INSEE</span>
+                                      </div>
+                                      <span :class="['status-badge', getStatusClass(request.verification.details?.insee_status)]">
+                                        {{ getStatusLabel(request.verification.details?.insee_status) }}
+                                      </span>
+                                    </div>
+                                    
+                                    <div class="status-item">
+                                      <div class="status-header">
+                                        <i class="pi pi-map-marker"></i>
+                                        <span>Google Places</span>
+                                      </div>
+                                      <span :class="['status-badge', getStatusClass(request.verification.details?.google_status)]">
+                                        {{ getStatusLabel(request.verification.details?.google_status) }}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <!-- Recommandations -->
+                                <div v-if="request.verification.details?.recommendations" class="recommendations">
+                                  <h6>Recommandations</h6>
+                                  <ul class="recommendation-list">
+                                    <li v-for="rec in request.verification.details.recommendations" :key="rec">
+                                      <i class="pi pi-info-circle"></i>
+                                      {{ rec }}
+                                    </li>
+                                  </ul>
+                                </div>
+
+                                <!-- Google Places embed -->
+                                <div v-if="request.verification.google_place_id" class="google-places-embed">
+                                  <h6>
+                                    <i class="pi pi-map"></i>
+                                    Localisation Google
+                                  </h6>
+                                  <div class="maps-embed-container">
+                                    <Button 
+                                      :label="`Voir ${request.shop_data?.name} sur Google Maps`"
+                                      icon="pi pi-external-link"
+                                      class="emerald-outline-btn maps-btn"
+                                      @click="openGoogleMaps(request.shop_data?.name, request.shop_data?.address?.full_address)"
+                                    />
+                                    <small class="maps-note">
+                                      Place ID: {{ request.verification.google_place_id }}
+                                    </small>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <!-- Actions admin -->
+                              <div class="admin-actions-expanded">
+                                <div class="action-group">
+                                  <Button 
+                                    label="Approuver"
+                                    icon="pi pi-check"
+                                    class="emerald-button primary"
+                                    @click="approveRequest(request.id)"
+                                  />
+                                  <Button 
+                                    label="Rejeter"
+                                    icon="pi pi-times"
+                                    severity="danger"
+                                    @click="rejectRequest(request.id)"
+                                  />
+                                </div>
+                                
+                                <div class="action-secondary">
+                                  <Button 
+                                    label="Contacter l'utilisateur"
+                                    icon="pi pi-envelope"
+                                    class="emerald-outline-btn small"
+                                    @click="contactUser(request.user.email)"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
-                    </div>
+                      </div>
                   </div>
                   
                   <!-- Interface UTILISATEUR NORMAL -->
@@ -757,6 +918,7 @@ const adminRequests = ref([])
 const isLoadingRequests = ref(false)
 const profileAddressRef = ref(null)
 const shopAddressRef = ref(null)
+const expandedRequest = ref(null)
 
 // Gestion des demandes de rôles inline
 const roleRequestMode = ref(null) // null, 'organizer', 'shop'
@@ -863,15 +1025,6 @@ const getRoleClassFromString = (roleString) => {
   if (roleString === 'ROLE_SHOP') return 'shop'
   if (roleString === 'ROLE_ADMIN') return 'admin'
   return 'user'
-}
-
-const getStatusLabel = (status) => {
-  const labels = {
-    pending: 'En attente',
-    approved: 'Approuvée',
-    rejected: 'Refusée'
-  }
-  return labels[status] || 'Inconnu'
 }
 
 const hasRequestPending = (role) => {
@@ -1222,6 +1375,102 @@ const confirmRoleRequestSubmission = async () => {
   } finally {
     isSubmittingRoleRequest.value = false
   }
+}
+
+// Méthodes pour l'affichage des données enrichies
+const getScoreClass = (score) => {
+  if (score >= 80) return 'score-high'
+  if (score >= 60) return 'score-medium'
+  if (score >= 40) return 'score-low'
+  return 'score-very-low'
+}
+
+const getConfidenceLabel = (level) => {
+  const labels = {
+    'high': 'Très fiable',
+    'medium': 'Fiable',
+    'low': 'Peu fiable',
+    'very_low': 'Non fiable',
+    'unknown': 'Non vérifié'
+  }
+  return labels[level] || 'Non vérifié'
+}
+
+const getStatusClass = (status) => {
+  if (status === 'found' || status === 'available') return 'status-success'
+  if (status === 'unavailable' || status === 'not_found') return 'status-warning'
+  return 'status-error'
+}
+
+const getStatusLabel = (status) => {
+  const labels = {
+    'found': 'Trouvé',
+    'not_found': 'Non trouvé',
+    'available': 'Disponible',
+    'unavailable': 'Indisponible',
+    'error': 'Erreur'
+  }
+  return labels[status] || 'Inconnu'
+}
+
+const formatSiret = (siret) => {
+  if (!siret) return ''
+  const cleaned = siret.replace(/\s/g, '')
+  return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{5})/, '$1 $2 $3 $4')
+}
+
+const toggleRequestDetails = (requestId) => {
+  expandedRequest.value = expandedRequest.value === requestId ? null : requestId
+}
+
+const openGoogleMaps = (shopName, address) => {
+  const query = encodeURIComponent(`${shopName} ${address}`)
+  const url = `https://www.google.com/maps/search/${query}`
+  window.open(url, '_blank')
+}
+
+const approveRequest = async (requestId) => {
+  try {
+    await api.post(`/api/admin/role-requests/${requestId}/approve`)
+    toast.add({
+      severity: 'success',
+      summary: 'Demande approuvée',
+      detail: 'La demande de rôle a été approuvée avec succès',
+      life: 3000
+    })
+    await loadAdminRequests() // Recharger les demandes
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible d\'approuver la demande',
+      life: 3000
+    })
+  }
+}
+
+const rejectRequest = async (requestId) => {
+  try {
+    await api.post(`/api/admin/role-requests/${requestId}/reject`)
+    toast.add({
+      severity: 'success',
+      summary: 'Demande rejetée',
+      detail: 'La demande de rôle a été rejetée',
+      life: 3000
+    })
+    await loadAdminRequests() // Recharger les demandes
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible de rejeter la demande',
+      life: 3000
+    })
+  }
+}
+
+const contactUser = (email) => {
+  window.location.href = `mailto:${email}?subject=Concernant votre demande de rôle sur MULLIGAN TCG`
 }
 
 const goToMyTopics = () => {
@@ -2310,6 +2559,474 @@ onMounted(async () => {
   
   .address-section {
     padding: 1.5rem;
+  }
+}
+
+/* Admin requests enhanced */
+.admin-request-card {
+  background: white;
+  border: 2px solid var(--surface-200);
+  border-radius: var(--border-radius-large);
+  margin-bottom: 1rem;
+  transition: all var(--transition-medium);
+  overflow: hidden;
+}
+
+.admin-request-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-medium);
+}
+
+.admin-request-card.expanded {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-large);
+}
+
+.request-header {
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto;
+  gap: 1rem;
+  align-items: center;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.request-header:hover {
+  background: rgba(38, 166, 154, 0.02);
+}
+
+.request-user-info h5 {
+  margin: 0 0 0.25rem 0;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.user-email {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.request-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.request-date {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.confidence-score {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.score-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.score-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: center;
+  min-width: 70px;
+}
+
+.score-badge.score-high {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.score-badge.score-medium {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+.score-badge.score-low {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+.score-badge.score-very-low {
+  background: linear-gradient(135deg, #991b1b, #7f1d1d);
+  color: white;
+}
+
+.confidence-level {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.expand-icon {
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  transition: transform var(--transition-fast);
+}
+
+.admin-request-card.expanded .expand-icon {
+  transform: rotate(180deg);
+}
+
+/* Détails expandables */
+.request-details-expanded {
+  border-top: 1px solid var(--surface-200);
+  padding: 2rem;
+  background: rgba(248, 250, 252, 0.5);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 1000px;
+  }
+}
+
+.request-details-expanded h6 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem 0;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--surface-300);
+}
+
+.basic-details {
+  margin-bottom: 2rem;
+}
+
+.request-message {
+  background: white;
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  border-left: 4px solid var(--primary);
+  margin: 0;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* Shop details */
+.shop-details {
+  margin-bottom: 2rem;
+}
+
+.shop-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.info-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.info-item label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-item span {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.siret-number {
+  font-family: 'Courier New', monospace;
+  background: rgba(38, 166, 154, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.website-link {
+  color: var(--primary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: color var(--transition-fast);
+}
+
+.website-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
+/* Verification details */
+.verification-details {
+  margin-bottom: 2rem;
+}
+
+.verification-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.verification-score-detail {
+  display: flex;
+  justify-content: center;
+}
+
+.score-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.score-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border: 4px solid;
+}
+
+.score-circle.score-high {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.score-circle.score-medium {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.score-circle.score-low {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.score-circle.score-very-low {
+  border-color: #991b1b;
+  background: rgba(153, 27, 27, 0.1);
+}
+
+.score-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.score-max {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.score-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.confidence-text {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.verification-date {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.verification-statuses {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: white;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--surface-200);
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.status-success {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.status-badge.status-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.status-badge.status-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Recommendations */
+.recommendations {
+  margin-bottom: 1.5rem;
+}
+
+.recommendation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.recommendation-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid #3b82f6;
+  border-radius: var(--border-radius);
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.recommendation-list li .pi {
+  color: #3b82f6;
+  margin-top: 0.1rem;
+  flex-shrink: 0;
+}
+
+/* Google Maps */
+.google-places-embed {
+  margin-bottom: 1.5rem;
+}
+
+.maps-embed-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.maps-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.maps-note {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: 'Courier New', monospace;
+}
+
+/* Actions admin expandues */
+.admin-actions-expanded {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--surface-300);
+}
+
+.action-group {
+  display: flex;
+  gap: 1rem;
+}
+
+.action-secondary {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .request-header {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .confidence-score {
+    justify-content: flex-start;
+  }
+  
+  .verification-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .shop-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .request-details-expanded {
+    padding: 1rem;
+  }
+  
+  .admin-actions-expanded {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .action-group {
+    width: 100%;
+  }
+  
+  .action-group .emerald-btn,
+  .action-group .p-button {
+    flex: 1;
   }
 }
 </style>

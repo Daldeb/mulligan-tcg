@@ -9,6 +9,7 @@ use App\Repository\RoleRequestRepository;
 use App\Repository\AddressRepository;
 use App\Service\FileUploadService;
 use App\Service\AddressService;
+use App\Service\ShopVerificationService; // 🆕 Import ajouté
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -291,10 +292,13 @@ class ProfileController extends AbstractController
         }
     }
 
+    // 🆕 MÉTHODE MISE À JOUR AVEC ENRICHISSEMENT AUTOMATIQUE
     #[Route('/api/profile/request-role', name: 'api_profile_request_role', methods: ['POST'])]
     #[IsGranted('IS_AUTHENTICATED_FULLY')]
-    public function requestRole(Request $request): JsonResponse
-    {
+    public function requestRole(
+        Request $request,
+        ShopVerificationService $shopVerification // 🆕 Service injecté
+    ): JsonResponse {
         /** @var User $user */
         $user = $this->getUser();
         $data = json_decode($request->getContent(), true);
@@ -373,8 +377,15 @@ class ProfileController extends AbstractController
         }
 
         try {
+            // Persister la demande de base
             $this->entityManager->persist($roleRequest);
             $this->entityManager->flush();
+
+            // 🆕 ENRICHISSEMENT AUTOMATIQUE pour les boutiques
+            if ($data['role'] === RoleRequest::ROLE_SHOP) {
+                $shopVerification->enrichRoleRequest($roleRequest);
+                $this->entityManager->flush(); // Sauvegarder les données d'enrichissement
+            }
 
             // Sérialiser l'adresse boutique si présente
             $shopAddress = null;
@@ -390,6 +401,17 @@ class ProfileController extends AbstractController
                 ];
             }
 
+            // 🆕 Inclure les données d'enrichissement dans la réponse
+            $enrichmentData = null;
+            if ($data['role'] === RoleRequest::ROLE_SHOP) {
+                $enrichmentData = [
+                    'verification_score' => $roleRequest->getVerificationScore(),
+                    'confidence_level' => $roleRequest->getConfidenceLevel(),
+                    'verification_date' => $roleRequest->getVerificationDate()?->format('c'),
+                    'siren_data_available' => !empty($roleRequest->getSirenData())
+                ];
+            }
+
             return $this->json([
                 'message' => 'Demande de rôle envoyée avec succès',
                 'request' => [
@@ -398,6 +420,8 @@ class ProfileController extends AbstractController
                     'status' => $roleRequest->getStatus(),
                     'shopName' => $roleRequest->getShopName(),
                     'shopAddress' => $shopAddress,
+                    'siretNumber' => $roleRequest->getSiretNumber(),
+                    'enrichment' => $enrichmentData, // 🆕 Données d'enrichissement
                     'createdAt' => $roleRequest->getCreatedAt()->format('c')
                 ]
             ], Response::HTTP_CREATED);
