@@ -43,6 +43,8 @@ services:
       - DEBUG=false
       - JWT_PASSPHRASE=
       - LOG_LEVEL=info
+      - BACKEND_URL=http://51.178.27.41
+      - FRONTEND_URL=http://51.178.27.41
     depends_on:
       - mysql
       - redis

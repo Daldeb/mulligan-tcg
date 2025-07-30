@@ -14,10 +14,17 @@
                   <!-- Avatar et info de base -->
                   <div class="avatar-section">
                     <div class="avatar-container">
+                      <img 
+                        v-if="!avatarPreview && user.avatar"
+                        :src="`${backendUrl}/uploads/${user.avatar}`"
+                        class="profile-avatar avatar-image"
+                        alt="Avatar"
+                        @error="console.log('Image failed to load:', `${backendUrl}/uploads/${user.avatar}`)"
+                        @load="console.log('Image loaded successfully:', `${backendUrl}/uploads/${user.avatar}`)"
+                      />
                       <Avatar 
-                        v-if="!avatarPreview"
+                        v-else-if="!avatarPreview && !user.avatar"
                         :label="user.pseudo?.charAt(0).toUpperCase() ?? 'U'"
-                        :image="user.avatar ? `/uploads/${user.avatar}` : null"
                         size="xlarge"
                         shape="circle"
                         class="profile-avatar"
@@ -473,6 +480,8 @@ const userRole = computed(() => {
   return 'user'
 })
 
+const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
+
 // Methods
 const getRoleIcon = (role) => {
   const icons = {
@@ -764,6 +773,17 @@ onMounted(async () => {
   color: white !important;
   border: 4px solid white !important;
   box-shadow: var(--shadow-medium) !important;
+}
+
+/* Avatar image */
+.avatar-image {
+  width: 120px !important;
+  height: 120px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  border: 4px solid white !important;
+  box-shadow: var(--shadow-medium) !important;
+  aspect-ratio: 1 / 1 !important;
 }
 
 /* Avatar preview */
