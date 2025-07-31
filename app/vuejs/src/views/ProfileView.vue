@@ -752,37 +752,60 @@
         <!-- Sidebar droite (1/3) -->
         <aside class="profile-sidebar">
           
-          <!-- Widget Activité récente -->
-          <Card class="sidebar-card activity-card slide-in-down">
-            <template #header>
-              <div class="card-header-custom activity-header">
-                <i class="pi pi-history header-icon"></i>
-                <h3 class="header-title">Activité récente</h3>
-              </div>
-            </template>
-            <template #content>
-              <div class="activity-list">
-                <div 
-                  v-for="activity in recentActivity" 
-                  :key="activity.id"
-                  class="activity-item"
-                >
-                  <div class="activity-icon">
-                    <i :class="activity.icon"></i>
-                  </div>
-                  <div class="activity-content">
-                    <p class="activity-text">{{ activity.text }}</p>
-                    <span class="activity-time">{{ activity.time }}</span>
-                  </div>
-                </div>
-                
-                <div v-if="recentActivity.length === 0" class="empty-activity">
-                  <i class="pi pi-inbox empty-icon"></i>
-                  <p class="empty-text">Aucune activité récente</p>
-                </div>
-              </div>
-            </template>
-          </Card>
+<!-- Widget Activité récente -->
+<Card class="sidebar-card activity-card slide-in-down">
+  <template #header>
+    <div class="card-header-custom activity-header">
+      <i class="pi pi-history header-icon"></i>
+      <h3 class="header-title">Activité récente</h3>
+    </div>
+  </template>
+  <template #content>
+    <div class="activity-list">
+      <!-- Liste des notifications récentes -->
+      <div 
+        v-for="notification in recentNotifications" 
+        :key="notification.id"
+        class="activity-item"
+        :class="{ 'activity-unread': !notification.isRead }"
+        @click="handleActivityClick(notification)"
+      >
+        <div class="activity-icon" :class="{ 'unread-icon': !notification.isRead }">
+          <span class="notification-emoji">{{ notification.icon || '🔔' }}</span>
+        </div>
+        <div class="activity-content">
+          <p class="activity-text">{{ notification.message }}</p>
+          <span class="activity-time">{{ notification.timeAgo }}</span>
+        </div>
+        <div v-if="!notification.isRead" class="unread-indicator"></div>
+      </div>
+      
+      <!-- État vide -->
+      <div v-if="recentNotifications.length === 0 && !isLoadingActivity" class="empty-activity">
+        <i class="pi pi-inbox empty-icon"></i>
+        <p class="empty-text">Aucune activité récente</p>
+      </div>
+      
+      <!-- Loading state -->
+      <div v-if="isLoadingActivity" class="loading-activity">
+        <i class="pi pi-spin pi-spinner"></i>
+        <p>Chargement de l'activité...</p>
+      </div>
+      
+      <!-- Bouton Charger plus -->
+      <div v-if="pagination.hasMore && recentNotifications.length > 0" class="load-more-section">
+        <Button 
+          label="Charger plus"
+          icon="pi pi-chevron-down"
+          class="load-more-btn"
+          @click="loadMoreActivity"
+          :loading="isLoadingActivity"
+          text
+        />
+      </div>
+    </div>
+  </template>
+</Card>
           
           <!-- Widget Mes Topics -->
           <Card class="sidebar-card topics-card slide-in-down">
@@ -902,6 +925,7 @@ import { useToast } from 'primevue/usetoast'
 import api from '../services/api'
 // 🆕 Import du composant AddressAutocomplete
 import AddressAutocomplete from '../components/form/AddressAutocomplete.vue'
+import { useNotifications } from '../composables/useNotifications'
 
 // Stores et router
 const authStore = useAuthStore()
@@ -963,7 +987,6 @@ const editErrors = reactive({
 // Données utilisateur réelles depuis le store
 const user = computed(() => authStore.user || {})
 const roleRequests = ref([])
-const recentActivity = ref([])
 
 // 🆕 Computed pour validation formulaire boutique
 const isShopFormValid = computed(() => {
@@ -978,6 +1001,49 @@ const isShopFormValid = computed(() => {
 const isCurrentUser = computed(() => {
   return authStore.user?.id === user.value.id
 })
+
+// 🆕 Composable notifications pour l'activité
+const {
+  recentNotifications,
+  pagination,
+  loadRecentNotifications,
+  loadMore,
+  isLoading: isLoadingActivity,
+  handleNotificationClick
+} = useNotifications()
+
+// 🆕 Gestion du clic sur une notification dans l'activité
+const handleActivityClick = async (notification) => {
+  const wasUnread = !notification.isRead  // 🆕 Capturer l'état avant
+  
+  await handleNotificationClick(notification)
+  
+  // 🆕 Afficher le toast seulement si la notification était non lue
+  if (wasUnread) {
+    toast.add({
+      severity: 'info',
+      summary: notification.title,
+      detail: 'Notification marquée comme lue',
+      life: 2000
+    })
+  }
+}
+
+// 🆕 Charger plus d'activité
+const loadMoreActivity = async () => {
+  if (pagination.value.hasMore && !isLoadingActivity.value) {
+    try {
+      await loadMore()
+    } catch (error) {
+      toast.add({
+        severity: 'error',
+        summary: 'Erreur',
+        detail: 'Impossible de charger plus d\'activité',
+        life: 3000
+      })
+    }
+  }
+}
 
 const userRole = computed(() => {
   const roles = user.value.roles || []
@@ -1498,6 +1564,12 @@ onMounted(async () => {
   // Charger les données du profil
   await loadUserProfile()
   
+    try {
+    await loadRecentNotifications(1, true) // Page 1, reset
+  } catch (error) {
+    console.error('Erreur chargement activité:', error)
+  }
+
   // Initialiser le formulaire d'édition
   editForm.pseudo = user.value.pseudo || ''
   editForm.firstName = user.value.firstName || ''
@@ -3028,5 +3100,93 @@ onMounted(async () => {
   .action-group .p-button {
     flex: 1;
   }
+}
+
+/* Activity list - MISE À JOUR */
+.activity-list {
+  padding: 1.5rem;
+  max-height: 400px; /* Augmenté pour plus d'éléments */
+  overflow-y: auto;
+}
+
+.activity-item {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--surface-200);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.activity-item:hover {
+  background: rgba(38, 166, 154, 0.05);
+  border-radius: var(--border-radius);
+  margin: 0 -0.5rem;
+  padding: 0.75rem 0.5rem;
+}
+
+/* 🆕 Notification non lue */
+.activity-item.activity-unread {
+  background: rgba(38, 166, 154, 0.05);
+  border-left: 3px solid var(--primary);
+  padding-left: 1rem;
+  margin-left: -1rem;
+}
+
+/* 🆕 Icône pour notification non lue */
+.activity-icon.unread-icon {
+  background: rgba(38, 166, 154, 0.15);
+  border: 2px solid var(--primary);
+  animation: pulse 2s infinite;
+}
+
+/* 🆕 Emoji des notifications */
+.notification-emoji {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+/* 🆕 Indicateur non lu */
+.unread-indicator {
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 0.5rem;
+}
+
+/* 🆕 État de chargement */
+.loading-activity {
+  text-align: center;
+  padding: 2rem 0;
+  color: var(--text-secondary);
+}
+
+.loading-activity .pi-spinner {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* 🆕 Section charger plus */
+.load-more-section {
+  text-align: center;
+  padding: 1rem 0;
+  border-top: 1px solid var(--surface-200);
+  margin-top: 1rem;
+}
+
+:deep(.load-more-btn) {
+  color: var(--primary) !important;
+  font-weight: 500 !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: var(--border-radius) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+:deep(.load-more-btn:hover) {
+  background: rgba(38, 166, 154, 0.1) !important;
+  transform: translateY(-1px) !important;
 }
 </style>
