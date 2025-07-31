@@ -1,7 +1,10 @@
 <template>
   <div id="app" class="min-h-screen bg-surface">
     <!-- Header principal -->
-    <AppHeader @open-login="openLoginModal" />
+    <AppHeader 
+      @open-login="openLoginModal" 
+      :is-game-data-ready="isGameDataReady" 
+    />
     
     <!-- Contenu principal avec router -->
     <main class="flex-1">
@@ -23,34 +26,37 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from './stores/auth'
+import { useGameFilterStore } from './stores/gameFilter'
+import { storeToRefs } from 'pinia'
+
 import AppHeader from './components/layout/AppHeader.vue'
 import AppFooter from './components/layout/AppFooter.vue'
 import LoginModal from './components/auth/LoginModal.vue'
 
-// State
-const isLoginModalVisible = ref(false)
-
 // Store
 const authStore = useAuthStore()
 
-// Methods
+// Game filter
+const gameFilterStore = useGameFilterStore()
+const { availableGames } = storeToRefs(gameFilterStore)
+const isGameDataReady = computed(() => availableGames.value.length > 0)
+
+// Login modal
+const isLoginModalVisible = ref(false)
 const openLoginModal = () => {
   isLoginModalVisible.value = true
 }
-
-const handleLoginSuccess = (userData) => {
+const handleLoginSuccess = () => {
   isLoginModalVisible.value = false
-  // Optionnel : afficher un toast de succès
 }
 
-// Vérifier si l'utilisateur est déjà connecté au démarrage
+// Auth au démarrage
 authStore.checkAuthStatus()
 </script>
 
 <style>
-/* Emerald va override ces styles, on garde juste l'essentiel */
 #app {
   display: flex;
   flex-direction: column;

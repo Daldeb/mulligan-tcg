@@ -51,6 +51,13 @@ if (authStore.token) {
   await authStore.checkAuthStatus()
 }
 
+// ✅ Initialiser le super filtre après auth
+const { useGameFilterStore } = await import('./stores/gameFilter')
+const gameFilterStore = useGameFilterStore()
+
+await gameFilterStore.loadGames()
+await gameFilterStore.loadSelectedGames()
+
 // Enregistrement des composants
 app.component('Button', Button)
 app.component('InputText', InputText)

@@ -70,6 +70,7 @@ class ProfileController extends AbstractController
             'favoriteClass' => $user->getFavoriteClass(),
             'roles' => $user->getRoles(),
             'isVerified' => $user->isVerified(),
+            'selectedGames' => $user->getSelectedGames(),
             'address' => $userAddress,
             'createdAt' => $user->getCreatedAt()?->format('c'),
             'lastLoginAt' => $user->getLastLoginAt()?->format('c'),
@@ -471,4 +472,26 @@ class ProfileController extends AbstractController
             ];
         }, $requests));
     }
+
+    #[Route('/api/profile/selected-games', name: 'api_profile_selected_games_update', methods: ['PUT'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
+    public function updateSelectedGames(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $data = json_decode($request->getContent(), true);
+
+        if (!isset($data['selectedGames']) || !is_array($data['selectedGames'])) {
+            return $this->json(['error' => 'Liste de jeux invalide'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $user->replaceSelectedGames($data['selectedGames']);
+        $this->entityManager->flush();
+
+        return $this->json([
+            'message' => 'Jeux sélectionnés mis à jour',
+            'selectedGames' => $user->getSelectedGames()
+        ]);
+    }
+
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="profile-page">
+  <div class="profile-page is-profile-view">
     <div class="container">
       <div class="profile-grid">
         

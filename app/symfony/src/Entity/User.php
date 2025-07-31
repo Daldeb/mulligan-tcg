@@ -88,13 +88,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\JoinColumn(name: 'address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Address $address = null;
 
+    /**
+     * Jeux sélectionnés par l'utilisateur pour le super filtre
+     * Format: [1, 2, 3] (IDs des jeux)
+     * null = aucun filtre appliqué (voir tous les jeux)
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $selectedGames = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
         $this->roles = ['ROLE_USER'];
     }
 
-    // Getters and Setters
+    // Getters and Setters existants
 
     public function getId(): ?int
     {
@@ -328,6 +336,97 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function hasAddress(): bool
     {
         return $this->address !== null;
+    }
+
+    // Nouvelles méthodes pour la gestion des jeux sélectionnés
+
+    /**
+     * @return int[]|null
+     */
+    public function getSelectedGames(): ?array
+    {
+        return $this->selectedGames;
+    }
+
+    /**
+     * @param int[]|null $selectedGames
+     */
+    public function setSelectedGames(?array $selectedGames): static
+    {
+        $this->selectedGames = $selectedGames;
+        return $this;
+    }
+
+    /**
+     * Vérifie si l'utilisateur a sélectionné des jeux
+     */
+    public function hasSelectedGames(): bool
+    {
+        return $this->selectedGames !== null && !empty($this->selectedGames);
+    }
+
+    /**
+     * Vérifie si un jeu spécifique est sélectionné
+     */
+    public function hasSelectedGame(int $gameId): bool
+    {
+        return $this->selectedGames !== null && in_array($gameId, $this->selectedGames, true);
+    }
+
+    /**
+     * Ajoute un jeu à la sélection
+     */
+    public function addSelectedGame(int $gameId): static
+    {
+        if ($this->selectedGames === null) {
+            $this->selectedGames = [];
+        }
+
+        if (!in_array($gameId, $this->selectedGames, true)) {
+            $this->selectedGames[] = $gameId;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Supprime un jeu de la sélection
+     */
+    public function removeSelectedGame(int $gameId): static
+    {
+        if ($this->selectedGames === null) {
+            return $this;
+        }
+
+        $this->selectedGames = array_values(array_filter(
+            $this->selectedGames,
+            fn(int $id) => $id !== $gameId
+        ));
+
+        // Si array devient vide, le laisser vide plutôt que null
+        return $this;
+    }
+
+    /**
+     * Vide la sélection de jeux (retour à "tout voir")
+     */
+    public function clearSelectedGames(): static
+    {
+        $this->selectedGames = null;
+        return $this;
+    }
+
+    /**
+     * Remplace complètement la sélection de jeux
+     * 
+     * @param int[] $gameIds
+     */
+    public function replaceSelectedGames(array $gameIds): static
+    {
+        // Filtrer pour ne garder que les entiers valides
+        $validIds = array_filter($gameIds, fn($id) => is_int($id) && $id > 0);
+        $this->selectedGames = empty($validIds) ? null : array_values(array_unique($validIds));
+        return $this;
     }
 
     public function generateVerificationToken(): void

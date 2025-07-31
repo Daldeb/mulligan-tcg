@@ -174,54 +174,41 @@
 
       <!-- Navigation principale -->
       <nav class="main-nav">
-        <div class="nav-buttons">
-          <router-link 
-            to="/discussions"
-            class="nav-item"
-            active-class="nav-active"
-          >
-            <Button 
-              label="Discussions" 
-              icon="pi pi-comments"
-              class="nav-button"
-            />
-          </router-link>
+        <div class="nav-content">
+          
+          <!-- Blocs TCG -->
+          <div v-if="props.isGameDataReady" class="game-sections">
+            <div
+              v-for="game in availableGames"
+              :key="game.id"
+              class="game-section"
+              :class="{ 'selected': isSelected(game.id) }"
+              @click="gameFilter.toggleGame(game.id)"
+              :style="{ '--game-bg': `url(${game.image})` }"
+            >
+              <div class="game-name">
+                {{ game.name }}
+              </div>
+            </div>
+          </div>
 
-          <router-link 
-            to="/decks"
-            class="nav-item"
-            active-class="nav-active"
-          >
-            <Button 
-              label="Decks" 
-              icon="pi pi-clone"
-              class="nav-button"
-            />
-          </router-link>
 
-          <router-link 
-            to="/classements"
-            class="nav-item"
-            active-class="nav-active"
-          >
-            <Button 
-              label="Classements" 
-              icon="pi pi-chart-bar"
-              class="nav-button"
-            />
-          </router-link>
+          <!-- Boutons navigation -->
+          <div class="nav-buttons">
+            <router-link to="/discussions" class="nav-item" active-class="nav-active">
+              <Button label="Discussions" icon="pi pi-comments" class="nav-button" />
+            </router-link>
+            <router-link to="/decks" class="nav-item" active-class="nav-active">
+              <Button label="Decks" icon="pi pi-clone" class="nav-button" />
+            </router-link>
+            <router-link to="/classements" class="nav-item" active-class="nav-active">
+              <Button label="Classements" icon="pi pi-chart-bar" class="nav-button" />
+            </router-link>
+            <router-link to="/boutiques" class="nav-item" active-class="nav-active">
+              <Button label="Boutiques" icon="pi pi-shopping-cart" class="nav-button" />
+            </router-link>
+          </div>
 
-          <router-link 
-            to="/boutiques"
-            class="nav-item"
-            active-class="nav-active"
-          >
-            <Button 
-              label="Boutiques" 
-              icon="pi pi-shopping-cart"
-              class="nav-button"
-            />
-          </router-link>
         </div>
       </nav>
     </div>
@@ -233,6 +220,12 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useNotifications } from '../../composables/useNotifications'
 import { useRouter } from 'vue-router'
+import { useGameFilterStore } from '../../stores/gameFilter'
+import { storeToRefs } from 'pinia'
+
+const props = defineProps({
+  isGameDataReady: Boolean
+})
 
 // Props et émissions
 defineEmits(['open-login'])
@@ -240,6 +233,12 @@ defineEmits(['open-login'])
 // Stores et router
 const authStore = useAuthStore()
 const router = useRouter()
+
+//game choice filters
+const gameFilter = useGameFilterStore()
+const { selectedGames, availableGames } = storeToRefs(gameFilter)
+
+const isSelected = (id) => selectedGames.value.includes(id)
 
 // 🆕 Composable notifications
 const {
@@ -782,7 +781,7 @@ onUnmounted(() => {
 
 /* Main navigation */
 .main-nav {
-  padding: 1rem 0;
+  padding: 0.5rem 0;
   background: white;
 }
 
@@ -926,4 +925,77 @@ onUnmounted(() => {
     right: -100px;
   }
 }
+
+.nav-content {
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  row-gap: 0rem; /* for wrap layout */
+}
+
+.game-sections {
+  display: flex;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.game-section {
+  width: 140px;
+  height: 72px;
+  background: #333;
+  border-radius: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  filter: grayscale(100%);
+  transition: filter 0.2s ease, box-shadow 0.2s ease;
+}
+
+.game-section.selected {
+  filter: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  transform: translateY(-3px) scale(1.02);
+  z-index: 5;
+}
+
+.game-name {
+  color: white;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-align: center;
+  z-index: 2;
+  padding: 0 0.5rem;
+}
+
+/* placeholder for future image background */
+.game-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--game-bg);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.7;
+  z-index: 1;
+}
+
+
+.nav-buttons {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  flex-grow: 1;
+}
+
+.game-section:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  z-index: 5;
+}
+
 </style>

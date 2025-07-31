@@ -37,7 +37,7 @@
     --border-radius-small: 4px;
     --border-radius-large: 16px;
 
-    --header-height: 200px;
+    --header-height: 240px;
   }
   
   /* Reset & Base */
@@ -428,6 +428,10 @@
     pointer-events: none !important;
   }
   
+  .profile-page.is-profile-view {
+  margin-top: 0px !important;
+}
+
   /* Dark mode support (désactivé pour l'instant) */
   /*
   @media (prefers-color-scheme: dark) {
