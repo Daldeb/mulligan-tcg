@@ -570,3 +570,29 @@ TYPE_ACHIEVEMENT_UNLOCKED = 'achievement_unlocked'
 ---
 
 **🎯 Le système de notifications MULLIGAN TCG est maintenant prêt pour tous vos besoins métier !**
+
+
+
+
+IMPORT DES CARTES 
+
+
+php bin/console app:import-pokemon-cards swsh9     # Brilliant Stars
+php bin/console app:import-pokemon-cards swsh10    # Astral Radiance  
+php bin/console app:import-pokemon-cards swsh10.5  # Pokémon GO
+php bin/console app:import-pokemon-cards swsh11    # Lost Origin
+php bin/console app:import-pokemon-cards swsh12    # Silver Tempest
+php bin/console app:import-pokemon-cards swsh12.5  # Crown Zenith
+
+php bin/console app:import-pokemon-cards sv01      # Scarlet & Violet
+php bin/console app:import-pokemon-cards sv02      # Paldea Evolved
+php bin/console app:import-pokemon-cards sv03      # Obsidian Flames
+php bin/console app:import-pokemon-cards sv03.5    # 151
+php bin/console app:import-pokemon-cards sv04      # Paradox Rift
+php bin/console app:import-pokemon-cards sv04.5    # Paldean Fates
+php bin/console app:import-pokemon-cards sv05      # Temporal Forces
+php bin/console app:import-pokemon-cards sv06      # Twilight Masquerade
+php bin/console app:import-pokemon-cards sv06.5    # Shrouded Fable
+php bin/console app:import-pokemon-cards sv07      # Stellar Crown
+php bin/console app:import-pokemon-cards sv08      # Surging Sparks
+php bin/console app:import-pokemon-cards sv08.5    # Prismatic Evolutions

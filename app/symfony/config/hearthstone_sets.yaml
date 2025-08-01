@@ -1,0 +1,58 @@
+# Configuration des sets Hearthstone Standard/Wild
+# Basée sur l'analyse de l'API HearthstoneJSON et les données officielles
+
+hearthstone:
+  # Sets légaux en Standard (2024-2025)
+  standard_sets:
+    - CORE                    # Core Set (permanent)
+    - WHIZBANGS_WORKSHOP     # Whizbang's Workshop (March 2024)
+    - ISLAND_VACATION        # Perils in Paradise (July 2024)
+    - SPACE                  # The Great Dark Beyond (November 2024)
+    - EMERALD_DREAM          # Into the Emerald Dream (March 2025)
+    - THE_LOST_CITY          # The Lost City of Un'Goro (July 2025)
+  
+  # Date de dernière rotation Standard
+  rotation_date: '2024-04-01'
+  
+  # Sets exclus (non-jouables ou techniques)
+  excluded_sets:
+    - HERO_SKINS             # Skins de héros
+    - PLACEHOLDER_202204     # Placeholder technique
+    - VANILLA                # Cartes vanilla héritées
+    - LEGACY                 # Cartes legacy
+    - EVENT                  # Cartes événementielles
+    - DEMON_HUNTER_INITIATE  # Cartes d'initiation
+  
+  # Grands sets Wild (extensions historiques)
+  major_wild_sets:
+    - EXPERT1                # Classic
+    - NAXX                   # Naxxramas
+    - GVG                    # Goblins vs Gnomes
+    - BRM                    # Blackrock Mountain
+    - TGT                    # The Grand Tournament
+    - LOE                    # League of Explorers
+    - OG                     # Whispers of the Old Gods
+    - KARA                   # One Night in Karazhan
+    - GANGS                  # Mean Streets of Gadgetzan
+    - UNGORO                 # Journey to Un'Goro
+    - ICECROWN               # Knights of the Frozen Throne
+    - LOOTAPALOOZA           # Kobolds & Catacombs
+    - GILNEAS                # The Witchwood
+    - BOOMSDAY               # The Boomsday Project
+    - TROLL                  # Rastakhan's Rumble
+    - DALARAN                # Rise of Shadows
+    - ULDUM                  # Saviors of Uldum
+    - DRAGONS                # Descent of Dragons
+    - BLACK_TEMPLE           # Ashes of Outland
+    - SCHOLOMANCE            # Scholomance Academy
+    - DARKMOON_FAIRE         # Madness at Darkmoon Faire
+    - THE_BARRENS            # Forged in the Barrens
+    - STORMWIND              # United in Stormwind
+    - ALTERAC_VALLEY         # Fractured in Alterac Valley
+    - THE_SUNKEN_CITY        # Voyage to the Sunken City
+    - REVENDRETH             # Murder at Castle Nathria
+    - WONDERS                # March of the Lich King
+    - TITANS                 # Festival of Legends
+    - RETURN_OF_THE_LICH_KING # Knights of the Frozen Throne
+    - BATTLE_OF_THE_BANDS    # Festival of Legends
+    - WILD_WEST              # Showdown in the Badlands

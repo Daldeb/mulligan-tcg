@@ -21,6 +21,32 @@ const routes = [
       requiresAuth: true
     }
   },
+  {
+    path: '/decks',
+    name: 'decks',
+    component: () => import('../views/DecksView.vue'),
+    meta: {
+      title: 'Decks - MULLIGAN TCG'
+    }
+  },
+  {
+    path: '/decks/create',
+    name: 'decks-create',
+    component: () => import('../views/DecksEditor.vue'),
+    meta: {
+      title: 'Créer un deck - MULLIGAN TCG',
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/decks/edit/:id',
+    name: 'decks-edit',
+    component: () => import('../views/DecksEditor.vue'),
+    meta: {
+      title: 'Modifier un deck - MULLIGAN TCG',
+      requiresAuth: true
+    }
+  },
   // Temporairement commentées jusqu'à création des vues
   /*
   {
@@ -29,14 +55,6 @@ const routes = [
     component: () => import('../views/DiscussionsView.vue'),
     meta: {
       title: 'Discussions - MULLIGAN TCG'
-    }
-  },
-  {
-    path: '/decks',
-    name: 'decks',
-    component: () => import('../views/DecksView.vue'),
-    meta: {
-      title: 'Decks - MULLIGAN TCG'
     }
   },
   {

@@ -41,3 +41,13 @@ services:
         arguments:
             $inseeApiBaseUrl: '%env(INSEE_API_BASE_URL)%'
             $inseeBearerToken: '%env(INSEE_BEARER_TOKEN)%'
+
+    # 🆕 Configuration pour repositories dans sous-dossiers (Pokemon, Magic, Hearthstone)
+    App\Repository\:
+        resource: '../src/Repository/*'
+        tags: ['doctrine.repository_service']
+
+    # 🆕 ImageDownloadService pour téléchargement d'images TCG
+    App\Service\ImageDownloadService:
+        arguments:
+            $uploadsDir: '%kernel.project_dir%/public/uploads'
