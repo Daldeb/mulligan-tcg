@@ -84,7 +84,7 @@ class ImageDownloadService
         return $localPath;
     }
 
-    /**
+/**
      * Télécharger une image de carte Hearthstone depuis HearthstoneJSON
      * URL format: https://art.hearthstonejson.com/v1/render/latest/frFR/256x/{cardId}.png
      */
@@ -102,50 +102,57 @@ class ImageDownloadService
         $downloaded = false;
         $fileSize = 0;
         
-        // Télécharger seulement si pas déjà présent
-        if (!$this->filesystem->exists($fullPath)) {
-            try {
-                $response = $this->httpClient->request('GET', $fullImageUrl);
-                
-                if ($response->getStatusCode() === 200) {
-                    $content = $response->getContent();
-                    $this->filesystem->dumpFile($fullPath, $content);
-                    $fileSize = strlen($content);
-                    $downloaded = true;
-                } else if ($response->getStatusCode() === 404) {
-                    // Image manquante - continuer sans erreur
-                    error_log("Warning: Hearthstone card image not found: {$cardId}");
-                    return [
-                        'path' => null,
-                        'downloaded' => false,
-                        'size' => 0
-                    ];
-                } else {
-                    throw new \Exception("Failed to download Hearthstone card image: HTTP {$response->getStatusCode()} for {$fullImageUrl}");
-                }
-            } catch (\Exception $e) {
-                if (strpos($e->getMessage(), '404') !== false) {
-                    // Image 404 - continuer sans erreur
-                    error_log("Warning: Hearthstone card image not found: {$cardId}");
-                    return [
-                        'path' => null,
-                        'downloaded' => false,
-                        'size' => 0
-                    ];
-                }
-                error_log("Warning: Could not download Hearthstone card {$cardId}: " . $e->getMessage());
-                throw $e;
-            }
-        } else {
+        // Vérifier si le fichier existe déjà
+        if ($this->filesystem->exists($fullPath)) {
             // Fichier existe déjà, récupérer sa taille
             $fileSize = filesize($fullPath);
+            return [
+                'path' => $localPath,
+                'downloaded' => false, // Pas téléchargé cette fois
+                'size' => $fileSize
+            ];
         }
         
-        return [
-            'path' => $localPath,
-            'downloaded' => $downloaded,
-            'size' => $fileSize
-        ];
+        // Télécharger le fichier
+        try {
+            $response = $this->httpClient->request('GET', $fullImageUrl);
+            
+            if ($response->getStatusCode() === 200) {
+                $content = $response->getContent();
+                $this->filesystem->dumpFile($fullPath, $content);
+                $fileSize = strlen($content);
+                $downloaded = true;
+                
+                return [
+                    'path' => $localPath,
+                    'downloaded' => true,
+                    'size' => $fileSize
+                ];
+                
+            } else if ($response->getStatusCode() === 404) {
+                // Image manquante - continuer sans erreur
+                error_log("Warning: Hearthstone card image not found: {$cardId}");
+                return [
+                    'path' => null,
+                    'downloaded' => false,
+                    'size' => 0
+                ];
+            } else {
+                throw new \Exception("Failed to download Hearthstone card image: HTTP {$response->getStatusCode()} for {$fullImageUrl}");
+            }
+        } catch (\Exception $e) {
+            if (strpos($e->getMessage(), '404') !== false) {
+                // Image 404 - continuer sans erreur
+                error_log("Warning: Hearthstone card image not found: {$cardId}");
+                return [
+                    'path' => null,
+                    'downloaded' => false,
+                    'size' => 0
+                ];
+            }
+            error_log("Warning: Could not download Hearthstone card {$cardId}: " . $e->getMessage());
+            throw $e;
+        }
     }
 
     /**

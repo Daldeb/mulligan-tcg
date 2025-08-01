@@ -195,9 +195,9 @@
 
           <!-- Boutons navigation -->
           <div class="nav-buttons">
-            <router-link to="/discussions" class="nav-item" active-class="nav-active">
+            <span class="nav-item" @click="handleDiscussionsClick">
               <Button label="Discussions" icon="pi pi-comments" class="nav-button" />
-            </router-link>
+            </span>
             <router-link to="/decks" class="nav-item" active-class="nav-active">
               <Button label="Decks" icon="pi pi-clone" class="nav-button" />
             </router-link>
@@ -212,6 +212,7 @@
         </div>
       </nav>
     </div>
+    <AuthRequiredModal :visible="showAuthModal" @close="showAuthModal = false" />
   </header>
 </template>
 
@@ -222,6 +223,8 @@ import { useNotifications } from '../../composables/useNotifications'
 import { useRouter } from 'vue-router'
 import { useGameFilterStore } from '../../stores/gameFilter'
 import { storeToRefs } from 'pinia'
+import AuthRequiredModal from '@/components/auth/AuthRequiredModal.vue';
+
 
 const props = defineProps({
   isGameDataReady: Boolean
@@ -231,6 +234,7 @@ const props = defineProps({
 defineEmits(['open-login'])
 
 // Stores et router
+const showAuthModal = ref(false);
 const authStore = useAuthStore()
 const router = useRouter()
 
@@ -291,6 +295,14 @@ const openMessages = () => {
 
 const goToProfile = () => {
   router.push('/profile')
+}
+
+const handleDiscussionsClick = () => {
+  if (authStore.isAuthenticated) {
+    router.push('/forums')
+  } else {
+    showAuthModal.value = true
+  }
 }
 
 const handleLogout = () => {

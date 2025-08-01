@@ -18,8 +18,8 @@
             <Button 
               label="Créer un deck"
               icon="pi pi-plus"
-              class="emerald-btn"
-              @click="createNewDeck"
+              class="emerald-button primary"
+              @click="showCreateModal = true"
             />
           </div>
         </div>
@@ -265,6 +265,158 @@
       </div>
 
     </div>
+
+    <!-- Modale de création de deck - Version Emerald Design -->
+    <Dialog 
+      v-model:visible="showCreateModal"
+      modal 
+      :closable="true"
+      :style="{ width: '100%', maxWidth: '540px' }"
+      :breakpoints="{ '960px': '85vw', '640px': '95vw' }"
+      class="emerald-modal"
+    >
+      <template #header>
+        <div class="modal-header-content">
+          <i class="pi pi-plus header-icon"></i>
+          <span class="header-title">Créer un nouveau deck</span>
+        </div>
+      </template>
+
+      <div class="modal-body">
+        <form @submit.prevent="createDeck" class="emerald-form">
+          
+          <!-- Titre du deck -->
+          <div class="field-group">
+            <label for="deck-title" class="field-label">Titre du deck *</label>
+            <InputText
+              id="deck-title"
+              v-model="deckData.title"
+              placeholder="Ex: Deck Aggro Chasseur"
+              class="emerald-input"
+              :class="{ 'error': errors.title }"
+              @input="errors.title = ''"
+            />
+            <small v-if="errors.title" class="field-error">{{ errors.title }}</small>
+          </div>
+
+          <!-- Sélection du jeu -->
+          <div class="field-group">
+            <label for="deck-game" class="field-label">Jeu *</label>
+            <Dropdown
+              id="deck-game"
+              v-model="deckData.selectedGame"
+              :options="availableGames"
+              option-label="name"
+              option-value="id"
+              placeholder="Sélectionner un jeu"
+              class="emerald-dropdown"
+              :class="{ 'error': errors.game }"
+              @change="onGameChange"
+            >
+              <template #option="{ option }">
+                <div class="game-option">
+                  <div 
+                    class="game-color-badge"
+                    :style="{ backgroundColor: option.primaryColor }"
+                  ></div>
+                  <span class="game-name">{{ option.name }}</span>
+                </div>
+              </template>
+              <template #value="{ value }">
+                <div v-if="value" class="selected-game">
+                  <div 
+                    class="game-color-badge"
+                    :style="{ backgroundColor: getSelectedGameColor(value) }"
+                  ></div>
+                  <span>{{ getSelectedGameName(value) }}</span>
+                </div>
+                <span v-else class="placeholder-text">Sélectionner un jeu</span>
+              </template>
+            </Dropdown>
+            <small v-if="errors.game" class="field-error">{{ errors.game }}</small>
+          </div>
+
+          <!-- Sélection du format -->
+          <div class="field-group">
+            <label for="deck-format" class="field-label">Format *</label>
+            <Dropdown
+              id="deck-format"
+              v-model="deckData.selectedFormat"
+              :options="availableFormats"
+              option-label="name"
+              option-value="id"
+              placeholder="Sélectionner un format"
+              class="emerald-dropdown"
+              :class="{ 'error': errors.format }"
+              :disabled="!deckData.selectedGame"
+            >
+              <template #option="{ option }">
+                <div class="format-option">
+                  <div class="format-main">
+                    <span class="format-name">{{ option.name }}</span>
+                  </div>
+                  <div v-if="option.description" class="format-description">
+                    {{ option.description }}
+                  </div>
+                </div>
+              </template>
+            </Dropdown>
+            <small v-if="errors.format" class="field-error">{{ errors.format }}</small>
+            <small v-else-if="!deckData.selectedGame" class="field-hint">
+              Sélectionnez d'abord un jeu pour voir les formats disponibles
+            </small>
+          </div>
+
+          <!-- Description optionnelle -->
+          <div class="field-group">
+            <label for="deck-description" class="field-label">Description (optionnelle)</label>
+            <Textarea
+              id="deck-description"
+              v-model="deckData.description"
+              placeholder="Décrivez votre stratégie, les combos clés..."
+              rows="3"
+              class="emerald-textarea"
+            />
+          </div>
+
+          <!-- Archetype optionnel -->
+          <div class="field-group">
+            <label for="deck-archetype" class="field-label">Archetype (optionnel)</label>
+            <Dropdown
+              id="deck-archetype"
+              v-model="deckData.archetype"
+              :options="getArchetypesForGame()"
+              placeholder="Ex: Aggro, Control, Combo..."
+              class="emerald-dropdown"
+              :disabled="!deckData.selectedGame"
+              editable
+            />
+            <small v-if="!deckData.selectedGame" class="field-hint">
+              Les archetypes dépendent du jeu sélectionné
+            </small>
+          </div>
+
+        </form>
+
+        <!-- Actions de la modale -->
+        <div class="modal-actions">
+          <Button
+            label="Annuler"
+            icon="pi pi-times"
+            class="emerald-outline-btn cancel"
+            @click="showCreateModal = false"
+          />
+          <Button
+            label="Créer le deck"
+            icon="pi pi-check"
+            class="emerald-button primary"
+            @click="createDeck"
+            :loading="isCreating"
+            :disabled="!isFormValid"
+          />
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -276,6 +428,9 @@ import { useGameFilterStore } from '../stores/gameFilter'
 import { useToast } from 'primevue/usetoast'
 import { storeToRefs } from 'pinia'
 import api from '../services/api'
+import Dialog from 'primevue/dialog'
+import Dropdown from 'primevue/dropdown' 
+import Textarea from 'primevue/textarea'
 // import DeckCard from '../components/decks/DeckCard.vue' // Temporairement commenté
 
 // Stores et composables
@@ -291,6 +446,26 @@ const { selectedGames } = storeToRefs(gameFilterStore)
 const allDecks = ref([])
 const isLoading = ref(true)
 const globalSearch = ref('')
+
+// State modale (après tes variables existantes)
+const showCreateModal = ref(false)
+const isCreating = ref(false)
+const availableGames = ref([])
+const availableFormats = ref([])
+
+const deckData = ref({
+  title: '',
+  description: '',
+  selectedGame: null,
+  selectedFormat: null,
+  archetype: ''
+})
+
+const errors = ref({
+  title: '',
+  game: '',
+  format: ''
+})
 
 // Filtres par jeu (état local à la vue)
 const hearthstoneFilters = ref({
@@ -392,6 +567,20 @@ const totalDecksCount = computed(() => {
   return total
 })
 
+// Computed pour la modale
+const isFormValid = computed(() => {
+  return deckData.value.title.trim().length >= 3 &&
+         deckData.value.selectedGame &&
+         deckData.value.selectedFormat
+})
+
+// Archetypes par jeu (pour la modale)
+const archetypes = {
+  hearthstone: ['Aggro', 'Midrange', 'Control', 'Combo', 'Tempo', 'Big', 'Zoo', 'Burn', 'Mill'],
+  pokemon: ['Aggro', 'Control', 'Combo', 'Toolbox', 'Stall', 'Beatdown', 'Engine', 'Disruption'],
+  magic: ['Aggro', 'Control', 'Midrange', 'Combo', 'Ramp', 'Tribal', 'Voltron', 'Stax', 'Storm']
+}
+
 // Méthodes utilitaires
 const getGameDeckCount = (game) => {
   return allDecks.value.filter(deck => deck.game === game).length
@@ -407,6 +596,17 @@ const sortDecks = (decks, sortType) => {
     default:
       return [...decks].sort((a, b) => (b.likes || 0) - (a.likes || 0))
   }
+}
+
+// Méthodes utilitaires pour la modale
+const getSelectedGameName = (gameId) => {
+  const game = availableGames.value.find(g => g.id === gameId)
+  return game ? game.name : ''
+}
+
+const getSelectedGameColor = (gameId) => {
+  const game = availableGames.value.find(g => g.id === gameId)
+  return game ? game.primaryColor : '#26a69a'
 }
 
 // Actions filtres
@@ -519,6 +719,138 @@ const deleteDeck = async (deck) => {
   }
 }
 
+// Methods pour la modale
+const loadGames = async () => {
+  try {
+    const response = await api.get('/api/games')
+    if (response.data.success) {
+      availableGames.value = response.data.data
+      
+      // Pré-sélectionner si user a 1 seul jeu préféré
+      if (selectedGames.value?.length === 1) {
+        deckData.value.selectedGame = selectedGames.value[0]
+        await loadFormatsForGame(selectedGames.value[0])
+      }
+    }
+  } catch (error) {
+    console.error('Erreur chargement jeux:', error)
+  }
+}
+
+const loadFormatsForGame = async (gameId) => {
+  if (!gameId) {
+    availableFormats.value = []
+    return
+  }
+  
+  try {
+    const response = await api.get(`/api/games/${gameId}/formats`)
+    if (response.data.success) {
+      availableFormats.value = response.data.data
+    }
+  } catch (error) {
+    console.error('Erreur chargement formats:', error)
+    availableFormats.value = []
+  }
+}
+
+const onGameChange = () => {
+  deckData.value.selectedFormat = null
+  deckData.value.archetype = ''
+  errors.value.game = ''
+  
+  if (deckData.value.selectedGame) {
+    loadFormatsForGame(deckData.value.selectedGame)
+  }
+}
+
+const getArchetypesForGame = () => {
+  if (!deckData.value.selectedGame) return []
+  const game = availableGames.value.find(g => g.id === deckData.value.selectedGame)
+  return game ? archetypes[game.slug] || [] : []
+}
+
+const validateForm = () => {
+  errors.value = { title: '', game: '', format: '' }
+  let isValid = true
+
+  if (!deckData.value.title.trim()) {
+    errors.value.title = 'Le titre est requis'
+    isValid = false
+  } else if (deckData.value.title.trim().length < 3) {
+    errors.value.title = 'Le titre doit faire au moins 3 caractères'
+    isValid = false
+  }
+
+  if (!deckData.value.selectedGame) {
+    errors.value.game = 'Veuillez sélectionner un jeu'
+    isValid = false
+  }
+
+  if (!deckData.value.selectedFormat) {
+    errors.value.format = 'Veuillez sélectionner un format'
+    isValid = false
+  }
+
+  return isValid
+}
+
+const createDeck = async () => {
+  if (!validateForm()) return
+
+  isCreating.value = true
+
+  try {
+    const queryParams = {
+      game: deckData.value.selectedGame,
+      format: deckData.value.selectedFormat,
+      title: deckData.value.title
+    }
+
+    if (deckData.value.description) {
+      queryParams.description = deckData.value.description
+    }
+
+    if (deckData.value.archetype) {
+      queryParams.archetype = deckData.value.archetype
+    }
+
+    await router.push({
+      name: 'decks-create',
+      query: queryParams
+    })
+
+    showCreateModal.value = false
+    
+    // Reset formulaire
+    deckData.value = {
+      title: '',
+      description: '',
+      selectedGame: null,
+      selectedFormat: null,
+      archetype: ''
+    }
+
+    toast.add({
+      severity: 'success',
+      summary: 'Deck créé',
+      detail: 'Vous pouvez maintenant ajouter des cartes',
+      life: 3000
+    })
+
+  } catch (error) {
+    console.error('Erreur création deck:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible de créer le deck',
+      life: 3000
+    })
+  } finally {
+    isCreating.value = false
+  }
+}
+
 const copyDeck = (deck) => {
   // Copier le deck vers l'éditeur
   router.push(`/decks/create?copy=${deck.id}`)
@@ -625,6 +957,7 @@ const loadMockDecks = () => {
 onMounted(async () => {
   console.log('🃏 DecksView montée - Filtres globaux:', selectedGames.value)
   await loadCommunityDecks()
+  await loadGames()
 })
 
 // Watcher pour réagir aux changements de filtre global
@@ -935,6 +1268,274 @@ watch(selectedGames, (newGames) => {
   line-height: 1.5;
 }
 
+/* Deck cards basiques temporaires */
+.deck-content {
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.deck-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.deck-author {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0 0 1rem 0;
+}
+
+.deck-meta {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  align-items: center;
+}
+
+.format-badge {
+  padding: 0.25rem 0.75rem;
+  background: rgba(38, 166, 154, 0.1);
+  color: var(--primary);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.likes {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* === MODAL EMERALD DECK CREATION === */
+
+/* Header modal */
+:deep(.emerald-modal .p-dialog) {
+  border-radius: var(--border-radius-large) !important;
+  box-shadow: var(--shadow-large) !important;
+  border: 1px solid var(--surface-200) !important;
+  overflow: hidden !important;
+}
+
+:deep(.emerald-modal .p-dialog-header) {
+  background: var(--emerald-gradient) !important;
+  color: var(--text-inverse) !important;
+  padding: 1.5rem 2rem !important;
+  border-bottom: none !important;
+}
+
+:deep(.emerald-modal .p-dialog-content) {
+  padding: 0 !important;
+  background: var(--surface) !important;
+}
+
+.modal-header-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.header-icon {
+  font-size: 1.5rem;
+  opacity: 0.9;
+}
+
+.header-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Body modal */
+.modal-body {
+  padding: 2rem;
+}
+
+/* Formulaire Emerald */
+.emerald-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field-label {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Inputs Emerald */
+:deep(.emerald-input) {
+  width: 100% !important;
+  padding: 0.875rem 1rem !important;
+  border: 2px solid var(--surface-300) !important;
+  border-radius: var(--border-radius) !important;
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  font-size: 0.95rem !important;
+  transition: all var(--transition-fast) !important;
+}
+
+:deep(.emerald-input:focus) {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1) !important;
+  background: white !important;
+}
+
+:deep(.emerald-input.error) {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1) !important;
+}
+
+:deep(.emerald-input::placeholder) {
+  color: var(--text-secondary) !important;
+  opacity: 0.7 !important;
+}
+
+/* Textarea Emerald */
+:deep(.emerald-textarea) {
+  width: 100% !important;
+  padding: 0.875rem 1rem !important;
+  border: 2px solid var(--surface-300) !important;
+  border-radius: var(--border-radius) !important;
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  font-size: 0.95rem !important;
+  transition: all var(--transition-fast) !important;
+  resize: vertical !important;
+  min-height: 80px !important;
+}
+
+:deep(.emerald-textarea:focus) {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1) !important;
+  background: white !important;
+}
+
+:deep(.emerald-textarea::placeholder) {
+  color: var(--text-secondary) !important;
+  opacity: 0.7 !important;
+}
+
+/* Dropdowns Emerald */
+:deep(.emerald-dropdown) {
+  width: 100% !important;
+  border: 2px solid var(--surface-300) !important;
+  border-radius: var(--border-radius) !important;
+  background: var(--surface) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+:deep(.emerald-dropdown:not(.p-disabled):hover) {
+  border-color: var(--primary-light) !important;
+}
+
+:deep(.emerald-dropdown.p-focus) {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1) !important;
+  background: white !important;
+}
+
+:deep(.emerald-dropdown.error) {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1) !important;
+}
+
+:deep(.emerald-dropdown .p-dropdown-label) {
+  padding: 0.875rem 1rem !important;
+  color: var(--text-primary) !important;
+  font-size: 0.95rem !important;
+}
+
+:deep(.emerald-dropdown .p-dropdown-label.p-placeholder) {
+  color: var(--text-secondary) !important;
+  opacity: 0.7 !important;
+}
+
+/* Options des dropdowns */
+.game-option,
+.selected-game {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.game-color-badge {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.game-name {
+  font-weight: 500;
+}
+
+.placeholder-text {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.format-option {
+  padding: 0.5rem 0;
+}
+
+.format-main {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.format-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+  line-height: 1.3;
+}
+
+/* Messages d'erreur et d'aide */
+.field-error {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+
+.field-hint {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+/* Actions de la modale */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1.5rem 0 0 0;
+  border-top: 1px solid var(--surface-200);
+}
+
+:deep(.modal-actions .p-button) {
+  padding: 0.75rem 1.5rem !important;
+  font-weight: 600 !important;
+  border-radius: var(--border-radius) !important;
+  transition: all var(--transition-fast) !important;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .container {
@@ -1030,6 +1631,33 @@ watch(selectedGames, (newGames) => {
     width: 100% !important;
     justify-content: center !important;
   }
+
+  /* Modal responsive */
+  .modal-body {
+    padding: 1.5rem;
+  }
+  
+  :deep(.emerald-modal .p-dialog-header) {
+    padding: 1rem 1.5rem !important;
+  }
+  
+  .header-title {
+    font-size: 1.25rem;
+  }
+  
+  .emerald-form {
+    gap: 1.25rem;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  :deep(.modal-actions .p-button) {
+    width: 100% !important;
+    justify-content: center !important;
+  }
 }
 
 /* Animations personnalisées */
@@ -1059,44 +1687,19 @@ watch(selectedGames, (newGames) => {
   box-shadow: var(--shadow-medium);
 }
 
-/* Deck cards basiques temporaires */
-.deck-content {
-  padding: 1.5rem;
-  text-align: center;
+/* Animation d'entrée modale */
+:deep(.p-dialog-enter-active) {
+  animation: emeraldModalEnter 0.4s ease-out;
 }
 
-.deck-name {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 0.5rem 0;
-}
-
-.deck-author {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin: 0 0 1rem 0;
-}
-
-.deck-meta {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  align-items: center;
-}
-
-.format-badge {
-  padding: 0.25rem 0.75rem;
-  background: rgba(38, 166, 154, 0.1);
-  color: var(--primary);
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.likes {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+@keyframes emeraldModalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 </style>

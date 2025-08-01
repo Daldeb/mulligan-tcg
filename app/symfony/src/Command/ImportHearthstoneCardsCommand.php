@@ -15,15 +15,20 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(
     name: 'app:import-hearthstone-cards',
-    description: 'Import Hearthstone cards from HearthstoneJSON API with local image storage'
+    description: 'Import Hearthstone cards from HearthstoneJSON API with local image storage and memory optimization'
 )]
 class ImportHearthstoneCardsCommand extends Command
 {
+    private int $batchSize = 25; // Réduit pour éviter surcharge mémoire
+    private int $downloadedImages = 0;
+    private float $totalImageSize = 0;
+
     public function __construct(
         private EntityManagerInterface $entityManager,
         private HttpClientInterface $httpClient,
@@ -38,22 +43,21 @@ class ImportHearthstoneCardsCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('locale', 'l', InputOption::VALUE_OPTIONAL, 'Locale (frFR, enUS, etc.)', 'frFR')
+            ->addOption('locale', 'l', InputOption::VALUE_OPTIONAL, 'Language locale for card names', 'frFR')
             ->addOption('collectible-only', 'c', InputOption::VALUE_NONE, 'Import only collectible cards')
             ->setHelp(<<<'EOF'
-This command imports ALL Hearthstone cards from HearthstoneJSON API.
-Set legality (Standard/Wild) is managed separately via app:update-hearthstone-sets-legality.
+This command imports Hearthstone cards from HearthstoneJSON API.
 
 Examples:
-  <info>php bin/console app:import-hearthstone-cards</info>               # All cards (recommended)
-  <info>php bin/console app:import-hearthstone-cards -l enUS</info>       # English locale
-  <info>php bin/console app:import-hearthstone-cards --collectible-only</info> # Only collectible
+  <info>php bin/console app:import-hearthstone-cards</info>                 # All cards (EN)
+  <info>php bin/console app:import-hearthstone-cards -l frFR</info>         # All cards (FR)
+  <info>php bin/console app:import-hearthstone-cards --collectible-only</info> # Collectible only
 
 The command will:
-- Download card data from HearthstoneJSON API
-- Create sets automatically based on card data
-- Download and store all card images locally in /public/uploads/hearthstone/
-- Support French and English locales
+- Import card and set data from HearthstoneJSON
+- Download and store all images locally in /public/uploads/hearthstone/
+- Optimize memory usage with batch processing
+- Handle missing images gracefully
 EOF
             );
     }
@@ -64,9 +68,14 @@ EOF
         $locale = $input->getOption('locale');
         $collectibleOnly = $input->getOption('collectible-only');
 
-        $io->title("🃏 Import Hearthstone Cards - All Cards ({$locale})");
+        $cardType = $collectibleOnly ? 'collectible' : 'all';
+        $io->title("🃏 Import Hearthstone Cards - " . ucfirst($cardType) . " Cards ({$locale})");
 
         try {
+            // Optimisation mémoire globale
+            ini_set('memory_limit', '512M');
+            gc_enable();
+
             // 1. Récupérer le jeu Hearthstone
             $hearthstoneGame = $this->gameRepository->findOneBy(['slug' => 'hearthstone']);
             if (!$hearthstoneGame) {
@@ -74,49 +83,36 @@ EOF
                 return Command::FAILURE;
             }
 
-            // 2. Récupérer les données des cartes depuis HearthstoneJSON
+            // 2. Récupérer les données des cartes
             $io->section('📋 Step 1: Fetching cards data from HearthstoneJSON...');
             $cardsData = $this->fetchCardsData($locale, $collectibleOnly, $io);
             
             if (empty($cardsData)) {
-                $io->error("No cards found for locale '{$locale}'");
+                $io->error('No cards data found');
                 return Command::FAILURE;
             }
 
             $io->writeln("Found " . count($cardsData) . " cards to process");
 
-            // 3. Récupérer les métadonnées (sets, classes, etc.)
+            // 3. Récupérer les métadonnées (types, raretés, etc.) - optionnel
             $io->section('🔍 Step 2: Fetching metadata...');
             $metadata = $this->fetchMetadata($io);
 
-            // 4. Créer les sets nécessaires
+            // 4. Créer/Mettre à jour les sets
             $io->section('📦 Step 3: Creating/updating sets...');
-            $sets = $this->createOrUpdateSets($cardsData, $hearthstoneGame, $metadata, $io);
+            $this->createOrUpdateSets($cardsData, $hearthstoneGame, $io);
 
-            // 5. Importer les cartes
+            // 5. Importer les cartes par batch
             $io->section('⬇️ Step 4: Importing cards with images...');
-            $result = $this->importCards($cardsData, $sets, $locale, $io);
+            $results = $this->importCardsInBatches($cardsData, $metadata, $io);
 
-            // Résumé final détaillé
-            $io->createTable()
-                ->setHeaders(['Status', 'Count'])
-                ->setRows([
-                    ['✅ Imported', $result['imported']],
-                    ['🔄 Updated', $result['updated']],
-                    ['⏭️ Skipped', $result['skipped']],
-                    ['❌ Errors', $result['errors']],
-                    ['📊 Total processed', count($cardsData)],
-                    ['🖼️ Images downloaded', $result['images_downloaded']],
-                    ['💾 Total size', $result['total_size_mb'] . ' MB']
-                ])
-                ->render();
-
-            if ($result['errors'] > 0) {
-                $io->warning("Import completed with {$result['errors']} errors.");
-                return $result['errors'] > ($result['imported'] / 2) ? Command::FAILURE : Command::SUCCESS;
+            // 6. Résumé final
+            $this->displayFinalSummary($cardsData, $io);
+            
+            // 7. Déterminer le statut de retour
+            if ($results['errors'] > ($results['imported'] / 2)) {
+                return Command::FAILURE;
             }
-
-            $io->success("🎉 Import completed successfully! {$result['imported']} cards imported, {$result['updated']} updated.");
 
         } catch (\Exception $e) {
             $io->error("💥 Import failed: " . $e->getMessage());
@@ -132,222 +128,208 @@ EOF
         $url = "https://api.hearthstonejson.com/v1/latest/{$locale}/{$endpoint}";
         
         $io->writeln("📡 Fetching from: {$url}");
-
+        
         $response = $this->httpClient->request('GET', $url);
         
         if ($response->getStatusCode() !== 200) {
             throw new \Exception("Failed to fetch cards data: HTTP {$response->getStatusCode()}");
         }
-
+        
         return $response->toArray();
     }
 
     private function fetchMetadata(SymfonyStyle $io): array
     {
         $url = "https://api.hearthstonejson.com/v1/latest/enUS/enums.json";
-        
         $io->writeln("📡 Fetching metadata from: {$url}");
-
+        
         try {
             $response = $this->httpClient->request('GET', $url);
             
-            if ($response->getStatusCode() === 200) {
-                return $response->toArray();
+            if ($response->getStatusCode() !== 200) {
+                $io->warning("Metadata not available (HTTP {$response->getStatusCode()}), continuing without metadata...");
+                return [];
             }
+            
+            $io->writeln("✅ Metadata fetched successfully");
+            return $response->toArray();
+            
         } catch (\Exception $e) {
-            $io->writeln("⚠️ Could not fetch metadata: " . $e->getMessage());
+            $io->warning("Metadata fetch failed: " . $e->getMessage() . ", continuing without metadata...");
+            return [];
         }
-
-        return [];
     }
 
-    private function createOrUpdateSets(array $cardsData, Game $hearthstoneGame, array $metadata, SymfonyStyle $io): array
+    private function createOrUpdateSets(array $cardsData, Game $hearthstoneGame, SymfonyStyle $io): void
     {
-        $sets = [];
-        $setsToCreate = [];
-
-        // Grouper les cartes par set
-        foreach ($cardsData as $card) {
-            $setId = $card['set'] ?? 'UNKNOWN';
-            if (!isset($setsToCreate[$setId])) {
-                $setsToCreate[$setId] = [];
+        $setsFound = [];
+        
+        // Collecter tous les sets uniques
+        foreach ($cardsData as $cardData) {
+            if (isset($cardData['set']) && !in_array($cardData['set'], $setsFound)) {
+                $setsFound[] = $cardData['set'];
             }
-            $setsToCreate[$setId][] = $card;
         }
 
-        foreach ($setsToCreate as $setId => $setCards) {
-            $hearthstoneSet = $this->hearthstoneSetRepository->findByExternalId($setId);
+        // Créer ou mettre à jour chaque set
+        foreach ($setsFound as $setExternalId) {
+            $hearthstoneSet = $this->hearthstoneSetRepository->findByExternalId($setExternalId);
             
             if (!$hearthstoneSet) {
                 $hearthstoneSet = new HearthstoneSet();
-                $hearthstoneSet->setExternalId($setId);
+                $hearthstoneSet->setExternalId($setExternalId);
                 $hearthstoneSet->setGame($hearthstoneGame);
-                $io->writeln("📦 Creating new set: {$setId}");
+                $hearthstoneSet->setName($setExternalId); // Nom basique, sera amélioré avec metadata
+                $hearthstoneSet->setTotalCards(0);
+                $hearthstoneSet->setIsStandardLegal(false);
+                $io->writeln("📦 Creating new set: {$setExternalId}");
             } else {
-                $io->writeln("🔄 Updating existing set: {$setId}");
+                $io->writeln("🔄 Updating existing set: {$setExternalId}");
             }
-
-            // Nom du set (à améliorer avec metadata si disponible)
-            $setName = $this->getSetName($setId, $metadata);
-            $hearthstoneSet->setName($setName);
-            $hearthstoneSet->setTotalCards(count($setCards));
-            $hearthstoneSet->setUpdatedAt(new \DateTimeImmutable());
-
+            
             $this->entityManager->persist($hearthstoneSet);
-            $sets[$setId] = $hearthstoneSet;
         }
-
+        
         $this->entityManager->flush();
-        return $sets;
+        $this->entityManager->clear(); // Nettoyer immédiatement
+        gc_collect_cycles();
     }
 
-    private function getSetName(string $setId, array $metadata): string
+    private function importCardsInBatches(array $cardsData, array $metadata, SymfonyStyle $io): array
     {
-        // Mapping basique des sets connus
-        $setNames = [
-            'CORE' => 'Core Set',
-            'EXPERT1' => 'Classic',
-            'NAXX' => 'Naxxramas',
-            'GVG' => 'Goblins vs Gnomes',
-            'BRM' => 'Blackrock Mountain',
-            'TGT' => 'The Grand Tournament',
-            'LOE' => 'League of Explorers',
-            'WHIZBANGS_WORKSHOP' => 'Whizbang\'s Workshop',
-            'ISLAND_VACATION' => 'Perils in Paradise',
-            'SPACE' => 'The Great Dark Beyond',
-            'EMERALD_DREAM' => 'Into the Emerald Dream',
-            'THE_LOST_CITY' => 'The Lost City of Un\'Goro',
-        ];
+        $progressBar = $io->createProgressBar(count($cardsData));
+        $progressBar->setFormat(
+            "%current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s% | 📥 Downloaded: %downloaded% images | Total: %total_size%"
+        );
+        
+        // Variables personnalisées pour la progress bar
+        $progressBar->setMessage('0', 'downloaded');
+        $progressBar->setMessage('0.0 MB', 'total_size');
+        $progressBar->start();
 
-        return $setNames[$setId] ?? $setId;
-    }
-
-    private function importCards(array $cardsData, array $sets, string $locale, SymfonyStyle $io): array
-    {
         $imported = 0;
         $updated = 0;
         $skipped = 0;
         $errors = 0;
-        $totalDownloaded = 0;
-        $totalSize = 0;
-        $batchSize = 50; // Traiter par batch pour éviter les problèmes mémoire
+        $batchCount = 0;
 
-        $progressBar = $io->createProgressBar(count($cardsData));
-        $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s% | 📥 %message%');
-        $progressBar->setMessage('Starting import...');
-        $progressBar->start();
+        $batches = array_chunk($cardsData, $this->batchSize);
 
-        $batch = 0;
-        foreach ($cardsData as $index => $cardData) {
-            try {
-                $result = $this->importSingleCard($cardData, $sets, $locale);
+        foreach ($batches as $batch) {
+            foreach ($batch as $cardData) {
+                try {
+                    $result = $this->importSingleCard($cardData, $metadata);
+                    
+                    switch ($result) {
+                        case 'imported':
+                            $imported++;
+                            break;
+                        case 'updated':
+                            $updated++;
+                            break;
+                        case 'skipped':
+                            $skipped++;
+                            break;
+                    }
+
+                } catch (\Exception $e) {
+                    $errors++;
+                    $cardId = $cardData['id'] ?? 'unknown';
+                    error_log("Error importing card {$cardId}: " . $e->getMessage());
+                }
+
+                $progressBar->advance();
                 
-                switch ($result['status']) {
-                    case 'imported':
-                        $imported++;
-                        break;
-                    case 'updated':
-                        $updated++;
-                        break;
-                    case 'skipped':
-                        $skipped++;
-                        break;
-                }
-
-                // Suivi des téléchargements
-                if (isset($result['image'])) {
-                    if ($result['image']['downloaded']) {
-                        $totalDownloaded++;
-                    }
-                    $totalSize += $result['image']['size'];
-                    
-                    $sizeMB = round($totalSize / 1024 / 1024, 1);
-                    $progressBar->setMessage("Downloaded: {$totalDownloaded} images | Total: {$sizeMB} MB");
-                }
-
-                // Flush par batch pour libérer la mémoire
-                if (++$batch >= $batchSize) {
-                    $this->entityManager->flush(); // Sauvegarder le batch
-                    $this->entityManager->clear(); // Libère les entités de la mémoire
-                    
-                    // Recharger les sets pour éviter les entités détachées
-                    foreach ($sets as $setId => $set) {
-                        $sets[$setId] = $this->hearthstoneSetRepository->findByExternalId($setId);
-                    }
-                    
-                    gc_collect_cycles(); // Force garbage collection
-                    $batch = 0;
-                }
-
-            } catch (\Exception $e) {
-                $errors++;
-                $cardId = $cardData['id'] ?? 'unknown';
-                $progressBar->setMessage("❌ Error: {$cardId}");
-                // Log l'erreur mais continue (pas d'affichage pour éviter le spam)
-                error_log("Error importing card {$cardId}: " . $e->getMessage());
+                // Mettre à jour les messages de la progress bar
+                $progressBar->setMessage((string)$this->downloadedImages, 'downloaded');
+                $progressBar->setMessage(number_format($this->totalImageSize / 1048576, 1) . ' MB', 'total_size');
             }
 
-            $progressBar->advance();
+            // Flush et nettoyage mémoire après chaque batch
+            $this->entityManager->flush();
+            $this->entityManager->clear();
+            gc_collect_cycles();
+            
+            $batchCount++;
+            
+            // Nettoyage mémoire agressif tous les 10 batches
+            if ($batchCount % 10 === 0) {
+                $this->forceMemoryCleanup();
+            }
         }
 
         $progressBar->finish();
         $io->newLine(2);
 
-        // Flush final pour sauvegarder les dernières cartes
-        $this->entityManager->flush();
-
-        // Statistiques finales détaillées
-        $finalSizeMB = round($totalSize / 1024 / 1024, 1);
-        $io->writeln("📊 Images téléchargées : {$totalDownloaded} nouvelles images");
-        $io->writeln("💾 Taille totale : {$finalSizeMB} MB");
+        // Statistiques finales
+        $avgImageSize = $this->downloadedImages > 0 ? ($this->totalImageSize / $this->downloadedImages / 1024) : 0;
         
-        if ($totalDownloaded > 0) {
-            $avgSizeKB = round(($totalSize / $totalDownloaded) / 1024, 1);
-            $io->writeln("📏 Taille moyenne par image : {$avgSizeKB} KB");
+        $io->createTable()
+            ->setHeaders(['Status', 'Count'])
+            ->setRows([
+                ['✅ Imported', $imported],
+                ['🔄 Updated', $updated],
+                ['⏭️ Skipped', $skipped],
+                ['❌ Errors', $errors],
+                ['📊 Total processed', count($cardsData)],
+                ['🖼️ Images downloaded', $this->downloadedImages],
+                ['💾 Total size', number_format($this->totalImageSize / 1048576, 1) . ' MB'],
+                ['📈 Average image size', number_format($avgImageSize, 1) . ' KB']
+            ])
+            ->render();
+
+        if ($errors > 0) {
+            $io->warning("Import completed with {$errors} errors. Check error logs.");
         }
 
+        $io->success("🎉 Import completed successfully! {$imported} new cards, {$updated} updated cards.");
+        
         return [
             'imported' => $imported,
             'updated' => $updated,
-            'skipped' => $skipped,
             'errors' => $errors,
-            'images_downloaded' => $totalDownloaded,
-            'total_size_mb' => $finalSizeMB
+            'skipped' => $skipped
         ];
     }
 
-    private function importSingleCard(array $cardData, array $sets, string $locale): array
+    private function importSingleCard(array $cardData, array $metadata): string
     {
         // Vérifications de base
-        if (!isset($cardData['id']) || !isset($cardData['dbfId'])) {
-            return ['status' => 'skipped'];
+        if (empty($cardData['id']) || empty($cardData['name'])) {
+            return 'skipped';
         }
 
-        $setId = $cardData['set'] ?? 'UNKNOWN';
-        if (!isset($sets[$setId])) {
-            return ['status' => 'skipped'];
+        // Récupérer le set (rechargé depuis la DB pour éviter entités détachées)
+        $hearthstoneSet = $this->hearthstoneSetRepository->findByExternalId($cardData['set']);
+        if (!$hearthstoneSet) {
+            throw new \Exception("Set not found: {$cardData['set']}");
         }
 
+        // Vérifier si la carte existe déjà
         $existingCard = $this->hearthstoneCardRepository->findByExternalId($cardData['id']);
-        $isUpdate = $existingCard !== null;
         
-        $card = $existingCard ?: new HearthstoneCard();
-        
-        if (!$isUpdate) {
+        if (!$existingCard) {
+            $card = new HearthstoneCard();
             $card->setExternalId($cardData['id']);
-            $card->setHearthstoneSet($sets[$setId]);
+            $card->setHearthstoneSet($hearthstoneSet);
+            $status = 'imported';
+        } else {
+            $card = $existingCard;
+            $status = 'updated';
         }
 
-        // Télécharger l'image de la carte avec suivi
-        $imageResult = $this->imageDownloadService->downloadHearthstoneCard(
-            $cardData['id'], 
-            $locale
-        );
+        // Télécharger l'image
+        $imageInfo = $this->imageDownloadService->downloadHearthstoneCard($cardData['id']);
+        
+        if ($imageInfo['downloaded']) {
+            $this->downloadedImages++;
+            $this->totalImageSize += $imageInfo['size'];
+        }
 
-        // Mapper les données HearthstoneJSON vers l'entité
+        // Mapper les données de l'API vers l'entité
         $card->setDbfId($cardData['dbfId']);
-        $card->setName($cardData['name'] ?? 'Unknown');
-        $card->setImageUrl($imageResult['path']); // Peut être null si image manquante
+        $card->setName($cardData['name']);
+        $card->setImageUrl($imageInfo['path']); // Peut être null
         $card->setArtist($cardData['artist'] ?? null);
         $card->setCost($cardData['cost'] ?? null);
         $card->setAttack($cardData['attack'] ?? null);
@@ -359,29 +341,45 @@ EOF
         $card->setFlavor($cardData['flavor'] ?? null);
         $card->setMechanics($cardData['mechanics'] ?? null);
         $card->setFaction($cardData['faction'] ?? null);
+        $card->setIsStandardLegal(false); // Sera mis à jour par la commande de légalité
+        $card->setIsWildLegal(true);
         $card->setIsCollectible($cardData['collectible'] ?? true);
-        
-        // Légalité (à affiner selon les rotations)
-        $card->setIsStandardLegal($this->isStandardLegal($cardData));
-        $card->setIsWildLegal(true); // Toutes les cartes sont légales en Wild
-        
         $card->setUpdatedAt(new \DateTimeImmutable());
         $card->setLastSyncedAt(new \DateTimeImmutable());
 
         $this->entityManager->persist($card);
-        
-        // NE PAS FLUSH à chaque carte - sera fait par batch dans importCards()
 
-        return [
-            'status' => $isUpdate ? 'updated' : 'imported',
-            'image' => $imageResult
-        ];
+        return $status;
     }
 
-    private function isStandardLegal(array $cardData): bool
+    private function forceMemoryCleanup(): void
     {
-        // Logique simplifiée - à affiner selon les rotations Hearthstone
-        $standardSets = ['CORE', 'EXPERT1']; // À adapter
-        return in_array($cardData['set'] ?? '', $standardSets);
+        // Détacher toutes les entités
+        $this->entityManager->clear();
+        
+        // Forcer le garbage collection
+        gc_collect_cycles();
+        
+        // Optionnel : Log utilisation mémoire actuelle
+        $memoryUsage = memory_get_usage(true);
+        $memoryLimit = ini_get('memory_limit');
+        error_log("Memory usage: " . number_format($memoryUsage / 1048576, 1) . "MB / {$memoryLimit}");
+    }
+
+    private function displayFinalSummary(array $cardsData, SymfonyStyle $io): void
+    {
+        $io->section('📊 Final Summary');
+        
+        // Mémoire finale
+        $finalMemory = memory_get_usage(true);
+        $peakMemory = memory_get_peak_usage(true);
+        
+        $io->writeln("💾 Memory usage: " . number_format($finalMemory / 1048576, 1) . " MB");
+        $io->writeln("📈 Peak memory: " . number_format($peakMemory / 1048576, 1) . " MB");
+        
+        if ($this->downloadedImages > 0) {
+            $avgSize = $this->totalImageSize / $this->downloadedImages / 1024;
+            $io->writeln("🖼️ Average image size: " . number_format($avgSize, 1) . " KB");
+        }
     }
 }

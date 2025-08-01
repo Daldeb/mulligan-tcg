@@ -596,3 +596,154 @@ php bin/console app:import-pokemon-cards sv06.5    # Shrouded Fable
 php bin/console app:import-pokemon-cards sv07      # Stellar Crown
 php bin/console app:import-pokemon-cards sv08      # Surging Sparks
 php bin/console app:import-pokemon-cards sv08.5    # Prismatic Evolutions
+
+
+
+
+
+
+
+
+
+Parfait ! Voici un résumé exhaustif et structuré de tout ce qui a été mis en place pour la fonctionnalité Forums dans ton projet MULLIGAN TCG :
+
+🧩 Objectif global
+Reproduire une logique de forums à la Reddit :
+
+Forums thématiques comme Hearthstone, Magic, Pokemon, Général, etc.
+
+Les utilisateurs peuvent poster dans ces forums, commenter, et voter (up/down)
+
+Affichage des derniers posts sur la page d’accueil des forums
+
+Gestion par ROLE_ADMIN pour créer des forums via back-office ou commandes
+
+Interfaces modernes basées sur Vue 3 et design Emerald UI
+
+⚙️ 1. Base de données et entités Doctrine
+🧱 Entités créées :
+Fichier	Description
+Forum.php	Représente un forum/subreddit (slug, name, description)
+Post.php	Sujet publié par un utilisateur dans un forum
+Comment.php	Commentaires (et réponses récursives) associés à un post
+PostVote.php	Upvote/downvote sur un post
+CommentVote.php	Upvote/downvote sur un commentaire
+
+🔄 Relations :
+Post → ManyToOne Forum
+
+Post → ManyToOne User (author)
+
+Comment → ManyToOne Post & self-referencing parent
+
+Vote → ManyToOne vers User et Post ou Comment
+
+🛠 Commande de migration :
+bash
+Copier
+Modifier
+php bin/console make:migration
+php bin/console doctrine:migrations:migrate
+📦 2. Repositories associés
+Repository	Description
+ForumRepository.php	Recherche par slug, get forums avec derniers posts
+PostRepository.php	Recherche, tri, création, récupération par forum
+CommentRepository.php	Arborescence de commentaires
+
+🔐 3. Sécurité et rôles
+Création de forums limitée à ROLE_ADMIN
+
+Authentification obligatoire pour :
+
+créer un post
+
+commenter
+
+voter
+
+Accès aux forums (interface) limité à utilisateurs connectés (modale affichée sinon)
+
+🌐 4. API Symfony : Endpoints REST
+📁 ForumController.php
+Endpoint	Description
+GET /api/forums	Liste tous les forums
+GET /api/forums/{slug}	Détails d’un forum
+POST /api/forums	Créer un forum (admin only)
+GET /api/forums/{slug}/posts	Derniers posts du forum
+
+📁 PostController.php
+Endpoint	Description
+POST /api/forums/{slug}/posts	Créer un post dans un forum
+GET /api/posts/{id}	Voir un post et ses commentaires
+
+📁 CommentController.php
+Endpoint	Description
+POST /api/posts/{id}/comments	Créer un commentaire
+POST /api/comments/{id}/comments	Répondre à un commentaire
+
+🧪 5. Commandes manuelles utilisées (via bearer)
+Ajout de forums via API ou ligne de commande :
+
+bash
+Copier
+Modifier
+curl -X POST http://localhost:8000/api/forums \
+-H "Authorization: Bearer {TOKEN}" \
+-H "Content-Type: application/json" \
+-d '{"name": "Magic", "slug": "magic", "description": "Forum dédié à Magic"}'
+🖼 6. Frontend Vue (avec PrimeVue + Emerald)
+🗂 Vues créées :
+Fichier	Description
+ForumsView.vue	Vue d’ensemble des forums avec aperçu des derniers posts
+ForumPostsView.vue	Détail d’un forum avec formulaire création post + liste posts
+PostView.vue	Détail d’un post avec commentaires arborescents
+PostCreateForm.vue	Composant pour créer un sujet (utilisé dans ForumPostsView)
+
+📁 Composants complémentaires :
+Composant	Description
+AuthRequiredModal.vue	Affichée si user non connecté clique sur "Discussions"
+AppHeader.vue	Bouton "Discussions" déclenche la modale si non connecté
+
+🧠 7. Logique dynamique
+ForumsView → appelle /api/forums, puis /api/forums/{slug}/posts pour les 2-3 derniers sujets
+
+ForumPostsView :
+
+récupère forum via route.params.slug
+
+passe le slug au composant PostCreateForm
+
+PostCreateForm :
+
+POST vers /api/forums/{slug}/posts
+
+Affiche erreurs et loading
+
+Navigation automatique vers le post après création
+
+🧪 8. Tests manuels réalisés
+Accès forums via AppHeader
+
+Création de forums via admin (API ou commandes)
+
+Création de post test sur Magic
+
+Vérification des routes : 404/405 captés proprement
+
+Vérification Vue et props passées correctement (forum.slug)
+
+AuthRequiredModal fonctionne (croix retirée, modale bloquante)
+
+Notifications continuent de fonctionner
+
+❗️À venir ou à noter
+Élément	État
+Affichage votes post/commentaire	À venir
+Actions voter (API + Vue)	À venir
+UI/UX amélioration (modale, style forum)	À faire plus tard
+Tri/sort/filter des posts dans forum	À ajouter ensuite
+Affichage récursif commentaires	Prévu mais pas encore codé
+Édition/suppression post/comment	À intégrer après
+Modération / suppression admin	À définir
+
+Souhaites-tu que je t’exporte ce résumé en .md propre prêt à ajouter à ton projet ou documentation ?

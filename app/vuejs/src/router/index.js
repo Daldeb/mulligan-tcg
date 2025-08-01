@@ -1,4 +1,4 @@
-// router/index.js - Version avec Profile et guard async
+// router/index.js - Version avec routes decks améliorées
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '../stores/auth'
@@ -29,15 +29,34 @@ const routes = [
       title: 'Decks - MULLIGAN TCG'
     }
   },
+  // Route pour créer un deck (supprimée - création direct via modale)
+  // {
+  //   path: '/decks/create',
+  //   name: 'decks-create',
+  //   component: () => import('../views/DecksEditor.vue'),
+  //   meta: {
+  //     title: 'Créer un deck - MULLIGAN TCG',
+  //     requiresAuth: true
+  //   }
+  // },
+  
+  // Nouvelle route pour éditer un deck avec slug propre
   {
-    path: '/decks/create',
-    name: 'decks-create',
+    path: '/mes-decks/:gameSlug/:formatSlug/:deckSlug',
+    name: 'deck-editor',
     component: () => import('../views/DecksEditor.vue'),
     meta: {
-      title: 'Créer un deck - MULLIGAN TCG',
+      title: 'Éditeur de deck - MULLIGAN TCG',
       requiresAuth: true
-    }
+    },
+    props: route => ({
+      gameSlug: route.params.gameSlug,
+      formatSlug: route.params.formatSlug,
+      deckSlug: route.params.deckSlug
+    })
   },
+  
+  // Route alternative pour édition par ID (backward compatibility)
   {
     path: '/decks/edit/:id',
     name: 'decks-edit',
@@ -47,33 +66,34 @@ const routes = [
       requiresAuth: true
     }
   },
-  // Temporairement commentées jusqu'à création des vues
-  /*
+  
   {
-    path: '/discussions',
-    name: 'discussions',
-    component: () => import('../views/DiscussionsView.vue'),
+    path: '/forums',
+    name: 'ForumsView',
+    component: () => import('../views/ForumsView.vue'),
     meta: {
-      title: 'Discussions - MULLIGAN TCG'
+      title: 'Forums - MULLIGAN TCG',
+      requiresAuth: true
     }
   },
   {
-    path: '/classements',
-    name: 'classements',
-    component: () => import('../views/ClassementsView.vue'),
+    path: '/forums/:slug',
+    name: 'ForumPostsView',
+    component: () => import('../views/ForumPostsView.vue'),
     meta: {
-      title: 'Classements - MULLIGAN TCG'
+      title: 'Forum - MULLIGAN TCG',
+      requiresAuth: true
     }
   },
   {
-    path: '/boutiques',
-    name: 'boutiques',
-    component: () => import('../views/BoutiquesView.vue'),
+    path: '/posts/:id',
+    name: 'PostView',
+    component: () => import('../views/PostView.vue'),
     meta: {
-      title: 'Boutiques - MULLIGAN TCG'
+      title: 'Sujet - MULLIGAN TCG',
+      requiresAuth: true
     }
   },
-  */
   // Route 404
   {
     path: '/:pathMatch(.*)*',
@@ -100,7 +120,7 @@ const router = createRouter({
 // Guard async pour les routes qui nécessitent une authentification
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
+
   // Si la route nécessite une auth
   if (to.meta.requiresAuth) {
     // Si pas de token du tout, rediriger
@@ -108,7 +128,7 @@ router.beforeEach(async (to, from, next) => {
       next({ name: 'home' })
       return
     }
-    
+
     // Si token mais pas d'user, attendre la vérification
     if (authStore.token && !authStore.user) {
       try {
@@ -119,14 +139,14 @@ router.beforeEach(async (to, from, next) => {
         return
       }
     }
-    
+
     // Vérifier à nouveau après checkAuthStatus
     if (!authStore.isAuthenticated) {
       next({ name: 'home' })
       return
     }
   }
-  
+
   next()
 })
 

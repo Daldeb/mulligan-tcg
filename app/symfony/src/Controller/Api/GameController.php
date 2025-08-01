@@ -2,226 +2,173 @@
 
 namespace App\Controller\Api;
 
-use App\Entity\Game;
 use App\Repository\GameRepository;
+use App\Repository\GameFormatRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route('/api/games', name: 'api_games_')]
+#[Route('/api')]
 class GameController extends AbstractController
 {
     public function __construct(
-        private GameRepository $gameRepository
+        private GameRepository $gameRepository,
+        private GameFormatRepository $gameFormatRepository
     ) {}
 
     /**
-     * Récupère tous les jeux actifs avec leurs formats
-     * Utilisé pour le super filtre et les sélecteurs globaux
+     * Récupère la liste des jeux actifs
      */
-    #[Route('', name: 'list', methods: ['GET'])]
-    public function list(Request $request): JsonResponse
+    #[Route('/games', name: 'api_games_list', methods: ['GET'])]
+    public function getGames(): JsonResponse
     {
-        $includeFormats = $request->query->getBoolean('include_formats', true);
-        
-        if ($includeFormats) {
-            $games = $this->gameRepository->findActiveGamesWithFormats();
-        } else {
-            $games = $this->gameRepository->findActiveGamesOrdered();
-        }
+        $games = $this->gameRepository->findBy(
+            ['isActive' => true],
+            ['displayOrder' => 'ASC', 'name' => 'ASC']
+        );
 
-        $data = array_map(function (Game $game) use ($includeFormats) {
-            $gameData = [
+        $data = [];
+        foreach ($games as $game) {
+            $data[] = [
                 'id' => $game->getId(),
                 'name' => $game->getName(),
                 'slug' => $game->getSlug(),
                 'description' => $game->getDescription(),
+                'logo' => $game->getLogo(),
                 'primaryColor' => $game->getPrimaryColor(),
-                'displayOrder' => $game->getDisplayOrder(),
+                'isActive' => $game->isActive(),
+                'displayOrder' => $game->getDisplayOrder()
             ];
+        }
 
-            if ($includeFormats) {
-                $gameData['formats'] = array_map(function ($format) {
-                    return [
-                        'id' => $format->getId(),
-                        'name' => $format->getName(),
-                        'slug' => $format->getSlug(),
-                        'description' => $format->getDescription(),
-                        'displayOrder' => $format->getDisplayOrder(),
-                    ];
-                }, $game->getActiveFormats()->toArray());
-            }
-
-            return $gameData;
-        }, $games);
-
-        return new JsonResponse([
+        return $this->json([
             'success' => true,
-            'games' => $data,
-            'total' => count($data)
+            'data' => $data,
+            'count' => count($data)
         ]);
     }
 
     /**
-     * Récupère un jeu spécifique par son slug avec ses formats
+     * Récupère un jeu spécifique par ID
      */
-    #[Route('/{slug}', name: 'show', methods: ['GET'])]
-    public function show(string $slug): JsonResponse
+    #[Route('/games/{id}', name: 'api_games_show', methods: ['GET'])]
+    public function getGame(int $id): JsonResponse
     {
-        $game = $this->gameRepository->findBySlugWithFormats($slug);
+        $game = $this->gameRepository->find($id);
 
         if (!$game) {
-            return new JsonResponse([
+            return $this->json([
                 'success' => false,
                 'message' => 'Jeu non trouvé'
-            ], Response::HTTP_NOT_FOUND);
+            ], 404);
         }
 
-        $data = [
-            'id' => $game->getId(),
-            'name' => $game->getName(),
-            'slug' => $game->getSlug(),
-            'description' => $game->getDescription(),
-            'logo' => $game->getLogo(),
-            'primaryColor' => $game->getPrimaryColor(),
-            'displayOrder' => $game->getDisplayOrder(),
-            'apiConfig' => $game->getApiConfig(),
-            'createdAt' => $game->getCreatedAt()->format('c'),
-            'updatedAt' => $game->getUpdatedAt()?->format('c'),
-            'formats' => array_map(function ($format) {
-                return [
-                    'id' => $format->getId(),
-                    'name' => $format->getName(),
-                    'slug' => $format->getSlug(),
-                    'description' => $format->getDescription(),
-                    'displayOrder' => $format->getDisplayOrder(),
-                    'formatConfig' => $format->getFormatConfig(),
-                    'uniqueSlug' => $format->getUniqueSlug(),
-                    'fullName' => $format->getFullName(),
-                ];
-            }, $game->getActiveFormats()->toArray())
-        ];
-
-        return new JsonResponse([
+        return $this->json([
             'success' => true,
-            'game' => $data
+            'data' => [
+                'id' => $game->getId(),
+                'name' => $game->getName(),
+                'slug' => $game->getSlug(),
+                'description' => $game->getDescription(),
+                'logo' => $game->getLogo(),
+                'primaryColor' => $game->getPrimaryColor(),
+                'isActive' => $game->isActive(),
+                'displayOrder' => $game->getDisplayOrder(),
+                'apiConfig' => $game->getApiConfig()
+            ]
         ]);
     }
 
     /**
      * Récupère les formats d'un jeu spécifique
      */
-    #[Route('/{slug}/formats', name: 'formats', methods: ['GET'])]
-    public function formats(string $slug): JsonResponse
+    #[Route('/games/{id}/formats', name: 'api_games_formats', methods: ['GET'])]
+    public function getGameFormats(int $id): JsonResponse
     {
-        $game = $this->gameRepository->findBySlugWithFormats($slug);
+        $game = $this->gameRepository->find($id);
 
         if (!$game) {
-            return new JsonResponse([
+            return $this->json([
                 'success' => false,
                 'message' => 'Jeu non trouvé'
-            ], Response::HTTP_NOT_FOUND);
+            ], 404);
         }
 
-        $formats = array_map(function ($format) {
-            return [
+        $formats = $this->gameFormatRepository->findBy(
+            [
+                'game' => $game,
+                'isActive' => true
+            ],
+            ['displayOrder' => 'ASC', 'name' => 'ASC']
+        );
+
+        $data = [];
+        foreach ($formats as $format) {
+            $data[] = [
                 'id' => $format->getId(),
                 'name' => $format->getName(),
                 'slug' => $format->getSlug(),
                 'description' => $format->getDescription(),
+                'isActive' => $format->isActive(),
                 'displayOrder' => $format->getDisplayOrder(),
-                'uniqueSlug' => $format->getUniqueSlug(),
-                'fullName' => $format->getFullName(),
+                'formatConfig' => $format->getFormatConfig(),
+                'gameId' => $game->getId(),
+                'gameName' => $game->getName(),
+                'gameSlug' => $game->getSlug()
             ];
-        }, $game->getActiveFormats()->toArray());
+        }
 
-        return new JsonResponse([
+        return $this->json([
             'success' => true,
+            'data' => $data,
+            'count' => count($data),
             'game' => [
                 'id' => $game->getId(),
                 'name' => $game->getName(),
-                'slug' => $game->getSlug(),
-            ],
-            'formats' => $formats,
-            'total' => count($formats)
+                'slug' => $game->getSlug()
+            ]
         ]);
     }
 
     /**
-     * Statistiques globales des jeux
+     * Récupère tous les formats de tous les jeux (pour navigation globale)
      */
-    #[Route('/stats', name: 'stats', methods: ['GET'])]
-    public function stats(): JsonResponse
+    #[Route('/formats', name: 'api_formats_list', methods: ['GET'])]
+    public function getAllFormats(): JsonResponse
     {
-        $games = $this->gameRepository->findActiveGamesWithFormats();
-        
-        $stats = [
-            'totalGames' => count($games),
-            'totalFormats' => 0,
-            'gameStats' => []
-        ];
-
-        foreach ($games as $game) {
-            $formatCount = $game->getActiveFormats()->count();
-            $stats['totalFormats'] += $formatCount;
-            
-            $stats['gameStats'][] = [
-                'id' => $game->getId(),
-                'name' => $game->getName(),
-                'slug' => $game->getSlug(),
-                'formatCount' => $formatCount,
-                'primaryColor' => $game->getPrimaryColor(),
-            ];
-        }
-
-        return new JsonResponse([
-            'success' => true,
-            'stats' => $stats
-        ]);
-    }
-
-    /**
-     * Recherche de jeux par nom ou slug
-     */
-    #[Route('/search', name: 'search', methods: ['GET'])]
-    public function search(Request $request): JsonResponse
-    {
-        $query = $request->query->get('q', '');
-        
-        if (strlen($query) < 2) {
-            return new JsonResponse([
-                'success' => false,
-                'message' => 'La recherche doit contenir au moins 2 caractères'
-            ], Response::HTTP_BAD_REQUEST);
-        }
-
-        // Recherche simple pour le moment - peut être améliorée avec doctrine/search
-        $games = $this->gameRepository->createQueryBuilder('g')
-            ->where('g.isActive = :active')
-            ->andWhere('g.name LIKE :query OR g.slug LIKE :query')
-            ->setParameter('active', true)
-            ->setParameter('query', '%' . $query . '%')
+        $formats = $this->gameFormatRepository->createQueryBuilder('f')
+            ->join('f.game', 'g')
+            ->andWhere('f.isActive = :formatActive')
+            ->andWhere('g.isActive = :gameActive')
+            ->setParameter('formatActive', true)
+            ->setParameter('gameActive', true)
             ->orderBy('g.displayOrder', 'ASC')
+            ->addOrderBy('f.displayOrder', 'ASC')
             ->getQuery()
             ->getResult();
 
-        $data = array_map(function (Game $game) {
-            return [
-                'id' => $game->getId(),
-                'name' => $game->getName(),
-                'slug' => $game->getSlug(),
-                'description' => $game->getDescription(),
-                'primaryColor' => $game->getPrimaryColor(),
+        $data = [];
+        foreach ($formats as $format) {
+            $data[] = [
+                'id' => $format->getId(),
+                'name' => $format->getName(),
+                'slug' => $format->getSlug(),
+                'description' => $format->getDescription(),
+                'fullName' => $format->getFullName(),
+                'uniqueSlug' => $format->getUniqueSlug(),
+                'game' => [
+                    'id' => $format->getGame()->getId(),
+                    'name' => $format->getGame()->getName(),
+                    'slug' => $format->getGame()->getSlug(),
+                    'primaryColor' => $format->getGame()->getPrimaryColor()
+                ]
             ];
-        }, $games);
+        }
 
-        return new JsonResponse([
+        return $this->json([
             'success' => true,
-            'games' => $data,
-            'total' => count($data),
-            'query' => $query
+            'data' => $data,
+            'count' => count($data)
         ]);
     }
 }
