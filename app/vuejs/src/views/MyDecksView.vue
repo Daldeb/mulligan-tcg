@@ -1,5 +1,5 @@
 <template>
-  <div class="decks-page">
+  <div class="my-decks-page">
     <div class="container">
       
       <!-- Header avec actions -->
@@ -7,11 +7,11 @@
         <div class="header-content">
           <div class="header-left">
             <h1 class="page-title">
-              <i class="pi pi-clone"></i>
-              Decks Communautaires
+              <i class="pi pi-user"></i>
+              Mes Decks
             </h1>
             <p class="page-subtitle">
-              Découvrez les meilleurs decks de la communauté
+              Gérez et organisez vos decks personnels
             </p>
           </div>
           <div class="header-actions">
@@ -25,21 +25,58 @@
         </div>
       </div>
 
-      <!-- Recherche globale -->
-      <div class="global-search slide-in-up">
-        <Card class="gaming-card search-card">
+      <!-- Statistiques utilisateur -->
+      <div class="user-stats slide-in-up">
+        <Card class="gaming-card stats-card">
           <template #content>
-            <div class="search-content">
+            <div class="stats-content">
+              <div class="stat-item">
+                <div class="stat-value">{{ userDecks.length }}</div>
+                <div class="stat-label">Decks créés</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">{{ publicDecksCount }}</div>
+                <div class="stat-label">Decks publics</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">{{ totalLikes }}</div>
+                <div class="stat-label">Likes reçus</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">{{ averageViews }}</div>
+                <div class="stat-label">Vues moyennes</div>
+              </div>
+            </div>
+          </template>
+        </Card>
+      </div>
+
+      <!-- Filtres et recherche -->
+      <div class="deck-filters slide-in-up">
+        <Card class="gaming-card filters-card">
+          <template #content>
+            <div class="filters-content">
               <div class="search-wrapper">
                 <InputText 
-                  v-model="globalSearch"
-                  placeholder="Rechercher un deck dans tous les jeux..."
-                  class="global-search-input"
+                  v-model="searchQuery"
+                  placeholder="Rechercher dans mes decks..."
+                  class="search-input"
                 />
                 <i class="pi pi-search search-icon"></i>
               </div>
-              <div class="search-stats">
-                <span class="stats-text">{{ totalDecksCount }} decks disponibles</span>
+              <div class="filter-buttons">
+                <Button 
+                  :label="visibilityFilter === 'all' ? 'Tous' : visibilityFilter === 'public' ? 'Publics' : 'Privés'"
+                  icon="pi pi-filter"
+                  class="filter-btn"
+                  @click="toggleVisibilityFilter"
+                />
+                <Button 
+                  :label="sortBy === 'recent' ? 'Récents' : sortBy === 'likes' ? 'Populaires' : 'Alphabétique'"
+                  icon="pi pi-sort-alt"
+                  class="sort-btn"
+                  @click="toggleSort"
+                />
               </div>
             </div>
           </template>
@@ -47,13 +84,10 @@
       </div>
 
       <!-- Sections par jeu -->
-      <div class="games-sections">
+      <div class="games-sections" v-if="!isLoading && userDecks.length > 0">
         
         <!-- Section Hearthstone -->
-        <div 
-          v-if="shouldShowGame('hearthstone')" 
-          class="game-section hearthstone-section slide-in-up"
-        >
+        <div v-if="getGameDecks('hearthstone').length > 0" class="game-section hearthstone-section slide-in-up">
           <div class="game-header">
             <div class="game-title-area">
               <div class="game-badge hearthstone">
@@ -61,59 +95,69 @@
                 <span class="game-name">Hearthstone</span>
               </div>
               <div class="game-stats">
-                <span class="deck-count">{{ getGameDeckCount('hearthstone') }} decks</span>
-                <span class="separator">•</span>
-                <span class="formats">Standard • Wild</span>
+                <span class="deck-count">{{ getGameDecks('hearthstone').length }} decks</span>
               </div>
-            </div>
-            <div class="game-filters">
-              <Button 
-                :label="hearthstoneFilters.format === 'all' ? 'Tous' : hearthstoneFilters.format"
-                icon="pi pi-filter"
-                class="format-filter-btn"
-                @click="toggleHearthstoneFormat"
-              />
-              <Button 
-                icon="pi pi-sort-alt"
-                class="sort-btn"
-                @click="toggleHearthstoneSort"
-                v-tooltip="'Trier par popularité'"
-              />
             </div>
           </div>
           
           <div class="decks-grid">
-            <!-- Temporairement remplacé par des Card basiques -->
             <Card 
-              v-for="deck in getFilteredHearthstoneDecks" 
-              :key="`hs-${deck.id}`"
+              v-for="deck in getGameDecks('hearthstone')" 
+              :key="`my-hs-${deck.id}`"
               class="deck-card gaming-card hover-lift"
-              @click="viewDeck(deck)"
             >
               <template #content>
                 <div class="deck-content">
-                  <h3 class="deck-name">{{ deck.name }}</h3>
-                  <p class="deck-author">Par {{ deck.author }}</p>
+                  <div class="deck-header-info">
+                    <h3 class="deck-name">{{ deck.name }}</h3>
+                    <div class="deck-status">
+                      <i :class="deck.isPublic ? 'pi pi-globe' : 'pi pi-lock'" 
+                         :style="{ color: deck.isPublic ? 'var(--primary)' : 'var(--text-secondary)' }"
+                         :title="deck.isPublic ? 'Public' : 'Privé'"></i>
+                    </div>
+                  </div>
                   <div class="deck-meta">
                     <span class="format-badge">{{ deck.format }}</span>
-                    <span class="likes">{{ deck.likes }} ❤️</span>
+                    <span class="class-badge" v-if="deck.hearthstoneClass">
+                      {{ getClassDisplayName(deck.hearthstoneClass) }}
+                    </span>
+                  </div>
+                  <div class="deck-stats-info">
+                    <span class="likes">{{ deck.likes || 0 }} ❤️</span>
+                    <span class="views">{{ deck.views || 0 }} 👁️</span>
+                    <span class="cards">{{ deck.cardCount || 0 }}/30 cartes</span>
+                  </div>
+                  <div class="deck-actions">
+                    <Button 
+                      icon="pi pi-pencil"
+                      class="edit-btn"
+                      @click="editDeck(deck)"
+                      v-tooltip="'Éditer'"
+                      size="small"
+                    />
+                    <Button 
+                      icon="pi pi-copy"
+                      class="copy-btn"
+                      @click="duplicateDeck(deck)"
+                      v-tooltip="'Dupliquer'"
+                      size="small"
+                    />
+                    <Button 
+                      icon="pi pi-trash"
+                      class="delete-btn"
+                      @click="deleteDeck(deck)"
+                      v-tooltip="'Supprimer'"
+                      size="small"
+                    />
                   </div>
                 </div>
               </template>
             </Card>
           </div>
-          
-          <div v-if="getFilteredHearthstoneDecks.length === 0" class="empty-game-section">
-            <i class="pi pi-clone empty-icon"></i>
-            <p>Aucun deck Hearthstone trouvé</p>
-          </div>
         </div>
 
         <!-- Section Magic -->
-        <div 
-          v-if="shouldShowGame('magic')" 
-          class="game-section magic-section slide-in-up"
-        >
+        <div v-if="getGameDecks('magic').length > 0" class="game-section magic-section slide-in-up">
           <div class="game-header">
             <div class="game-title-area">
               <div class="game-badge magic">
@@ -121,59 +165,66 @@
                 <span class="game-name">Magic: The Gathering</span>
               </div>
               <div class="game-stats">
-                <span class="deck-count">{{ getGameDeckCount('magic') }} decks</span>
-                <span class="separator">•</span>
-                <span class="formats">Standard • Modern • Legacy</span>
+                <span class="deck-count">{{ getGameDecks('magic').length }} decks</span>
               </div>
-            </div>
-            <div class="game-filters">
-              <Button 
-                :label="magicFilters.format === 'all' ? 'Tous' : magicFilters.format"
-                icon="pi pi-filter"
-                class="format-filter-btn"
-                @click="toggleMagicFormat"
-              />
-              <Button 
-                icon="pi pi-sort-alt"
-                class="sort-btn"
-                @click="toggleMagicSort"
-                v-tooltip="'Trier par popularité'"
-              />
             </div>
           </div>
           
           <div class="decks-grid">
-            <!-- Temporairement remplacé par des Card basiques -->
             <Card 
-              v-for="deck in getFilteredMagicDecks" 
-              :key="`mtg-${deck.id}`"
+              v-for="deck in getGameDecks('magic')" 
+              :key="`my-mtg-${deck.id}`"
               class="deck-card gaming-card hover-lift"
-              @click="viewDeck(deck)"
             >
               <template #content>
                 <div class="deck-content">
-                  <h3 class="deck-name">{{ deck.name }}</h3>
-                  <p class="deck-author">Par {{ deck.author }}</p>
+                  <div class="deck-header-info">
+                    <h3 class="deck-name">{{ deck.name }}</h3>
+                    <div class="deck-status">
+                      <i :class="deck.isPublic ? 'pi pi-globe' : 'pi pi-lock'" 
+                         :style="{ color: deck.isPublic ? 'var(--primary)' : 'var(--text-secondary)' }"
+                         :title="deck.isPublic ? 'Public' : 'Privé'"></i>
+                    </div>
+                  </div>
                   <div class="deck-meta">
-                    <span class="format-badge">{{ deck.format }}</span>
-                    <span class="likes">{{ deck.likes }} ❤️</span>
+                    <span class="format-badge magic">{{ deck.format }}</span>
+                  </div>
+                  <div class="deck-stats-info">
+                    <span class="likes">{{ deck.likes || 0 }} ❤️</span>
+                    <span class="views">{{ deck.views || 0 }} 👁️</span>
+                    <span class="cards">{{ deck.cardCount || 0 }}/60 cartes</span>
+                  </div>
+                  <div class="deck-actions">
+                    <Button 
+                      icon="pi pi-pencil"
+                      class="edit-btn"
+                      @click="editDeck(deck)"
+                      v-tooltip="'Éditer'"
+                      size="small"
+                    />
+                    <Button 
+                      icon="pi pi-copy"
+                      class="copy-btn"
+                      @click="duplicateDeck(deck)"
+                      v-tooltip="'Dupliquer'"
+                      size="small"
+                    />
+                    <Button 
+                      icon="pi pi-trash"
+                      class="delete-btn"
+                      @click="deleteDeck(deck)"
+                      v-tooltip="'Supprimer'"
+                      size="small"
+                    />
                   </div>
                 </div>
               </template>
             </Card>
           </div>
-          
-          <div v-if="getFilteredMagicDecks.length === 0" class="empty-game-section">
-            <i class="pi pi-clone empty-icon"></i>
-            <p>Aucun deck Magic trouvé</p>
-          </div>
         </div>
 
         <!-- Section Pokemon -->
-        <div 
-          v-if="shouldShowGame('pokemon')" 
-          class="game-section pokemon-section slide-in-up"
-        >
+        <div v-if="getGameDecks('pokemon').length > 0" class="game-section pokemon-section slide-in-up">
           <div class="game-header">
             <div class="game-title-area">
               <div class="game-badge pokemon">
@@ -181,83 +232,93 @@
                 <span class="game-name">Pokemon TCG</span>
               </div>
               <div class="game-stats">
-                <span class="deck-count">{{ getGameDeckCount('pokemon') }} decks</span>
-                <span class="separator">•</span>
-                <span class="formats">Standard • Expanded</span>
+                <span class="deck-count">{{ getGameDecks('pokemon').length }} decks</span>
               </div>
-            </div>
-            <div class="game-filters">
-              <Button 
-                :label="pokemonFilters.format === 'all' ? 'Tous' : pokemonFilters.format"
-                icon="pi pi-filter"
-                class="format-filter-btn"
-                @click="togglePokemonFormat"
-              />
-              <Button 
-                icon="pi pi-sort-alt"
-                class="sort-btn"
-                @click="togglePokemonSort"
-                v-tooltip="'Trier par popularité'"
-              />
             </div>
           </div>
           
           <div class="decks-grid">
-            <!-- Temporairement remplacé par des Card basiques -->
             <Card 
-              v-for="deck in getFilteredPokemonDecks" 
-              :key="`pkmn-${deck.id}`"
+              v-for="deck in getGameDecks('pokemon')" 
+              :key="`my-pkmn-${deck.id}`"
               class="deck-card gaming-card hover-lift"
-              @click="viewDeck(deck)"
             >
               <template #content>
                 <div class="deck-content">
-                  <h3 class="deck-name">{{ deck.name }}</h3>
-                  <p class="deck-author">Par {{ deck.author }}</p>
+                  <div class="deck-header-info">
+                    <h3 class="deck-name">{{ deck.name }}</h3>
+                    <div class="deck-status">
+                      <i :class="deck.isPublic ? 'pi pi-globe' : 'pi pi-lock'" 
+                         :style="{ color: deck.isPublic ? 'var(--primary)' : 'var(--text-secondary)' }"
+                         :title="deck.isPublic ? 'Public' : 'Privé'"></i>
+                    </div>
+                  </div>
                   <div class="deck-meta">
-                    <span class="format-badge">{{ deck.format }}</span>
-                    <span class="likes">{{ deck.likes }} ❤️</span>
+                    <span class="format-badge pokemon">{{ deck.format }}</span>
+                  </div>
+                  <div class="deck-stats-info">
+                    <span class="likes">{{ deck.likes || 0 }} ❤️</span>
+                    <span class="views">{{ deck.views || 0 }} 👁️</span>
+                    <span class="cards">{{ deck.cardCount || 0 }}/60 cartes</span>
+                  </div>
+                  <div class="deck-actions">
+                    <Button 
+                      icon="pi pi-pencil"
+                      class="edit-btn"
+                      @click="editDeck(deck)"
+                      v-tooltip="'Éditer'"
+                      size="small"
+                    />
+                    <Button 
+                      icon="pi pi-copy"
+                      class="copy-btn"
+                      @click="duplicateDeck(deck)"
+                      v-tooltip="'Dupliquer'"
+                      size="small"
+                    />
+                    <Button 
+                      icon="pi pi-trash"
+                      class="delete-btn"
+                      @click="deleteDeck(deck)"
+                      v-tooltip="'Supprimer'"
+                      size="small"
+                    />
                   </div>
                 </div>
               </template>
             </Card>
           </div>
-          
-          <div v-if="getFilteredPokemonDecks.length === 0" class="empty-game-section">
-            <i class="pi pi-clone empty-icon"></i>
-            <p>Aucun deck Pokemon trouvé</p>
-          </div>
         </div>
 
       </div>
 
-      <!-- État de chargement global -->
+      <!-- État de chargement -->
       <div v-if="isLoading" class="loading-state">
         <Card class="gaming-card loading-card">
           <template #content>
             <div class="loading-content">
               <div class="emerald-spinner"></div>
-              <p>Chargement des decks...</p>
+              <p>Chargement de vos decks...</p>
             </div>
           </template>
         </Card>
       </div>
 
-      <!-- État vide global -->
-      <div v-if="!isLoading && totalDecksCount === 0" class="empty-state">
+      <!-- État vide -->
+      <div v-if="!isLoading && userDecks.length === 0" class="empty-state">
         <Card class="gaming-card empty-card">
           <template #content>
             <div class="empty-content">
               <i class="pi pi-clone empty-icon"></i>
-              <h3 class="empty-title">Aucun deck disponible</h3>
+              <h3 class="empty-title">Aucun deck créé</h3>
               <p class="empty-description">
-                Soyez le premier à partager un deck avec la communauté !
+                Commencez à créer vos premiers decks pour les voir apparaître ici !
               </p>
               <Button 
-                label="Créer le premier deck"
+                label="Créer mon premier deck"
                 icon="pi pi-plus"
-                class="emerald-btn"
-                @click="createNewDeck"
+                class="emerald-button primary"
+                @click="showCreateModal = true"
               />
             </div>
           </template>
@@ -266,7 +327,7 @@
 
     </div>
 
-    <!-- Modale de création de deck - Version Emerald Design -->
+    <!-- Modale de création de deck -->
     <Dialog 
       v-model:visible="showCreateModal"
       modal 
@@ -400,8 +461,7 @@
             <small v-if="errors.hearthstoneClass" class="field-error">{{ errors.hearthstoneClass }}</small>
           </div>
 
-          <!-- Archetype optionnel -->
-          <div class="field-group">
+        <div class="field-group" v-if="deckData.selectedGame">
             <label for="deck-archetype" class="field-label">Archetype (optionnel)</label>
             <Dropdown
               id="deck-archetype"
@@ -442,33 +502,28 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { useGameFilterStore } from '../stores/gameFilter'
 import { useToast } from 'primevue/usetoast'
-import { storeToRefs } from 'pinia'
 import api from '../services/api'
 import Dialog from 'primevue/dialog'
 import Dropdown from 'primevue/dropdown' 
 import Textarea from 'primevue/textarea'
-// import DeckCard from '../components/decks/DeckCard.vue' // Temporairement commenté
 
 // Stores et composables
 const router = useRouter()
 const authStore = useAuthStore()
-const gameFilterStore = useGameFilterStore()
 const toast = useToast()
 
-// Récupération du state gameFilter
-const { selectedGames } = storeToRefs(gameFilterStore)
-
 // State principal
-const allDecks = ref([])
+const userDecks = ref([])
 const isLoading = ref(true)
-const globalSearch = ref('')
+const searchQuery = ref('')
+const visibilityFilter = ref('all') // all, public, private
+const sortBy = ref('recent') // recent, likes, name
 
-// State modale (après tes variables existantes)
+// State modale
 const showCreateModal = ref(false)
 const isCreating = ref(false)
 const availableGames = ref([])
@@ -479,8 +534,8 @@ const deckData = ref({
   description: '',
   selectedGame: null,
   selectedFormat: null,
-  archetype: '',
-  hearthstoneClass: null
+  hearthstoneClass: null,
+  archetype: ''
 })
 
 const errors = ref({
@@ -490,126 +545,7 @@ const errors = ref({
   hearthstoneClass: ''
 })
 
-// Filtres par jeu (état local à la vue)
-const hearthstoneFilters = ref({
-  format: 'all', // all, standard, wild
-  sort: 'popularity' // popularity, recent, winrate
-})
-
-const magicFilters = ref({
-  format: 'all', // all, standard, modern, legacy
-  sort: 'popularity'
-})
-
-const pokemonFilters = ref({
-  format: 'all', // all, standard, expanded
-  sort: 'popularity'
-})
-
-// Computed - Décider quels jeux afficher
-const shouldShowGame = (game) => {
-  // Si aucun filtre global ou si le jeu est sélectionné
-  return selectedGames.value.length === 0 || selectedGames.value.includes(getGameId(game))
-}
-
-const getGameId = (gameName) => {
-  const gameIds = {
-    'hearthstone': 1, // À adapter selon tes IDs en BDD
-    'magic': 2,
-    'pokemon': 3
-  }
-  return gameIds[gameName]
-}
-
-// Computed - Filtrage des decks par jeu
-const getFilteredHearthstoneDecks = computed(() => {
-  let decks = allDecks.value.filter(deck => deck.game === 'hearthstone')
-  
-  // Recherche globale
-  if (globalSearch.value) {
-    const query = globalSearch.value.toLowerCase()
-    decks = decks.filter(deck => 
-      deck.name.toLowerCase().includes(query) ||
-      deck.description?.toLowerCase().includes(query) ||
-      deck.author?.toLowerCase().includes(query)
-    )
-  }
-  
-  // Filtre format
-  if (hearthstoneFilters.value.format !== 'all') {
-    decks = decks.filter(deck => deck.format === hearthstoneFilters.value.format)
-  }
-  
-  // Tri
-  return sortDecks(decks, hearthstoneFilters.value.sort)
-})
-
-const getFilteredMagicDecks = computed(() => {
-  let decks = allDecks.value.filter(deck => deck.game === 'magic')
-  
-  if (globalSearch.value) {
-    const query = globalSearch.value.toLowerCase()
-    decks = decks.filter(deck => 
-      deck.name.toLowerCase().includes(query) ||
-      deck.description?.toLowerCase().includes(query) ||
-      deck.author?.toLowerCase().includes(query)
-    )
-  }
-  
-  if (magicFilters.value.format !== 'all') {
-    decks = decks.filter(deck => deck.format === magicFilters.value.format)
-  }
-  
-  return sortDecks(decks, magicFilters.value.sort)
-})
-
-const getFilteredPokemonDecks = computed(() => {
-  let decks = allDecks.value.filter(deck => deck.game === 'pokemon')
-  
-  if (globalSearch.value) {
-    const query = globalSearch.value.toLowerCase()
-    decks = decks.filter(deck => 
-      deck.name.toLowerCase().includes(query) ||
-      deck.description?.toLowerCase().includes(query) ||
-      deck.author?.toLowerCase().includes(query)
-    )
-  }
-  
-  if (pokemonFilters.value.format !== 'all') {
-    decks = decks.filter(deck => deck.format === pokemonFilters.value.format)
-  }
-  
-  return sortDecks(decks, pokemonFilters.value.sort)
-})
-
-const totalDecksCount = computed(() => {
-  let total = 0
-  if (shouldShowGame('hearthstone')) total += getFilteredHearthstoneDecks.value.length
-  if (shouldShowGame('magic')) total += getFilteredMagicDecks.value.length
-  if (shouldShowGame('pokemon')) total += getFilteredPokemonDecks.value.length
-  return total
-})
-
-// Computed pour la modale
-const isFormValid = computed(() => {
-  const baseValid = deckData.value.title.trim().length >= 3 &&
-                    deckData.value.selectedGame &&
-                    deckData.value.selectedFormat
-  
-  if (deckData.value.selectedGame && getSelectedGameSlug(deckData.value.selectedGame) === 'hearthstone') {
-    return baseValid && deckData.value.hearthstoneClass
-  }
-  
-  return baseValid
-})
-
-// Archetypes par jeu (pour la modale)
-const archetypes = {
-  hearthstone: ['Aggro', 'Midrange', 'Control', 'Combo', 'Tempo', 'Big', 'Zoo', 'Burn', 'Mill'],
-  pokemon: ['Aggro', 'Control', 'Combo', 'Toolbox', 'Stall', 'Beatdown', 'Engine', 'Disruption'],
-  magic: ['Aggro', 'Control', 'Midrange', 'Combo', 'Ramp', 'Tribal', 'Voltron', 'Stax', 'Storm']
-}
-
+// Classes Hearthstone pour l'affichage
 const hearthstoneClasses = ref([
   { name: 'Mage', value: 'mage' },
   { name: 'Chasseur', value: 'hunter' },
@@ -624,156 +560,151 @@ const hearthstoneClasses = ref([
   { name: 'Chevalier de la mort', value: 'deathknight' }
 ])
 
-// Méthodes utilitaires
-const getGameDeckCount = (game) => {
-  return allDecks.value.filter(deck => deck.game === game).length
+const archetypes = {
+  hearthstone: ['Aggro', 'Midrange', 'Control', 'Combo', 'Tempo', 'Big', 'Zoo', 'Burn', 'Mill'],
+  pokemon: ['Aggro', 'Control', 'Combo', 'Toolbox', 'Stall', 'Beatdown', 'Engine', 'Disruption'],
+  magic: ['Aggro', 'Control', 'Midrange', 'Combo', 'Ramp', 'Tribal', 'Voltron', 'Stax', 'Storm']
 }
 
-const sortDecks = (decks, sortType) => {
-  switch (sortType) {
-    case 'recent':
-      return [...decks].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    case 'winrate':
-      return [...decks].sort((a, b) => (b.winRate || 0) - (a.winRate || 0))
-    case 'popularity':
-    default:
-      return [...decks].sort((a, b) => (b.likes || 0) - (a.likes || 0))
+// Computed
+const filteredDecks = computed(() => {
+  if (!Array.isArray(userDecks.value)) {
+    console.warn('userDecks.value n\'est pas un tableau:', userDecks.value)
+    return []
   }
-}
+  
+  let decks = [...userDecks.value]
+  
+  // Filtre par recherche
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    decks = decks.filter(deck => 
+      deck.name && deck.name.toLowerCase().includes(query) ||
+      deck.description && deck.description.toLowerCase().includes(query)
+    )
+  }
+  
+  // Filtre par visibilité
+  if (visibilityFilter.value !== 'all') {
+    decks = decks.filter(deck => 
+      visibilityFilter.value === 'public' ? deck.isPublic : !deck.isPublic
+    )
+  }
+  
+  // Tri
+  switch (sortBy.value) {
+    case 'likes':
+      return decks.sort((a, b) => (b.likes || 0) - (a.likes || 0))
+    case 'name':
+      return decks.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    case 'recent':
+    default:
+      return decks.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
+  }
+})
 
-// Méthodes utilitaires pour la modale
-const getSelectedGameName = (gameId) => {
-  const game = availableGames.value.find(g => g.id === gameId)
-  return game ? game.name : ''
-}
+const publicDecksCount = computed(() => 
+  Array.isArray(userDecks.value) ? userDecks.value.filter(deck => deck.isPublic).length : 0
+)
 
-const getSelectedGameColor = (gameId) => {
-  const game = availableGames.value.find(g => g.id === gameId)
-  return game ? game.primaryColor : '#26a69a'
-}
+const totalLikes = computed(() => 
+  Array.isArray(userDecks.value) ? userDecks.value.reduce((sum, deck) => sum + (deck.likes || 0), 0) : 0
+)
 
-// Actions filtres
-const toggleHearthstoneFormat = () => {
-  const formats = ['all', 'standard', 'wild']
-  const currentIndex = formats.indexOf(hearthstoneFilters.value.format)
-  hearthstoneFilters.value.format = formats[(currentIndex + 1) % formats.length]
-}
+const averageViews = computed(() => {
+  if (!Array.isArray(userDecks.value) || userDecks.value.length === 0) return 0
+  const totalViews = userDecks.value.reduce((sum, deck) => sum + (deck.views || 0), 0)
+  return Math.round(totalViews / userDecks.value.length)
+})
 
-const toggleMagicFormat = () => {
-  const formats = ['all', 'standard', 'modern', 'legacy']
-  const currentIndex = formats.indexOf(magicFilters.value.format)
-  magicFilters.value.format = formats[(currentIndex + 1) % formats.length]
-}
+const isFormValid = computed(() => {
+  const baseValid = deckData.value.title.trim().length >= 3 &&
+                    deckData.value.selectedGame &&
+                    deckData.value.selectedFormat
+  
+  // Si Hearthstone, classe requise
+  if (deckData.value.selectedGame && getSelectedGameSlug(deckData.value.selectedGame) === 'hearthstone') {
+    return baseValid && deckData.value.hearthstoneClass
+  }
+  
+  return baseValid
+})
 
-const togglePokemonFormat = () => {
-  const formats = ['all', 'standard', 'expanded']
-  const currentIndex = formats.indexOf(pokemonFilters.value.format)
-  pokemonFilters.value.format = formats[(currentIndex + 1) % formats.length]
-}
-
-const toggleHearthstoneSort = () => {
-  const sorts = ['popularity', 'recent', 'winrate']
-  const currentIndex = sorts.indexOf(hearthstoneFilters.value.sort)
-  hearthstoneFilters.value.sort = sorts[(currentIndex + 1) % sorts.length]
-}
-
-const toggleMagicSort = () => {
-  const sorts = ['popularity', 'recent', 'winrate']
-  const currentIndex = sorts.indexOf(magicFilters.value.sort)
-  magicFilters.value.sort = sorts[(currentIndex + 1) % sorts.length]
-}
-
-const togglePokemonSort = () => {
-  const sorts = ['popularity', 'recent', 'winrate']
-  const currentIndex = sorts.indexOf(pokemonFilters.value.sort)
-  pokemonFilters.value.sort = sorts[(currentIndex + 1) % sorts.length]
-}
-
-// Actions principales
-const loadCommunityDecks = async () => {
+// Méthodes
+const loadUserDecks = async () => {
   try {
     isLoading.value = true
-    const response = await api.get('/api/decks/community')
-    allDecks.value = response.data
+    const response = await api.get('/api/decks/my-decks')
+    
+    // 🔧 CORRECTION : S'assurer que c'est toujours un tableau
+    if (Array.isArray(response.data)) {
+      userDecks.value = response.data
+    } else if (response.data && Array.isArray(response.data.data)) {
+      userDecks.value = response.data.data
+    } else {
+      console.warn('Réponse API inattendue:', response.data)
+      userDecks.value = []
+    }
+    
   } catch (error) {
-    console.error('Erreur chargement decks communautaires:', error)
-    // Charger données de test
-    loadMockDecks()
+    console.error('Erreur chargement decks utilisateur:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible de charger vos decks',
+      life: 3000
+    })
+    // Charger des données de test en cas d'erreur
+    loadMockUserDecks()
   } finally {
     isLoading.value = false
   }
 }
 
-const createNewDeck = () => {
-  // Ouvrir la modale au lieu de naviguer
-  showCreateModal.value = true
-}
-
-const viewDeck = (deck) => {
-  // Navigation vers la vue détaillée du deck
-  router.push(`/decks/${deck.id}`)
-}
-
-const editDeck = (deck) => {
-  // Vérifier si l'utilisateur peut éditer (propriétaire)
-  if (deck.authorId === authStore.user?.id) {
-    router.push(`/decks/edit/${deck.id}`)
-  } else {
-    toast.add({
-      severity: 'warn',
-      summary: 'Non autorisé',
-      detail: 'Vous ne pouvez modifier que vos propres decks',
-      life: 3000
-    })
-  }
-}
-
-const deleteDeck = async (deck) => {
-  // Vérifier permissions
-  if (deck.authorId !== authStore.user?.id) {
-    toast.add({
-      severity: 'warn',
-      summary: 'Non autorisé',
-      detail: 'Vous ne pouvez supprimer que vos propres decks',
-      life: 3000
-    })
-    return
-  }
-
-  // Confirmation et suppression
-  if (confirm(`Supprimer le deck "${deck.name}" ?`)) {
-    try {
-      await api.delete(`/api/decks/${deck.id}`)
-      allDecks.value = allDecks.value.filter(d => d.id !== deck.id)
-      toast.add({
-        severity: 'success',
-        summary: 'Deck supprimé',
-        detail: `"${deck.name}" a été supprimé`,
-        life: 3000
-      })
-    } catch (error) {
-      toast.add({
-        severity: 'error',
-        summary: 'Erreur',
-        detail: 'Impossible de supprimer le deck',
-        life: 3000
-      })
+const loadMockUserDecks = () => {
+  userDecks.value = [
+    {
+      id: 1,
+      name: 'Mon Aggro Mage',
+      description: 'Deck rapide pour grimper les rangs',
+      game: 'hearthstone',
+      gameSlug: 'hearthstone',
+      format: 'standard',
+      formatSlug: 'standard',
+      slug: 'mon-aggro-mage-abc123',
+      hearthstoneClass: 'mage',
+      isPublic: true,
+      cardCount: 30,
+      likes: 15,
+      views: 156,
+      createdAt: '2024-07-28T10:30:00Z',
+      updatedAt: '2024-07-30T15:45:00Z'
+    },
+    {
+      id: 2,
+      name: 'Control Warrior Test',
+      description: 'Deck en cours de développement',
+      game: 'hearthstone',
+      gameSlug: 'hearthstone',
+      format: 'wild',
+      formatSlug: 'wild',
+      slug: 'control-warrior-test-def456',
+      hearthstoneClass: 'warrior',
+      isPublic: false,
+      cardCount: 28,
+      likes: 3,
+      views: 23,
+      createdAt: '2024-07-25T14:20:00Z',
+      updatedAt: '2024-07-29T09:15:00Z'
     }
-  }
+  ]
 }
 
-// Methods pour la modale
 const loadGames = async () => {
   try {
     const response = await api.get('/api/games')
     if (response.data.success) {
       availableGames.value = response.data.data
-      
-      // Pré-sélectionner si user a 1 seul jeu préféré
-      if (selectedGames.value?.length === 1) {
-        deckData.value.selectedGame = selectedGames.value[0]
-        await loadFormatsForGame(selectedGames.value[0])
-      }
     }
   } catch (error) {
     console.error('Erreur chargement jeux:', error)
@@ -797,16 +728,89 @@ const loadFormatsForGame = async (gameId) => {
   }
 }
 
-const onGameChange = () => {
-  deckData.value.selectedFormat = null
-  deckData.value.archetype = ''
-  deckData.value.hearthstoneClass = null 
-  errors.value.game = ''
-  errors.value.hearthstoneClass = '' 
-  
-  if (deckData.value.selectedGame) {
-    loadFormatsForGame(deckData.value.selectedGame)
+const getGameDecks = (game) => {
+  return filteredDecks.value.filter(deck => deck.game === game)
+}
+
+const getClassDisplayName = (classValue) => {
+  return hearthstoneClasses[classValue] || classValue
+}
+
+const editDeck = (deck) => {
+  // Rediriger vers l'éditeur avec l'URL propre
+  router.push(`/edition/${deck.gameSlug}/${deck.formatSlug}/${deck.slug}`)
+}
+
+const duplicateDeck = async (deck) => {
+  try {
+    const response = await api.post(`/api/decks/${deck.id}/duplicate`)
+    if (response.data.success) {
+      toast.add({
+        severity: 'success',
+        summary: 'Deck dupliqué',
+        detail: `"${deck.name}" a été dupliqué`,
+        life: 3000
+      })
+      await loadUserDecks() // Recharger la liste
+    }
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible de dupliquer le deck',
+      life: 3000
+    })
   }
+}
+
+const deleteDeck = async (deck) => {
+  if (!confirm(`Supprimer définitivement "${deck.name}" ?`)) return
+  
+  try {
+    await api.delete(`/api/decks/${deck.id}`)
+    userDecks.value = userDecks.value.filter(d => d.id !== deck.id)
+    toast.add({
+      severity: 'success',
+      summary: 'Deck supprimé',
+      detail: `"${deck.name}" a été supprimé`,
+      life: 3000
+    })
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible de supprimer le deck',
+      life: 3000
+    })
+  }
+}
+
+const toggleVisibilityFilter = () => {
+  const filters = ['all', 'public', 'private']
+  const currentIndex = filters.indexOf(visibilityFilter.value)
+  visibilityFilter.value = filters[(currentIndex + 1) % filters.length]
+}
+
+const toggleSort = () => {
+  const sorts = ['recent', 'likes', 'name']
+  const currentIndex = sorts.indexOf(sortBy.value)
+  sortBy.value = sorts[(currentIndex + 1) % sorts.length]
+}
+
+// Méthodes modale
+const getSelectedGameName = (gameId) => {
+  const game = availableGames.value.find(g => g.id === gameId)
+  return game ? game.name : ''
+}
+
+const getSelectedGameColor = (gameId) => {
+  const game = availableGames.value.find(g => g.id === gameId)
+  return game ? game.primaryColor : '#26a69a'
+}
+
+const getSelectedGameSlug = (gameId) => {
+  const game = availableGames.value.find(g => g.id === gameId)
+  return game ? game.slug : ''
 }
 
 const getArchetypesForGame = () => {
@@ -815,9 +819,16 @@ const getArchetypesForGame = () => {
   return game ? archetypes[game.slug] || [] : []
 }
 
-const getSelectedGameSlug = (gameId) => {
-  const game = availableGames.value.find(g => g.id === gameId)
-  return game ? game.slug : ''
+const onGameChange = () => {
+  deckData.value.selectedFormat = null
+  deckData.value.hearthstoneClass = null 
+  deckData.value.archetype = ''
+  errors.value.game = ''
+  errors.value.hearthstoneClass = ''
+  
+  if (deckData.value.selectedGame) {
+    loadFormatsForGame(deckData.value.selectedGame)
+  }
 }
 
 const validateForm = () => {
@@ -858,27 +869,20 @@ const createDeck = async () => {
   isCreating.value = true
 
   try {
-    // Préparer les données pour l'API
     const deckPayload = {
       title: deckData.value.title.trim(),
       gameId: deckData.value.selectedGame,
       formatId: deckData.value.selectedFormat,
       description: deckData.value.description?.trim() || null,
-      archetype: deckData.value.archetype?.trim() || null,
-      hearthstoneClass: deckData.value.hearthstoneClass
+      hearthstoneClass: deckData.value.hearthstoneClass,
+      archetype: deckData.value.archetype?.trim() || null
     }
 
-    console.log('🎯 Création deck avec payload:', deckPayload)
-
-    // Appel API pour créer le deck en BDD
     const response = await api.post('/api/decks', deckPayload)
 
     if (response.data.success) {
       const deckInfo = response.data.data
       
-      console.log('✅ Deck créé:', deckInfo)
-
-      // Fermer la modale
       showCreateModal.value = false
       
       // Reset du formulaire
@@ -887,10 +891,10 @@ const createDeck = async () => {
         description: '',
         selectedGame: null,
         selectedFormat: null,
+        hearthstoneClass: null,
         archetype: ''
       }
       
-      // Notification de succès
       toast.add({
         severity: 'success',
         summary: 'Deck créé !',
@@ -898,35 +902,22 @@ const createDeck = async () => {
         life: 3000
       })
 
-      // Redirection vers l'éditeur avec URL propre
+      // Redirection vers l'éditeur
       const editUrl = `/edition/${deckInfo.gameSlug}/${deckInfo.formatSlug}/${deckInfo.slug}`
-      console.log('🚀 Redirection vers:', editUrl)
-      
       await router.push(editUrl)
 
     } else {
-      // Gestion des erreurs retournées par l'API
-      const errorMessage = response.data.message || 'Erreur lors de la création'
-      
       toast.add({
         severity: 'error',
         summary: 'Erreur de création',
-        detail: errorMessage,
+        detail: response.data.message || 'Erreur lors de la création',
         life: 4000
       })
-
-      // Afficher les erreurs de validation si présentes
-      if (response.data.errors) {
-        response.data.errors.forEach(err => {
-          console.error('Erreur validation:', err)
-        })
-      }
     }
 
   } catch (error) {
     console.error('💥 Erreur création deck:', error)
     
-    // Gestion d'erreurs détaillée
     let errorMessage = 'Erreur lors de la création du deck'
     
     if (error.response?.status === 400) {
@@ -950,126 +941,17 @@ const createDeck = async () => {
   }
 }
 
-const copyDeck = (deck) => {
-  // Copier le deck vers l'éditeur
-  router.push(`/decks/create?copy=${deck.id}`)
-}
-
-// Données de test
-const loadMockDecks = () => {
-  allDecks.value = [
-    {
-      id: 1,
-      name: 'Aggro Mage Burn',
-      description: 'Deck agressif focalisé sur les dégâts directs et la rapidité',
-      game: 'hearthstone',
-      format: 'standard',
-      author: 'ProPlayer42',
-      authorId: 123,
-      cardCount: 30,
-      winRate: 73,
-      likes: 156,
-      views: 1247,
-      createdAt: '2024-07-28T10:30:00Z',
-      updatedAt: '2024-07-30T15:45:00Z'
-    },
-    {
-      id: 2,
-      name: 'Control Warrior Classic',
-      description: 'Contrôle pur avec removal et late game puissant',
-      game: 'hearthstone',
-      format: 'wild',
-      author: 'LegendMaster',
-      authorId: 456,
-      cardCount: 30,
-      winRate: 68,
-      likes: 234,
-      views: 892,
-      createdAt: '2024-07-25T14:20:00Z',
-      updatedAt: '2024-07-29T09:15:00Z'
-    },
-    {
-      id: 3,
-      name: 'Pikachu Lightning Rush',
-      description: 'Deck Pokemon électrique ultra-rapide avec Pikachu VMAX',
-      game: 'pokemon',
-      format: 'standard',
-      author: 'PokeMaster',
-      authorId: 789,
-      cardCount: 60,
-      winRate: 65,
-      likes: 89,
-      views: 432,
-      createdAt: '2024-07-26T16:45:00Z',
-      updatedAt: '2024-07-28T11:30:00Z'
-    },
-    {
-      id: 4,
-      name: 'Mono Blue Control',
-      description: 'Contrôle Magic mono-bleu avec counter spells',
-      game: 'magic',
-      format: 'standard',
-      author: 'BlueWizard',
-      authorId: 321,
-      cardCount: 60,
-      winRate: 71,
-      likes: 178,
-      views: 654,
-      createdAt: '2024-07-24T12:00:00Z',
-      updatedAt: '2024-07-27T18:20:00Z'
-    },
-    {
-      id: 5,
-      name: 'Miracle Rogue Wild',
-      description: 'Combo deck classique avec Gadgetzan Auctioneer',
-      game: 'hearthstone',
-      format: 'wild',
-      author: 'ComboKing',
-      authorId: 654,
-      cardCount: 30,
-      winRate: 62,
-      likes: 267,
-      views: 1156,
-      createdAt: '2024-07-22T08:15:00Z',
-      updatedAt: '2024-07-26T20:45:00Z'
-    },
-    {
-      id: 6,
-      name: 'Charizard Fire Deck',
-      description: 'Deck Pokemon feu avec Charizard GX et support',
-      game: 'pokemon',
-      format: 'expanded',
-      author: 'FireTrainer',
-      authorId: 987,
-      cardCount: 60,
-      winRate: 58,
-      likes: 134,
-      views: 723,
-      createdAt: '2024-07-21T11:30:00Z',
-      updatedAt: '2024-07-25T14:10:00Z'
-    }
-  ]
-  isLoading.value = false
-}
-
 // Lifecycle
 onMounted(async () => {
-  console.log('🃏 DecksView montée - Filtres globaux:', selectedGames.value)
-  await loadCommunityDecks()
+  await loadUserDecks()
   await loadGames()
 })
-
-// Watcher pour réagir aux changements de filtre global
-watch(selectedGames, (newGames) => {
-  console.log('🔄 Filtres globaux changés:', newGames)
-  // Ici on pourrait recharger les decks si nécessaire
-}, { deep: true })
 </script>
 
 <style scoped>
-/* === DECKS COMMUNAUTAIRES EMERALD GAMING === */
+/* === MY DECKS PAGE EMERALD GAMING === */
 
-.decks-page {
+.my-decks-page {
   min-height: calc(100vh - 140px);
   background: var(--surface-gradient);
   padding: 2rem 0;
@@ -1121,17 +1003,57 @@ watch(selectedGames, (newGames) => {
   flex-shrink: 0;
 }
 
-/* Global search */
-.global-search {
+/* User stats */
+.user-stats {
   margin-bottom: 2rem;
 }
 
-.search-card {
+.stats-card {
   border: none;
   box-shadow: var(--shadow-small);
 }
 
-.search-content {
+.stats-content {
+  padding: 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 2rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  background: var(--surface-50);
+  border: 1px solid var(--surface-200);
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+/* Deck filters */
+.deck-filters {
+  margin-bottom: 2rem;
+}
+
+.filters-card {
+  border: none;
+  box-shadow: var(--shadow-small);
+}
+
+.filters-content {
   padding: 1.5rem;
   display: flex;
   align-items: center;
@@ -1142,19 +1064,19 @@ watch(selectedGames, (newGames) => {
 .search-wrapper {
   position: relative;
   flex: 1;
-  max-width: 500px;
+  max-width: 400px;
 }
 
-:deep(.global-search-input) {
+:deep(.search-input) {
   width: 100% !important;
-  padding: 1rem 1rem 1rem 3.5rem !important;
+  padding: 0.875rem 1rem 0.875rem 3rem !important;
   border: 2px solid var(--surface-300) !important;
-  border-radius: 30px !important;
+  border-radius: 25px !important;
   font-size: 1rem !important;
   background: var(--surface-100) !important;
 }
 
-:deep(.global-search-input:focus) {
+:deep(.search-input:focus) {
   border-color: var(--primary) !important;
   background: white !important;
   box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1) !important;
@@ -1162,17 +1084,36 @@ watch(selectedGames, (newGames) => {
 
 .search-icon {
   position: absolute;
-  left: 1.25rem;
+  left: 1rem;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-secondary);
-  font-size: 1.1rem;
+  font-size: 1rem;
   pointer-events: none;
 }
 
-.search-stats {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
+.filter-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+:deep(.filter-btn),
+:deep(.sort-btn) {
+  background: white !important;
+  border: 2px solid var(--surface-300) !important;
+  color: var(--text-secondary) !important;
+  padding: 0.75rem 1.25rem !important;
+  border-radius: 20px !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  transition: all var(--transition-fast) !important;
+}
+
+:deep(.filter-btn:hover),
+:deep(.sort-btn:hover) {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1) !important;
 }
 
 /* Game sections */
@@ -1274,54 +1215,148 @@ watch(selectedGames, (newGames) => {
   color: var(--text-primary);
 }
 
-.separator {
-  color: var(--surface-400);
+/* Decks grid */
+.decks-grid {
+  padding: 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
 }
 
-.game-filters {
+/* Deck cards */
+.deck-content {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+}
+
+.deck-header-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.deck-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  flex: 1;
+  line-height: 1.3;
+}
+
+.deck-status {
+  flex-shrink: 0;
+}
+
+.deck-status i {
+  font-size: 1.1rem;
+}
+
+.deck-meta {
   display: flex;
   gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-:deep(.format-filter-btn),
-:deep(.sort-btn) {
+.format-badge {
+  padding: 0.25rem 0.75rem;
+  background: rgba(38, 166, 154, 0.1);
+  color: var(--primary);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.format-badge.magic {
+  background: rgba(139, 69, 19, 0.1);
+  color: #8b4513;
+}
+
+.format-badge.pokemon {
+  background: rgba(255, 193, 7, 0.1);
+  color: #ff6f00;
+}
+
+.class-badge {
+  padding: 0.25rem 0.75rem;
+  background: var(--surface-200);
+  color: var(--text-primary);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.deck-stats-info {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.deck-stats-info span {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.deck-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--surface-200);
+}
+
+:deep(.deck-actions .p-button) {
+  flex: 1 !important;
+  padding: 0.5rem !important;
+  border-radius: 6px !important;
+  font-size: 0.85rem !important;
+}
+
+:deep(.edit-btn) {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: white !important;
+}
+
+:deep(.edit-btn:hover) {
+  background: var(--primary-dark) !important;
+  border-color: var(--primary-dark) !important;
+}
+
+:deep(.copy-btn) {
   background: white !important;
   border: 2px solid var(--surface-300) !important;
   color: var(--text-secondary) !important;
-  padding: 0.5rem 1rem !important;
-  border-radius: 20px !important;
-  font-size: 0.85rem !important;
-  transition: all var(--transition-fast) !important;
 }
 
-:deep(.format-filter-btn:hover),
-:deep(.sort-btn:hover) {
+:deep(.copy-btn:hover) {
   border-color: var(--primary) !important;
   color: var(--primary) !important;
   background: rgba(38, 166, 154, 0.1) !important;
 }
 
-/* Decks grid */
-.decks-grid {
-  padding: 2rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1.5rem;
+:deep(.delete-btn) {
+  background: white !important;
+  border: 2px solid rgba(255, 87, 34, 0.3) !important;
+  color: var(--accent) !important;
 }
 
-/* Empty states */
-.empty-game-section {
-  padding: 3rem 2rem;
-  text-align: center;
-  color: var(--text-secondary);
+:deep(.delete-btn:hover) {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: white !important;
 }
 
-.empty-game-section .empty-icon {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
+/* Loading and empty states */
 .loading-state,
 .empty-state {
   display: flex;
@@ -1345,6 +1380,15 @@ watch(selectedGames, (newGames) => {
   width: 40px;
   height: 40px;
   margin: 0 auto 1rem;
+  border: 3px solid var(--surface-200);
+  border-top: 3px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .empty-icon {
@@ -1367,50 +1411,7 @@ watch(selectedGames, (newGames) => {
   line-height: 1.5;
 }
 
-/* Deck cards basiques temporaires */
-.deck-content {
-  padding: 1.5rem;
-  text-align: center;
-}
-
-.deck-name {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 0.5rem 0;
-}
-
-.deck-author {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin: 0 0 1rem 0;
-}
-
-.deck-meta {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  align-items: center;
-}
-
-.format-badge {
-  padding: 0.25rem 0.75rem;
-  background: rgba(38, 166, 154, 0.1);
-  color: var(--primary);
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.likes {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-/* === MODAL EMERALD DECK CREATION === */
-
-/* Header modal */
+/* Modal styles (same as DecksView) */
 :deep(.emerald-modal .p-dialog) {
   border-radius: var(--border-radius-large) !important;
   box-shadow: var(--shadow-large) !important;
@@ -1448,12 +1449,10 @@ watch(selectedGames, (newGames) => {
   letter-spacing: 0.5px;
 }
 
-/* Body modal */
 .modal-body {
   padding: 2rem;
 }
 
-/* Formulaire Emerald */
 .emerald-form {
   display: flex;
   flex-direction: column;
@@ -1475,7 +1474,6 @@ watch(selectedGames, (newGames) => {
   letter-spacing: 0.5px;
 }
 
-/* Inputs Emerald */
 :deep(.emerald-input) {
   width: 100% !important;
   padding: 0.875rem 1rem !important;
@@ -1498,12 +1496,6 @@ watch(selectedGames, (newGames) => {
   box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1) !important;
 }
 
-:deep(.emerald-input::placeholder) {
-  color: var(--text-secondary) !important;
-  opacity: 0.7 !important;
-}
-
-/* Textarea Emerald */
 :deep(.emerald-textarea) {
   width: 100% !important;
   padding: 0.875rem 1rem !important;
@@ -1523,12 +1515,6 @@ watch(selectedGames, (newGames) => {
   background: white !important;
 }
 
-:deep(.emerald-textarea::placeholder) {
-  color: var(--text-secondary) !important;
-  opacity: 0.7 !important;
-}
-
-/* Dropdowns Emerald */
 :deep(.emerald-dropdown) {
   width: 100% !important;
   border: 2px solid var(--surface-300) !important;
@@ -1537,33 +1523,12 @@ watch(selectedGames, (newGames) => {
   transition: all var(--transition-fast) !important;
 }
 
-:deep(.emerald-dropdown:not(.p-disabled):hover) {
-  border-color: var(--primary-light) !important;
-}
-
 :deep(.emerald-dropdown.p-focus) {
   border-color: var(--primary) !important;
   box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1) !important;
   background: white !important;
 }
 
-:deep(.emerald-dropdown.error) {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1) !important;
-}
-
-:deep(.emerald-dropdown .p-dropdown-label) {
-  padding: 0.875rem 1rem !important;
-  color: var(--text-primary) !important;
-  font-size: 0.95rem !important;
-}
-
-:deep(.emerald-dropdown .p-dropdown-label.p-placeholder) {
-  color: var(--text-secondary) !important;
-  opacity: 0.7 !important;
-}
-
-/* Options des dropdowns */
 .game-option,
 .selected-game {
   display: flex;
@@ -1579,15 +1544,6 @@ watch(selectedGames, (newGames) => {
   flex-shrink: 0;
 }
 
-.game-name {
-  font-weight: 500;
-}
-
-.placeholder-text {
-  color: var(--text-secondary);
-  opacity: 0.7;
-}
-
 .format-option {
   padding: 0.5rem 0;
 }
@@ -1601,38 +1557,26 @@ watch(selectedGames, (newGames) => {
   font-size: 0.8rem;
   color: var(--text-secondary);
   margin-top: 0.25rem;
-  line-height: 1.3;
 }
 
-/* Messages d'erreur et d'aide */
 .field-error {
   color: var(--accent);
   font-size: 0.8rem;
   font-weight: 500;
-  margin-top: 0.25rem;
 }
 
 .field-hint {
   color: var(--text-secondary);
   font-size: 0.8rem;
-  margin-top: 0.25rem;
   font-style: italic;
 }
 
-/* Actions de la modale */
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
   padding: 1.5rem 0 0 0;
   border-top: 1px solid var(--surface-200);
-}
-
-:deep(.modal-actions .p-button) {
-  padding: 0.75rem 1.5rem !important;
-  font-weight: 600 !important;
-  border-radius: var(--border-radius) !important;
-  transition: all var(--transition-fast) !important;
 }
 
 /* Responsive */
@@ -1647,8 +1591,39 @@ watch(selectedGames, (newGames) => {
     gap: 1rem;
   }
   
-  .search-content {
+  .stats-content {
+    padding: 1.5rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  
+  .filters-content {
     flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .search-wrapper {
+    max-width: none;
+  }
+  
+  .decks-grid {
+    padding: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .my-decks-page {
+    padding: 1rem 0;
+  }
+  
+  .page-title {
+    font-size: 2rem;
+  }
+  
+  .stats-content {
+    grid-template-columns: 1fr;
     gap: 1rem;
   }
   
@@ -1659,93 +1634,29 @@ watch(selectedGames, (newGames) => {
     gap: 1rem;
   }
   
-  .game-title-area {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-  
-  .decks-grid {
-    padding: 1.5rem;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .decks-page {
-    padding: 1rem 0;
-  }
-  
-  .page-title {
-    font-size: 2rem;
-  }
-  
-  .game-badge {
-    padding: 0.5rem 1rem;
-    font-size: 1rem;
-  }
-  
-  .game-icon {
-    font-size: 1.25rem;
-  }
-  
   .decks-grid {
     grid-template-columns: 1fr;
     padding: 1rem;
   }
   
-  .search-wrapper {
-    max-width: none;
-  }
-  
-  .game-filters {
+  .filter-buttons {
     width: 100%;
     justify-content: space-between;
   }
 }
 
 @media (max-width: 640px) {
-  .header-content {
-    text-align: center;
-  }
-  
-  .game-stats {
+  .deck-actions {
     flex-direction: column;
-    gap: 0.25rem;
-    text-align: center;
+    gap: 0.75rem;
   }
   
-  .separator {
-    display: none;
-  }
-  
-  .game-filters {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
-  :deep(.format-filter-btn),
-  :deep(.sort-btn) {
+  :deep(.deck-actions .p-button) {
     width: 100% !important;
-    justify-content: center !important;
   }
-
-  /* Modal responsive */
+  
   .modal-body {
     padding: 1.5rem;
-  }
-  
-  :deep(.emerald-modal .p-dialog-header) {
-    padding: 1rem 1.5rem !important;
-  }
-  
-  .header-title {
-    font-size: 1.25rem;
-  }
-  
-  .emerald-form {
-    gap: 1.25rem;
   }
   
   .modal-actions {
@@ -1755,50 +1666,46 @@ watch(selectedGames, (newGames) => {
   
   :deep(.modal-actions .p-button) {
     width: 100% !important;
-    justify-content: center !important;
   }
 }
 
-/* Animations personnalisées */
-.game-section {
+/* Animations */
+.slide-in-down {
+  animation: slideInDown 0.6s ease-out;
+}
+
+.slide-in-up {
   animation: slideInUp 0.6s ease-out;
 }
 
-.hearthstone-section {
-  animation-delay: 0.1s;
-}
-
-.magic-section {
-  animation-delay: 0.2s;
-}
-
-.pokemon-section {
-  animation-delay: 0.3s;
-}
-
-/* Transitions fluides entre états */
-.decks-grid {
-  transition: all var(--transition-medium);
-}
-
-.game-section:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-medium);
-}
-
-/* Animation d'entrée modale */
-:deep(.p-dialog-enter-active) {
-  animation: emeraldModalEnter 0.4s ease-out;
-}
-
-@keyframes emeraldModalEnter {
+@keyframes slideInDown {
   from {
     opacity: 0;
-    transform: scale(0.9) translateY(-20px);
+    transform: translateY(-30px);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: translateY(0);
   }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hover-lift {
+  transition: all var(--transition-fast);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-medium);
 }
 </style>

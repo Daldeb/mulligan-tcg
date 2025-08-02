@@ -5,6 +5,7 @@ namespace App\Controller\Api;
 use App\Entity\Deck;
 use App\Entity\Game;
 use App\Entity\GameFormat;
+use App\Entity\DeckCard;
 use App\Repository\DeckRepository;
 use App\Repository\GameRepository;
 use App\Repository\GameFormatRepository;
@@ -73,6 +74,7 @@ class DeckController extends AbstractController
         $deck->setUser($this->getUser());
         $deck->setIsPublic(false); 
         $deck->setValidDeck(false); 
+        $deck->setHearthstoneClass($data['hearthstoneClass'] ?? null);
 
         // Générer un slug unique
         $baseSlug = $this->generateSlug($data['title']);
@@ -157,6 +159,24 @@ class DeckController extends AbstractController
         ]);
     }
 
+    #[Route('/api/decks/my-decks', name: 'api_user_decks', methods: ['GET'])]
+    public function getUserDecks(): JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user) {
+            return $this->json(['error' => 'Non authentifié'], 401);
+        }
+
+        $decks = $this->deckRepository->findBy(['user' => $user], ['updatedAt' => 'DESC']);
+        
+        $serializedDecks = [];
+        foreach ($decks as $deck) {
+            $serializedDecks[] = $this->serializeDeck($deck);
+        }
+
+        return $this->json($serializedDecks);
+    }
+
     /**
      * Mettre à jour les métadonnées d'un deck
      */
@@ -185,6 +205,9 @@ class DeckController extends AbstractController
         if (isset($data['isPublic'])) {
             $deck->setIsPublic((bool)$data['isPublic']);
         }
+        if (isset($data['hearthstoneClass'])) { 
+            $deck->setHearthstoneClass($data['hearthstoneClass']);
+        }
 
         $deck->updateTimestamp();
 
@@ -202,6 +225,104 @@ class DeckController extends AbstractController
             ], 500);
         }
     }
+
+    /**
+ * Mettre à jour un deck complet (métadonnées + cartes)
+ */
+#[Route('/{id}', name: 'update', methods: ['PUT'])]
+#[IsGranted('ROLE_USER')]
+public function update(int $id, Request $request): JsonResponse
+{
+    $deck = $this->deckRepository->find($id);
+    
+    if (!$deck || $deck->getUser() !== $this->getUser()) {
+        return $this->json(['success' => false, 'message' => 'Deck introuvable'], 404);
+    }
+
+    $data = json_decode($request->getContent(), true);
+    
+    // Validation des données requises
+    if (empty($data['title'])) {
+        return $this->json([
+            'success' => false,
+            'message' => 'Titre requis'
+        ], 400);
+    }
+
+    try {
+        // Mettre à jour les métadonnées du deck
+        $deck->setTitle(trim($data['title']));
+        $deck->setDescription($data['description'] ?? null);
+        $deck->setHearthstoneClass($data['hearthstoneClass'] ?? null);
+
+        // Gérer les cartes du deck
+        if (isset($data['cards']) && is_array($data['cards'])) {
+            // Supprimer toutes les cartes existantes du deck
+            foreach ($deck->getDeckCards() as $deckCard) {
+                $this->entityManager->remove($deckCard);
+            }
+            $deck->getDeckCards()->clear();
+            
+            // Ajouter les nouvelles cartes
+            foreach ($data['cards'] as $cardData) {
+                if (isset($cardData['cardId']) && isset($cardData['quantity'])) {
+                    $cardId = $cardData['cardId'];
+                    $quantity = $cardData['quantity'];
+                    
+                    // Récupérer la carte selon le jeu
+                    $gameSlug = $deck->getGame()->getSlug();
+                    $card = null;
+                    
+                    if ($gameSlug === 'hearthstone') {
+                        $card = $this->entityManager->getRepository('App\Entity\Hearthstone\HearthstoneCard')->find($cardId);
+                    } elseif ($gameSlug === 'pokemon') {
+                        $card = $this->entityManager->getRepository('App\Entity\Pokemon\PokemonCard')->find($cardId);
+                    }
+                    // TODO: Ajouter Magic quand implémenté
+                    
+                    if ($card) {
+                        $deckCard = new \App\Entity\DeckCard();
+                        $deckCard->setDeck($deck);
+                        $deckCard->setQuantity($quantity);
+                        
+                        // Assigner la carte selon le type
+                        if ($gameSlug === 'hearthstone') {
+                            $deckCard->setHearthstoneCard($card);
+                        } elseif ($gameSlug === 'pokemon') {
+                            $deckCard->setPokemonCard($card);
+                        }
+                        
+                        $deck->addDeckCard($deckCard);
+                        $this->entityManager->persist($deckCard);
+                    }
+                }
+            }
+        }
+
+        // Recalculer les statistiques du deck
+        $deck->recalculateStats();
+        
+        // Sauvegarder en base
+        $this->entityManager->flush();
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Deck mis à jour avec succès',
+            'data' => [
+                'id' => $deck->getId(),
+                'title' => $deck->getTitle(),
+                'totalCards' => $deck->getTotalCards(),
+                'validDeck' => $deck->isValidDeck()
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        return $this->json([
+            'success' => false,
+            'message' => 'Erreur lors de la mise à jour du deck'
+        ], 500);
+    }
+}
 
     /**
      * Récupérer les decks d'un utilisateur
@@ -308,7 +429,8 @@ class DeckController extends AbstractController
             'author' => $deck->getAuthorName(),
             'createdAt' => $deck->getCreatedAt()?->format('Y-m-d H:i:s'),
             'updatedAt' => $deck->getUpdatedAt()?->format('Y-m-d H:i:s'),
-            'cards' => [], // À implémenter selon les besoins
+            'hearthstoneClass' => $deck->getHearthstoneClass(),
+            'cards' => [],
         ];
     }
 }

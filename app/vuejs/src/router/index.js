@@ -86,6 +86,12 @@ const routes = [
     }
   },
   {
+    path: '/mes-decks',
+    name: 'MyDecks',
+    component: () => import('../views/MyDecksView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/posts/:id',
     name: 'PostView',
     component: () => import('../views/PostView.vue'),

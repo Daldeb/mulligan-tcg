@@ -45,6 +45,9 @@ class Deck
     #[ORM\Column(type: 'integer')]
     private int $totalCards = 0; // Nombre total de cartes dans le deck
 
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $hearthstoneClass = null;
+
     #[ORM\Column(type: 'float', nullable: true)]
     private ?float $averageCost = null; // Coût moyen du deck
 
@@ -243,6 +246,17 @@ class Deck
     public function setUser(?User $user): static
     {
         $this->user = $user;
+        return $this;
+    }
+
+    public function getHearthstoneClass(): ?string
+    {
+        return $this->hearthstoneClass;
+    }
+
+    public function setHearthstoneClass(?string $hearthstoneClass): static
+    {
+        $this->hearthstoneClass = $hearthstoneClass;
         return $this;
     }
 
