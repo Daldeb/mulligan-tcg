@@ -27,13 +27,28 @@
               </div>
             </div>
             <div class="header-actions">
+              <!-- NOUVEAUX BOUTONS DECK -->
+              <Button 
+                icon="pi pi-copy"
+                class="deck-action-btn copy-btn"
+                @click="copyDeckcode"
+                v-tooltip="'Copier le deckcode'"
+                :disabled="deckCards.length === 0"
+              />
+              <Button 
+                label="Publier"
+                icon="pi pi-upload"
+                class="deck-action-btn publish-btn"
+                @click="publishDeck"
+                :loading="isPublishing"
+                :disabled="!canPublish"
+              />
               <Button 
                 label="Sauvegarder"
                 icon="pi pi-save"
-                class="save-btn emerald-btn"
+                class="deck-action-btn save-btn emerald-button primary"
                 @click="saveDeck"
                 :loading="isSaving"
-                :disabled="!canSave"
               />
             </div>
           </div>
@@ -139,19 +154,17 @@
 <div class="deck-panel">
   <!-- Header du deck -->
   <div class="deck-header">
-    <h3 class="deck-title">Mon Deck</h3>
+    <h3 class="deck-title">
+      {{ currentDeck.name || 'Nouveau deck' }} ({{ currentDeck.format?.toUpperCase() || 'STANDARD' }})
+    </h3>
     <div class="deck-stats">
       <div class="stat-item">
         <span class="stat-label">Total</span>
         <span class="stat-value">{{ totalCardsInDeck }}/{{ maxCardsForGame }}</span>
       </div>
       <div class="stat-item">
-        <span class="stat-label">Coût moyen</span>
-        <span class="stat-value">{{ averageCost }}</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-label">Cartes uniques</span>
-        <span class="stat-value">{{ deckCards.length }}</span>
+        <span class="stat-label">Coût total</span>
+        <span class="stat-value">{{ totalDustCost }}</span>
       </div>
     </div>
   </div>
@@ -393,6 +406,7 @@ const isLoading = ref(false)
 const isLoadingCards = ref(false)
 const isSaving = ref(false)
 const isImporting = ref(false)
+const isPublishing = ref(false)
 
 // State UI
 const showSettings = ref(false)
@@ -425,6 +439,23 @@ const gameDisplayName = computed(() => {
   return names[currentDeck.value.game] || 'Jeu inconnu'
 })
 
+const totalDustCost = computed(() => {
+  if (currentDeck.value.game !== 'hearthstone') return '0'
+  
+  const dustCosts = {
+    'common': 40,
+    'rare': 100, 
+    'epic': 400,
+    'legendary': 1600
+  }
+  
+  return deckCards.value.reduce((total, entry) => {
+    const rarity = entry.card.rarity?.toLowerCase() || 'common'
+    const cardCost = dustCosts[rarity] || 40
+    return total + (cardCost * entry.quantity)
+  }, 0).toLocaleString()
+})
+
 const maxCardsForGame = computed(() => {
   const limits = {
     'hearthstone': 30,
@@ -452,10 +483,11 @@ const formatBadgeClass = computed(() => {
   return 'format-default'
 })
 
-const canSave = computed(() => {
+const canPublish = computed(() => {
   return currentDeck.value.name?.trim() && 
          currentDeck.value.game && 
-         deckCards.value.length > 0
+         deckCards.value.length > 0 &&
+         totalCardsInDeck.value === maxCardsForGame.value
 })
 
 // Filtrage des cartes
@@ -603,7 +635,18 @@ const getMaxQuantity = (card) => {
 const canAddCard = (card) => {
   const currentQuantity = getCardQuantity(card.id)
   const maxQuantity = getMaxQuantity(card)
-  return currentQuantity < maxQuantity && totalCardsInDeck.value < maxCardsForGame.value
+  
+  // Vérification limite totale du deck
+  if (totalCardsInDeck.value >= maxCardsForGame.value) {
+    return false
+  }
+  
+  // Vérification limite par carte
+  if (currentQuantity >= maxQuantity) {
+    return false
+  }
+  
+  return true
 }
 
 const addCardToDeck = (card) => {
@@ -833,6 +876,52 @@ const clearDeck = () => {
   }
 }
 
+const publishDeck = async () => {
+  if (!validateDeck()) return
+
+  try {
+    isPublishing.value = true
+    
+    const deckData = {
+      name: currentDeck.value.name.trim(),
+      description: currentDeck.value.description?.trim(),
+      game: currentDeck.value.game,
+      format: currentDeck.value.format,
+      visibility: currentDeck.value.visibility,
+      isPublic: true, // ← RENDU PUBLIC
+      cards: deckCards.value.map(entry => ({
+        cardId: entry.card.id,
+        quantity: entry.quantity
+      }))
+    }
+
+    if (isEditing.value) {
+      await api.put(`/api/decks/${route.params.id}`, deckData)
+    } else {
+      const response = await api.post('/api/decks', deckData)
+      currentDeck.value.id = response.data.id
+    }
+
+    toast.add({
+      severity: 'success',
+      summary: 'Deck publié',
+      detail: 'Votre deck est maintenant visible par la communauté',
+      life: 3000
+    })
+
+  } catch (error) {
+    console.error('Erreur publication:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: error.response?.data?.message || 'Erreur lors de la publication',
+      life: 3000
+    })
+  } finally {
+    isPublishing.value = false
+  }
+}
+
 const clearCardFilters = () => {
   cardSearch.value = ''
   filters.value = {
@@ -858,6 +947,15 @@ const onGameChange = () => {
 const onFormatChange = () => {
   // Filtrer les cartes selon le nouveau format
   currentPage.value = 0
+}
+
+const copyDeckcode = () => {
+  toast.add({
+    severity: 'info',
+    summary: 'Deckcode copié',
+    detail: 'Fonctionnalité bientôt disponible...',
+    life: 2000
+  })
 }
 
 const sortedDeckCards = computed(() => {
@@ -1054,18 +1152,50 @@ watch(() => currentDeck.value.game, (newGame) => {
   gap: 1rem;
 }
 
-:deep(.settings-btn) {
+/* CSS pour les nouveaux boutons d'action deck */
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+:deep(.deck-action-btn) {
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  transition: all var(--transition-fast) !important;
+  min-height: 40px !important;
+}
+
+:deep(.copy-btn) {
   background: none !important;
   border: 2px solid var(--surface-300) !important;
   color: var(--text-secondary) !important;
-  padding: 0.75rem 1.25rem !important;
-  border-radius: 25px !important;
+  width: 44px !important;
+  padding: 0 !important;
 }
 
-:deep(.settings-btn:hover) {
+:deep(.copy-btn:hover) {
   border-color: var(--primary) !important;
   color: var(--primary) !important;
   background: rgba(38, 166, 154, 0.1) !important;
+}
+
+:deep(.publish-btn) {
+  background: #3b82f6 !important;
+  border: 2px solid #3b82f6 !important;
+  color: white !important;
+  padding: 0.5rem 1rem !important;
+}
+
+:deep(.publish-btn:hover) {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3) !important;
+}
+
+:deep(.save-btn) {
+  padding: 0.5rem 1rem !important;
 }
 
 /* Header row pour la cohérence */
@@ -1380,8 +1510,8 @@ watch(() => currentDeck.value.game, (newGame) => {
   display: flex;
   flex-direction: column;
   position: sticky;
-  top: 215px; /* ← CORRECTION : coller sous le AppHeader au lieu de top: 0 */
-  height: calc(100vh - 210px); /* ← AJUSTER la hauteur en conséquence */
+  top: 220px; /* ← CORRECTION : coller sous le AppHeader au lieu de top: 0 */
+  height: calc(100vh - 220px); /* ← AJUSTER la hauteur en conséquence */
   overflow-y: auto;
   z-index: 20;
 }
