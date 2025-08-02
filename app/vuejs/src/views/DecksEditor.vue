@@ -135,59 +135,52 @@
           </div>
         </div>
 
-        <!-- Panneau de droite : Deck en cours -->
-        <div class="deck-panel">
+        <!-- Panneau deck : Decklist en cours -->
+<div class="deck-panel">
+  <!-- Header du deck -->
+  <div class="deck-header">
+    <h3 class="deck-title">Mon Deck</h3>
+    <div class="deck-stats">
+      <div class="stat-item">
+        <span class="stat-label">Total</span>
+        <span class="stat-value">{{ totalCardsInDeck }}/{{ maxCardsForGame }}</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Coût moyen</span>
+        <span class="stat-value">{{ averageCost }}</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Cartes uniques</span>
+        <span class="stat-value">{{ deckCards.length }}</span>
+      </div>
+    </div>
+  </div>
 
-          <!-- Affichage du deck selon le jeu -->
-          <div class="deck-display">
-            <HearthstoneDeckList 
-              v-if="currentDeck.game === 'hearthstone'"
-              :deck="currentDeck"
-              :cards="deckCards"
-              :is-editable="true"
-              @card-click="removeCardFromDeck"
-            />
-            
-            <div v-else-if="currentDeck.game === 'magic'" class="magic-decklist">
-              <!-- À implémenter : affichage Magic style -->
-              <p>Affichage Magic en développement...</p>
-            </div>
-            
-            <div v-else-if="currentDeck.game === 'pokemon'" class="pokemon-decklist">
-              <!-- À implémenter : affichage Pokemon style -->
-              <p>Affichage Pokemon en développement...</p>
-            </div>
-
-            <div v-else class="empty-deck">
-              <i class="pi pi-clone empty-icon"></i>
-              <p>Votre deck apparaîtra ici</p>
-            </div>
-          </div>
-
-          <!-- Actions rapides du deck -->
-          <div class="deck-actions">
-            <Button 
-              label="Vider le deck"
-              icon="pi pi-trash"
-              class="clear-deck-btn"
-              @click="clearDeck"
-              :disabled="deckCards.length === 0"
-            />
-            <Button 
-              label="Import deckcode"
-              icon="pi pi-download"
-              class="import-btn"
-              @click="showImportDeckcode = true"
-            />
-            <Button 
-              label="Export deckcode"
-              icon="pi pi-upload"
-              class="export-btn"
-              @click="exportDeckcode"
-              :disabled="deckCards.length === 0"
-            />
-          </div>
+  <!-- Contenu du deck -->
+  <div class="deck-content">
+    <div v-if="deckCards.length === 0" class="empty-deck">
+      <i class="pi pi-clone empty-icon"></i>
+      <p>Votre deck apparaîtra ici</p>
+      <small>Cliquez sur les cartes pour les ajouter</small>
+    </div>
+    
+    <div v-else class="deck-list">
+      <div 
+        v-for="entry in sortedDeckCards" 
+        :key="entry.card.id"
+        class="deck-card-entry"
+        @click="removeCardFromDeck(entry)"
+      >
+        <div class="card-cost">{{ entry.card.cost || 0 }}</div>
+        <div class="card-info">
+          <div class="card-name">{{ entry.card.name }}</div>
         </div>
+        <div class="card-quantity">{{ entry.quantity }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 
       </div>
 
@@ -365,7 +358,6 @@ import { useAuthStore } from '../stores/auth'
 import { useGameFilterStore } from '../stores/gameFilter'
 import { useToast } from 'primevue/usetoast'
 import api from '../services/api'
-import HearthstoneDeckList from '../components/decks/HearthstoneDeckList.vue'
 import CardItem from '../components/decks/CardItem.vue'
 import Dropdown from 'primevue/dropdown'
 import Paginator from 'primevue/paginator' 
@@ -868,6 +860,14 @@ const onFormatChange = () => {
   currentPage.value = 0
 }
 
+const sortedDeckCards = computed(() => {
+  return [...deckCards.value].sort((a, b) => {
+    const costDiff = (a.card.cost || 0) - (b.card.cost || 0)
+    if (costDiff !== 0) return costDiff
+    return a.card.name.localeCompare(b.card.name)
+  })
+})
+
 const applySettings = () => {
   showSettings.value = false
   // Les changements sont déjà appliqués via v-model
@@ -1068,15 +1068,25 @@ watch(() => currentDeck.value.game, (newGame) => {
   background: rgba(38, 166, 154, 0.1) !important;
 }
 
-/* Layout principal - NOUVELLE GRILLE 5x6 */
+/* Header row pour la cohérence */
+.editor-header-row {
+  background: white;
+  border-bottom: 1px solid var(--surface-200);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: var(--shadow-small);
+}
+
+/* Layout principal - RETOUR AUX 2 COLONNES */
 .editor-layout {
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: 1fr 350px;
   min-height: calc(100vh - 80px);
   background: white;
 }
 
-/* Panneau library - AMÉLIORÉ */
+/* Panneau library - COLONNE DE GAUCHE */
 .library-panel {
   background: #f8fafc;
   border-right: 1px solid #e2e8f0;
@@ -1183,7 +1193,7 @@ watch(() => currentDeck.value.game, (newGame) => {
   background: rgba(255, 87, 34, 0.1) !important;
 }
 
-/* Cards library - NOUVELLE GRILLE PARFAITE */
+/* Cards library - PLUS LARGE MAINTENANT */
 .cards-library {
   flex: 1;
   display: flex;
@@ -1218,7 +1228,7 @@ watch(() => currentDeck.value.game, (newGame) => {
   100% { transform: rotate(360deg); }
 }
 
-/* GRILLE AUTO-EXPANSIVE */
+/* GRILLE ADAPTÉE - 5 COLONNES */
 .cards-grid {
   padding: 1.5rem;
   display: grid;
@@ -1269,140 +1279,6 @@ watch(() => currentDeck.value.game, (newGame) => {
 
 :deep(.custom-paginator) {
   justify-content: center;
-}
-
-/* Panneau deck */
-.deck-panel {
-  background: #1a1a1a;
-  display: flex;
-  flex-direction: column;
-  position: fixed; /* ← AJOUTER */
-  top: 80px; /* ← AJOUTER (hauteur du header) */
-  right: 0; /* ← AJOUTER */
-  width: 400px; /* ← AJOUTER */
-  height: calc(100vh - 80px); /* ← AJOUTER */
-  z-index: 40; /* ← AJOUTER */
-  overflow-y: auto; /* ← AJOUTER si nécessaire */
-}
-
-.deck-header {
-  background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-  padding: 1.5rem;
-  border-bottom: 2px solid #4a5568;
-}
-
-/* Header row avec decklist côte à côte */
-.editor-header-row {
-  display: grid;
-  grid-template-columns: 1fr 400px;
-  background: white;
-  border-bottom: 1px solid var(--surface-200);
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  box-shadow: var(--shadow-small);
-}
-
-.deck-panel-header {
-  background: #1a1a1a;
-}
-
-.deck-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.deck-title {
-  color: #f7fafc;
-  font-size: 1.4rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.format-badge {
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
-.format-standard {
-  background: rgba(34, 197, 94, 0.2);
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
-}
-
-.format-wild {
-  background: rgba(249, 115, 22, 0.2);
-  color: #f97316;
-  border: 1px solid rgba(249, 115, 22, 0.3);
-}
-
-.format-default {
-  background: rgba(168, 162, 158, 0.2);
-  color: #a8a29e;
-  border: 1px solid rgba(168, 162, 158, 0.3);
-}
-
-/* Affichage du deck */
-.deck-display {
-  flex: 1;
-  overflow: hidden;
-}
-
-.empty-deck {
-  padding: 3rem 2rem;
-  text-align: center;
-  color: #a0aec0;
-}
-
-.empty-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-/* Actions du deck */
-.deck-actions {
-  background: rgba(26, 32, 44, 0.8);
-  padding: 1rem;
-  border-top: 1px solid #4a5568;
-  display: flex;
-  gap: 0.75rem;
-}
-
-:deep(.clear-deck-btn) {
-  flex: 1;
-  background: none !important;
-  border: 2px solid #ef4444 !important;
-  color: #ef4444 !important;
-  font-size: 0.8rem !important;
-  padding: 0.5rem !important;
-}
-
-:deep(.clear-deck-btn:hover) {
-  background: #ef4444 !important;
-  color: white !important;
-}
-
-:deep(.import-btn),
-:deep(.export-btn) {
-  flex: 1;
-  background: none !important;
-  border: 2px solid #4a5568 !important;
-  color: #a0aec0 !important;
-  font-size: 0.8rem !important;
-  padding: 0.5rem !important;
-}
-
-:deep(.import-btn:hover),
-:deep(.export-btn:hover) {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: rgba(38, 166, 154, 0.1) !important;
 }
 
 /* Modals */
@@ -1498,13 +1374,178 @@ watch(() => currentDeck.value.game, (newGame) => {
   border-top: 1px solid var(--surface-200);
 }
 
-/* Responsive - Adaptation du nombre de colonnes */
-@media (max-width: 1400px) {
-  .cards-grid {
-    grid-template-columns: repeat(4, 1fr); /* 4 colonnes */
-  }
+/* === NOUVEAU PANNEAU DECKLIST === */
+.deck-panel {
+  background: #1a202c;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 215px; /* ← CORRECTION : coller sous le AppHeader au lieu de top: 0 */
+  height: calc(100vh - 210px); /* ← AJUSTER la hauteur en conséquence */
+  overflow-y: auto;
+  z-index: 20;
 }
 
+.deck-header {
+  background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+  padding: 1.5rem 1.25rem;
+  border-bottom: 2px solid #4a5568;
+  flex-shrink: 0;
+}
+
+.deck-title {
+  color: #f7fafc;
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem 0;
+  text-align: center;
+}
+
+.deck-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #cbd5e0;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  color: #a0aec0;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.stat-value {
+  display: block;
+  color: #f7fafc;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.deck-content {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.deck-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.deck-card-entry {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  background: rgba(45, 55, 72, 0.6);
+  border-radius: 8px;
+  border: 1px solid #4a5568;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.deck-card-entry:hover {
+  background: rgba(45, 55, 72, 0.8);
+  border-color: #68d391;
+  transform: translateX(4px);
+}
+
+.card-cost {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #4299e1 0%, #2b6cb0 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 0.75rem;
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+  border: 2px solid #1e3a8a;
+}
+
+.card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-name {
+  color: #f7fafc;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-quantity {
+  color: #68d391;
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
+.empty-deck {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #a0aec0;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.deck-actions {
+  background: rgba(26, 32, 44, 0.9);
+  padding: 1rem;
+  border-top: 1px solid #4a5568;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.deck-action-btn {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #4a5568;
+  background: transparent;
+  color: #cbd5e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.deck-action-btn:hover {
+  border-color: #68d391;
+  color: #68d391;
+  background: rgba(104, 211, 145, 0.1);
+}
+
+.deck-action-btn.danger {
+  border-color: #e53e3e;
+  color: #e53e3e;
+}
+
+.deck-action-btn.danger:hover {
+  background: #e53e3e;
+  color: white;
+}
+
+/* Responsive pour decklist */
 @media (max-width: 1024px) {
   .editor-layout {
     grid-template-columns: 1fr;
@@ -1512,20 +1553,16 @@ watch(() => currentDeck.value.game, (newGame) => {
   }
   
   .deck-panel {
+    position: relative;
+    top: auto;
+    height: 300px;
     order: -1;
-    max-height: 300px;
     border-right: none;
-    border-bottom: 1px solid #e2e8f0;
-  }
-  
-  .library-panel {
-    border-right: none;
+    border-bottom: 1px solid #4a5568;
   }
   
   .cards-grid {
-    grid-template-columns: repeat(3, 1fr); /* 3 colonnes */
-    padding: 1rem;
-    gap: 0.75rem;
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -1557,7 +1594,7 @@ watch(() => currentDeck.value.game, (newGame) => {
   }
   
   .cards-grid {
-    grid-template-columns: repeat(2, 1fr); /* 2 colonnes */
+    grid-template-columns: repeat(3, 1fr); /* 3 colonnes */
     padding: 0.75rem;
     gap: 0.5rem;
   }
@@ -1565,16 +1602,11 @@ watch(() => currentDeck.value.game, (newGame) => {
   .form-row {
     grid-template-columns: 1fr;
   }
-  
-  .deck-actions {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
 }
 
 @media (max-width: 480px) {
   .cards-grid {
-    grid-template-columns: 1fr; /* 1 colonne */
+    grid-template-columns: repeat(2, 1fr); /* 2 colonnes */
     padding: 0.5rem;
   }
   
@@ -1598,25 +1630,10 @@ watch(() => currentDeck.value.game, (newGame) => {
   animation: slideInLeft 0.4s ease-out;
 }
 
-.deck-panel {
-  animation: slideInRight 0.4s ease-out;
-}
-
 @keyframes slideInLeft {
   from {
     opacity: 0;
     transform: translateX(-30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
   }
   to {
     opacity: 1;
