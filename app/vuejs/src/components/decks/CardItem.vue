@@ -1,98 +1,59 @@
 <template>
   <div 
-    class="card-item"
-    :class="[
-      `rarity-${card.rarity?.toLowerCase()}`,
-      `game-${card.cardClass?.toLowerCase()}`,
-      { 'in-deck': quantity > 0, 'max-reached': quantity >= maxQuantity }
-    ]"
+    class="card-item-clean"
+    :class="{ 'in-deck': quantity > 0, 'max-reached': quantity >= maxQuantity }"
     @mouseenter="startHoverTimer"
     @mouseleave="cancelHoverTimer"
   >
     
-    <!-- Image de la carte -->
-    <div class="card-image-container">
+    <!-- Image de la carte (fullsize) -->
+    <div class="card-image-wrapper">
       <img 
         v-if="card.imageUrl"
         :src="getCardImageUrl(card.imageUrl)"
         :alt="card.name"
-        class="card-image"
+        class="card-image-full"
         @error="handleImageError"
         @load="handleImageLoad"
       />
-      <div v-else class="image-placeholder">
+      <div v-else class="image-placeholder-clean">
         <i class="pi pi-image"></i>
-      </div>
-      
-      <!-- Overlay avec coût -->
-      <div class="cost-overlay">
-        <div class="mana-crystal" :class="`cost-${card.cost || 0}`">
-          {{ card.cost || 0 }}
-        </div>
-      </div>
-
-      <!-- Badge de rareté -->
-      <div class="rarity-badge" :class="`rarity-${card.rarity?.toLowerCase()}`">
-        {{ rarityIcon }}
+        <span>{{ card.name }}</span>
       </div>
 
       <!-- Quantity indicator si dans le deck -->
-      <div v-if="quantity > 0" class="quantity-indicator">
-        <span class="quantity-text">{{ quantity }}</span>
+      <div v-if="quantity > 0" class="quantity-badge">
+        {{ quantity }}
       </div>
-    </div>
 
-    <!-- Informations de la carte -->
-    <div class="card-info">
-      <h4 class="card-name" :class="`rarity-text-${card.rarity?.toLowerCase()}`">
-        {{ card.name }}
-      </h4>
-      
-      <div class="card-meta">
-        <div class="card-stats" v-if="showStats">
-          <span v-if="card.attack !== null" class="attack">{{ card.attack }}</span>
-          <span v-if="card.attack !== null && card.health !== null" class="separator">/</span>
-          <span v-if="card.health !== null" class="health">{{ card.health }}</span>
-        </div>
+      <!-- Actions overlay (apparaît au hover) -->
+      <div class="card-actions-overlay">
+        <button 
+          class="action-btn remove-btn"
+          @click.stop="$emit('remove', card)"
+          :disabled="quantity === 0"
+          title="Retirer du deck"
+        >
+          <i class="pi pi-minus"></i>
+        </button>
         
-        <div class="card-type">
-          {{ cardTypeDisplay }}
-        </div>
+        <button 
+          class="action-btn add-btn"
+          @click.stop="$emit('add', card)"
+          :disabled="!canAdd"
+          :title="canAdd ? 'Ajouter au deck' : 'Limite atteinte'"
+        >
+          <i class="pi pi-plus"></i>
+        </button>
       </div>
-
-      <!-- Description courte -->
-      <p v-if="card.text" class="card-description">
-        {{ truncatedText }}
-      </p>
     </div>
 
-    <!-- Actions -->
-    <div class="card-actions">
-      <Button 
-        icon="pi pi-minus"
-        class="quantity-btn remove-btn"
-        @click.stop="$emit('remove', card)"
-        :disabled="quantity === 0"
-        v-tooltip="'Retirer du deck'"
-      />
-      
-      <span class="quantity-display">{{ quantity }}/{{ maxQuantity }}</span>
-      
-      <Button 
-        icon="pi pi-plus"
-        class="quantity-btn add-btn"
-        @click.stop="$emit('add', card)"
-        :disabled="!canAdd"
-        v-tooltip="canAdd ? 'Ajouter au deck' : 'Limite atteinte'"
-      />
-    </div>
-
-    <!-- Hover preview timer -->
-    <div v-if="showHoverPreview" class="hover-preview">
+    <!-- Hover preview (optionnel) -->
+    <div v-if="showHoverPreview" class="hover-preview-clean">
       <img 
         :src="getCardImageUrl(card.imageUrl)"
         :alt="card.name"
-        class="preview-image"
+        class="preview-image-large"
       />
     </div>
 
@@ -133,38 +94,6 @@ const canAdd = computed(() => {
   return props.canAdd && props.quantity < props.maxQuantity
 })
 
-const rarityIcon = computed(() => {
-  const icons = {
-    'common': '⚪',
-    'rare': '🔵',
-    'epic': '🟣',
-    'legendary': '🟠'
-  }
-  return icons[props.card.rarity?.toLowerCase()] || '⚪'
-})
-
-const cardTypeDisplay = computed(() => {
-  const types = {
-    'minion': 'Serviteur',
-    'spell': 'Sort',
-    'weapon': 'Arme',
-    'hero': 'Héros'
-  }
-  return types[props.card.cardType?.toLowerCase()] || props.card.cardType
-})
-
-const showStats = computed(() => {
-  // Afficher stats pour les serviteurs et armes
-  return ['minion', 'weapon'].includes(props.card.cardType?.toLowerCase())
-})
-
-const truncatedText = computed(() => {
-  if (!props.card.text) return ''
-  return props.card.text.length > 60 
-    ? props.card.text.substring(0, 57) + '...'
-    : props.card.text
-})
-
 // Méthodes
 const getCardImageUrl = (imageUrl) => {
   const backendUrl = import.meta.env.VITE_BACKEND_URL
@@ -173,7 +102,7 @@ const getCardImageUrl = (imageUrl) => {
 
 const handleImageError = (event) => {
   event.target.style.display = 'none'
-  const placeholder = event.target.parentElement.querySelector('.image-placeholder')
+  const placeholder = event.target.parentElement.querySelector('.image-placeholder-clean')
   if (placeholder) {
     placeholder.style.display = 'flex'
   }
@@ -186,7 +115,7 @@ const handleImageLoad = () => {
 const startHoverTimer = () => {
   hoverTimer.value = setTimeout(() => {
     showHoverPreview.value = true
-  }, 800) // Délai avant affichage preview
+  }, 1000) // Délai plus long pour preview
 }
 
 const cancelHoverTimer = () => {
@@ -204,379 +133,218 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* === CARD ITEM COMPONENT === */
+/* === CARD ITEM ULTRA-CLEAN === */
 
-.card-item {
-  background: white;
-  border-radius: var(--border-radius);
-  border: 2px solid var(--surface-200);
-  overflow: hidden;
-  transition: all var(--transition-medium);
+.card-item-clean {
+  position: relative;
   cursor: pointer;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.card-item:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-medium);
-  border-color: var(--primary);
-}
-
-/* États spéciaux */
-.card-item.in-deck {
-  border-color: var(--primary);
-  background: rgba(38, 166, 154, 0.05);
-}
-
-.card-item.max-reached {
-  opacity: 0.7;
-}
-
-.card-item.max-reached:hover {
-  transform: translateY(-2px);
-  cursor: not-allowed;
-}
-
-/* Bordures de rareté */
-.rarity-common { border-left: 4px solid #9ca3af; }
-.rarity-rare { border-left: 4px solid #3b82f6; }
-.rarity-epic { border-left: 4px solid #a855f7; }
-.rarity-legendary { border-left: 4px solid #f59e0b; }
-
-/* Image container */
-.card-image-container {
-  position: relative;
-  aspect-ratio: 5/7;
+  transition: all 0.2s ease;
+  border-radius: 8px;
   overflow: hidden;
 }
 
-.card-image {
+.card-item-clean:hover {
+  transform: translateY(-4px) scale(1.02);
+  z-index: 10;
+}
+
+/* Container de l'image */
+.card-image-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 0.714; /* Ratio cartes Hearthstone (5:7) */
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Image fullsize */
+.card-image-full {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  transition: transform var(--transition-medium);
+  object-fit: contain; /* ← Garde l'aspect ratio, image complète */
+  object-position: center; /* ← Centre l'image */
+  background: transparent;
+  transition: transform 0.2s ease;
 }
 
-.card-item:hover .card-image {
+.card-item-clean:hover .card-image-full {
   transform: scale(1.05);
 }
 
-.image-placeholder {
+/* Placeholder si pas d'image */
+.image-placeholder-clean {
   width: 100%;
   height: 100%;
-  background: var(--surface-200);
+  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
+  color: #64748b;
+  font-size: 0.8rem;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.image-placeholder-clean i {
   font-size: 1.5rem;
 }
 
-/* Overlays */
-.cost-overlay {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-}
-
-.mana-crystal {
-  width: 28px;
-  height: 28px;
-  background: radial-gradient(circle, #4299e1 0%, #2b6cb0 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 700;
-  font-size: 0.8rem;
-  border: 2px solid #1e3a8a;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* Couleurs de mana par coût */
-.cost-0 { background: radial-gradient(circle, #6b7280 0%, #374151 100%); border-color: #4b5563; }
-.cost-1, .cost-2, .cost-3, .cost-4, .cost-5, .cost-6 { 
-  background: radial-gradient(circle, #4299e1 0%, #2563eb 100%); 
-  border-color: #1e3a8a; 
-}
-.cost-7, .cost-8, .cost-9 { 
-  background: radial-gradient(circle, #7c3aed 0%, #5b21b6 100%); 
-  border-color: #4c1d95; 
-}
-.cost-10 { 
-  background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); 
-  border-color: #7f1d1d; 
-}
-
-.rarity-badge {
+/* Badge quantité (toujours visible si > 0) */
+.quantity-badge {
   position: absolute;
   top: 8px;
   right: 8px;
+  background: #10b981;
+  color: white;
   width: 24px;
   height: 24px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
-  background: rgba(0, 0, 0, 0.7);
+  font-weight: 700;
+  font-size: 0.8rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 5;
+}
+
+/* Overlay actions (apparaît au hover) */
+.card-actions-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.75rem;
+  padding: 1rem;
+  opacity: 0;
+  transform: translateY(100%);
+  transition: all 0.3s ease;
+}
+
+.card-item-clean:hover .card-actions-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Boutons d'action */
+.action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.95);
+  color: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  font-weight: 600;
   backdrop-filter: blur(4px);
 }
 
-.quantity-indicator {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  background: var(--primary);
+.action-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.add-btn:hover {
+  background: #10b981;
   color: white;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.8rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border-color: #10b981;
 }
 
-/* Informations de la carte */
-.card-info {
-  padding: 0.75rem;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.remove-btn:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
 }
 
-.card-name {
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin: 0;
-  line-height: 1.2;
-  color: var(--text-primary);
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
-/* Couleurs de nom par rareté */
-.rarity-text-common { color: #6b7280; }
-.rarity-text-rare { color: #3b82f6; }
-.rarity-text-epic { color: #a855f7; }
-.rarity-text-legendary { color: #f59e0b; }
-
-.card-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+.action-btn:disabled:hover {
+  background: rgba(255, 255, 255, 0.95);
+  color: #374151;
+  border-color: rgba(255, 255, 255, 0.9);
+  transform: none;
 }
 
-.card-stats {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-weight: 600;
+/* États spéciaux */
+.card-item-clean.in-deck {
+  box-shadow: 0 0 0 2px #10b981;
 }
 
-.attack {
-  color: #ef4444;
+.card-item-clean.max-reached {
+  opacity: 0.7;
 }
 
-.health {
-  color: #22c55e;
-}
-
-.separator {
-  color: var(--text-secondary);
-}
-
-.card-type {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 500;
-}
-
-.card-description {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  line-height: 1.3;
-  margin: 0;
-  flex: 1;
-}
-
-/* Actions */
-.card-actions {
-  background: var(--surface-100);
-  padding: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  border-top: 1px solid var(--surface-200);
-}
-
-:deep(.quantity-btn) {
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 50% !important;
-  padding: 0 !important;
-  border: 2px solid var(--surface-300) !important;
-  background: white !important;
-  color: var(--text-secondary) !important;
-  font-size: 0.8rem !important;
-  transition: all var(--transition-fast) !important;
-}
-
-:deep(.add-btn:not(:disabled):hover) {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: rgba(38, 166, 154, 0.1) !important;
-  transform: scale(1.1) !important;
-}
-
-:deep(.remove-btn:not(:disabled):hover) {
-  border-color: #ef4444 !important;
-  color: #ef4444 !important;
-  background: rgba(239, 68, 68, 0.1) !important;
-  transform: scale(1.1) !important;
-}
-
-:deep(.quantity-btn:disabled) {
-  opacity: 0.3 !important;
-  cursor: not-allowed !important;
-}
-
-.quantity-display {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  min-width: 30px;
-  text-align: center;
+.card-item-clean.max-reached:hover {
+  transform: translateY(-2px) scale(1.01);
 }
 
 /* Hover preview */
-.hover-preview {
+.hover-preview-clean {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 1000;
   pointer-events: none;
-  animation: fadeInScale 0.2s ease-out;
+  animation: fadeInPreview 0.3s ease-out;
 }
 
-.preview-image {
-  width: 250px;
+.preview-image-large {
+  width: 300px;
   height: auto;
-  border-radius: var(--border-radius);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  border: 3px solid var(--primary);
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  border: 3px solid #10b981;
 }
 
-/* Classes de jeu Hearthstone */
-.game-mage .card-name { color: #69ccf0; }
-.game-hunter .card-name { color: #abd473; }
-.game-paladin .card-name { color: #f58cba; }
-.game-warrior .card-name { color: #c79c6e; }
-.game-priest .card-name { color: #ffffff; }
-.game-warlock .card-name { color: #9482c9; }
-.game-shaman .card-name { color: #0070de; }
-.game-rogue .card-name { color: #fff569; }
-.game-druid .card-name { color: #ff7d0a; }
-.game-neutral .card-name { color: #9ca3af; }
+@keyframes fadeInPreview {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
 
 /* Responsive */
 @media (max-width: 768px) {
-  .card-info {
-    padding: 0.5rem;
+  .card-actions-overlay {
+    padding: 0.75rem;
+    gap: 0.5rem;
   }
   
-  .card-name {
+  .action-btn {
+    width: 32px;
+    height: 32px;
     font-size: 0.8rem;
   }
   
-  .card-description {
+  .quantity-badge {
+    width: 20px;
+    height: 20px;
     font-size: 0.7rem;
   }
   
-  .card-actions {
-    padding: 0.375rem;
-  }
-  
-  :deep(.quantity-btn) {
-    width: 24px !important;
-    height: 24px !important;
-    font-size: 0.7rem !important;
-  }
-  
-  .quantity-display {
-    font-size: 0.7rem;
-  }
-  
-  .preview-image {
-    width: 200px;
-  }
-}
-
-/* Animations */
-.card-item {
-  animation: fadeInScale 0.3s ease-out;
-}
-
-.quantity-indicator {
-  animation: bounceIn 0.4s ease-out;
-}
-
-@keyframes bounceIn {
-  0% {
-    transform: scale(0);
-  }
-  50% {
-    transform: scale(1.2);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-/* États de filtre */
-.card-item.filtered-out {
-  opacity: 0.3;
-  transform: scale(0.95);
-}
-
-/* Loading state */
-.card-image {
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.card-image.loaded {
-  opacity: 1;
-}
-
-/* Focus states */
-.card-item:focus-within {
-  outline: 3px solid rgba(38, 166, 154, 0.3);
-  outline-offset: 2px;
-}
-
-/* Accessibility */
-@media (prefers-reduced-motion: reduce) {
-  .card-item,
-  .card-image,
-  .quantity-btn {
-    transition: none !important;
-    animation: none !important;
-  }
-  
-  .card-item:hover {
-    transform: none !important;
+  .preview-image-large {
+    width: 250px;
   }
 }
 </style>

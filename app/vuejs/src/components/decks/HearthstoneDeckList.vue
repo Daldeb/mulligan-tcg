@@ -1,24 +1,5 @@
 <template>
   <div class="hearthstone-decklist">
-    
-    <!-- Header du deck -->
-    <div class="deck-header">
-      <h3 class="deck-title">{{ deck.name }}</h3>
-      <div class="deck-meta">
-        <div class="meta-item">
-          <span class="meta-label">Format:</span>
-          <span class="meta-value" :class="`format-${deck.format}`">{{ deck.format.toUpperCase() }}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Classe:</span>
-          <span class="meta-value" :class="`class-${deck.heroClass?.toLowerCase()}`">{{ deck.heroClass || 'Neutre' }}</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Coût:</span>
-          <span class="meta-value">{{ totalManaCost }}</span>
-        </div>
-      </div>
-    </div>
 
     <!-- Liste des cartes -->
     <div class="cards-list">
@@ -301,6 +282,9 @@ onUnmounted(() => {
   padding: 0.5rem 0;
   max-height: 500px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 400px; /* Force une hauteur minimum */
 }
 
 /* Scrollbar custom */
@@ -484,6 +468,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   font-size: 0.75rem;
+  margin-top: auto;
 }
 
 .summary-item {

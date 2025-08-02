@@ -662,8 +662,8 @@ const loadCommunityDecks = async () => {
 }
 
 const createNewDeck = () => {
-  // Navigation vers l'éditeur en mode création
-  router.push('/decks/create')
+  // Ouvrir la modale au lieu de naviguer
+  showCreateModal.value = true
 }
 
 const viewDeck = (deck) => {
@@ -801,50 +801,91 @@ const createDeck = async () => {
   isCreating.value = true
 
   try {
-    const queryParams = {
-      game: deckData.value.selectedGame,
-      format: deckData.value.selectedFormat,
-      title: deckData.value.title
+    // Préparer les données pour l'API
+    const deckPayload = {
+      title: deckData.value.title.trim(),
+      gameId: deckData.value.selectedGame,
+      formatId: deckData.value.selectedFormat,
+      description: deckData.value.description?.trim() || null,
+      archetype: deckData.value.archetype?.trim() || null
     }
 
-    if (deckData.value.description) {
-      queryParams.description = deckData.value.description
+    console.log('🎯 Création deck avec payload:', deckPayload)
+
+    // Appel API pour créer le deck en BDD
+    const response = await api.post('/api/decks', deckPayload)
+
+    if (response.data.success) {
+      const deckInfo = response.data.data
+      
+      console.log('✅ Deck créé:', deckInfo)
+
+      // Fermer la modale
+      showCreateModal.value = false
+      
+      // Reset du formulaire
+      deckData.value = {
+        title: '',
+        description: '',
+        selectedGame: null,
+        selectedFormat: null,
+        archetype: ''
+      }
+      
+      // Notification de succès
+      toast.add({
+        severity: 'success',
+        summary: 'Deck créé !',
+        detail: `"${deckInfo.title}" est prêt à être édité`,
+        life: 3000
+      })
+
+      // Redirection vers l'éditeur avec URL propre
+      const editUrl = `/edition/${deckInfo.gameSlug}/${deckInfo.formatSlug}/${deckInfo.slug}`
+      console.log('🚀 Redirection vers:', editUrl)
+      
+      await router.push(editUrl)
+
+    } else {
+      // Gestion des erreurs retournées par l'API
+      const errorMessage = response.data.message || 'Erreur lors de la création'
+      
+      toast.add({
+        severity: 'error',
+        summary: 'Erreur de création',
+        detail: errorMessage,
+        life: 4000
+      })
+
+      // Afficher les erreurs de validation si présentes
+      if (response.data.errors) {
+        response.data.errors.forEach(err => {
+          console.error('Erreur validation:', err)
+        })
+      }
     }
-
-    if (deckData.value.archetype) {
-      queryParams.archetype = deckData.value.archetype
-    }
-
-    await router.push({
-      name: 'decks-create',
-      query: queryParams
-    })
-
-    showCreateModal.value = false
-    
-    // Reset formulaire
-    deckData.value = {
-      title: '',
-      description: '',
-      selectedGame: null,
-      selectedFormat: null,
-      archetype: ''
-    }
-
-    toast.add({
-      severity: 'success',
-      summary: 'Deck créé',
-      detail: 'Vous pouvez maintenant ajouter des cartes',
-      life: 3000
-    })
 
   } catch (error) {
-    console.error('Erreur création deck:', error)
+    console.error('💥 Erreur création deck:', error)
+    
+    // Gestion d'erreurs détaillée
+    let errorMessage = 'Erreur lors de la création du deck'
+    
+    if (error.response?.status === 400) {
+      errorMessage = error.response.data?.message || 'Données invalides'
+    } else if (error.response?.status === 401) {
+      errorMessage = 'Vous devez être connecté pour créer un deck'
+    } else if (error.response?.status === 403) {
+      errorMessage = 'Vous n\'avez pas les permissions nécessaires'
+    } else if (error.response?.status >= 500) {
+      errorMessage = 'Erreur serveur, veuillez réessayer'
+    }
+
     toast.add({
       severity: 'error',
       summary: 'Erreur',
-      detail: 'Impossible de créer le deck',
-      life: 3000
+      detail: errorMessage,
+      life: 4000
     })
   } finally {
     isCreating.value = false

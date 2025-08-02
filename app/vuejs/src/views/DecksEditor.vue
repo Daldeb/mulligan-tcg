@@ -2,49 +2,57 @@
   <div class="decks-editor">
     <div class="container-fluid">
       
-      <!-- Header de l'éditeur -->
-      <div class="editor-header">
-        <div class="header-left">
-          <Button 
-            icon="pi pi-arrow-left"
-            class="back-btn"
-            @click="goBack"
-            v-tooltip="'Retour aux decks'"
-          />
-          <div class="editor-title-area">
-            <h1 class="editor-title">
-              {{ isEditing ? 'Modifier le deck' : 'Créer un deck' }}
-            </h1>
-            <div class="deck-info-quick" v-if="currentDeck.name">
-              <span class="deck-name-display">{{ currentDeck.name }}</span>
-              <span class="separator">•</span>
-              <span class="game-display">{{ gameDisplayName }}</span>
-              <span class="separator">•</span>
-              <span class="format-display">{{ currentDeck.format?.toUpperCase() }}</span>
+        <!-- Header row avec decklist -->
+        <div class="editor-header-row">
+          <!-- Header de l'éditeur (gauche) -->
+          <div class="editor-header">
+            <div class="header-left">
+              <Button 
+                icon="pi pi-arrow-left"
+                class="back-btn"
+                @click="goBack"
+                v-tooltip="'Retour aux decks'"
+              />
+              <div class="editor-title-area">
+                <h1 class="editor-title">
+                  {{ isEditing ? 'Modifier le deck' : 'Créer un deck' }}
+                </h1>
+                <div class="deck-info-quick" v-if="currentDeck.name">
+                  <span class="deck-name-display">{{ currentDeck.name }}</span>
+                  <span class="separator">•</span>
+                  <span class="game-display">{{ gameDisplayName }}</span>
+                  <span class="separator">•</span>
+                  <span class="format-display">{{ currentDeck.format?.toUpperCase() }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="header-actions">
+              <Button 
+                label="Sauvegarder"
+                icon="pi pi-save"
+                class="save-btn emerald-btn"
+                @click="saveDeck"
+                :loading="isSaving"
+                :disabled="!canSave"
+              />
+            </div>
+          </div>
+
+          <!-- Header de la decklist (droite) -->
+          <div class="deck-panel-header">
+            <div class="deck-header">
+              <div class="deck-title-row">
+                <h3 class="deck-title">{{ currentDeck.name || 'Deck sans nom' }}</h3>
+                <span class="format-badge" :class="formatBadgeClass">
+                  {{ currentDeck.format?.toUpperCase() }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-        
-        <div class="header-actions">
-          <Button 
-            label="Paramètres"
-            icon="pi pi-cog"
-            class="settings-btn"
-            @click="showSettings = true"
-          />
-          <Button 
-            label="Sauvegarder"
-            icon="pi pi-save"
-            class="save-btn emerald-btn"
-            @click="saveDeck"
-            :loading="isSaving"
-            :disabled="!canSave"
-          />
-        </div>
-      </div>
 
-      <!-- Layout principal split -->
-      <div class="editor-layout">
+        <!-- Layout principal split -->
+        <div class="editor-layout">
         
         <!-- Panneau de gauche : Library de cartes -->
         <div class="library-panel">
@@ -141,22 +149,6 @@
 
         <!-- Panneau de droite : Deck en cours -->
         <div class="deck-panel">
-          <div class="deck-header">
-            <h3 class="deck-title">
-              <i class="pi pi-clone"></i>
-              Deck en cours
-            </h3>
-            <div class="deck-stats">
-              <div class="stat-item">
-                <span class="stat-value">{{ totalCardsInDeck }}</span>
-                <span class="stat-label">/{{ maxCardsForGame }} cartes</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-value">{{ averageCost }}</span>
-                <span class="stat-label">coût moyen</span>
-              </div>
-            </div>
-          </div>
 
           <!-- Affichage du deck selon le jeu -->
           <div class="deck-display">
@@ -387,6 +379,9 @@ import { useToast } from 'primevue/usetoast'
 import api from '../services/api'
 import HearthstoneDeckList from '../components/decks/HearthstoneDeckList.vue'
 import CardItem from '../components/decks/CardItem.vue'
+import Dropdown from 'primevue/dropdown'
+import Paginator from 'primevue/paginator' 
+import RadioButton from 'primevue/radiobutton'
 
 // Stores et composables
 const router = useRouter()
@@ -403,6 +398,13 @@ const currentDeck = ref({
   game: 'hearthstone',
   format: 'standard',
   visibility: 'private'
+})
+
+// Props depuis l'URL
+const props = defineProps({
+  gameSlug: String,
+  formatSlug: String, 
+  deckSlug: String
 })
 
 const deckCards = ref([]) // [{ card: CardObject, quantity: number }]
@@ -429,7 +431,7 @@ const filters = ref({
 
 // Pagination
 const currentPage = ref(0)
-const cardsPerPage = ref(48)
+const cardsPerPage = ref(30)
 
 // Computed
 const isEditing = computed(() => !!route.params.id)
@@ -462,6 +464,12 @@ const averageCost = computed(() => {
     sum + (entry.card.cost || 0) * entry.quantity, 0
   )
   return (totalCost / totalCardsInDeck.value).toFixed(1)
+})
+
+const formatBadgeClass = computed(() => {
+  if (currentDeck.value.format === 'wild') return 'format-wild'
+  if (currentDeck.value.format === 'standard') return 'format-standard'
+  return 'format-default'
 })
 
 const canSave = computed(() => {
@@ -662,15 +670,62 @@ const removeCardFromDeck = (cardOrEntry) => {
   }
 }
 
-// Actions principales
+const loadDeckBySlug = async (gameSlug, formatSlug, deckSlug) => {
+  try {
+    isLoading.value = true
+    console.log(`🔍 Chargement deck: ${gameSlug}/${formatSlug}/${deckSlug}`)
+    
+    const response = await api.get(`/api/decks/by-slug/${gameSlug}/${formatSlug}/${deckSlug}`)
+    
+    if (response.data.success) {
+      const deck = response.data.data
+      
+      currentDeck.value = {
+        id: deck.id,
+        name: deck.title,
+        description: deck.description,
+        game: deck.game.slug,
+        format: deck.format.slug,
+        visibility: deck.isPublic ? 'public' : 'private'
+      }
+      
+      // Charger les cartes du deck si présentes
+      deckCards.value = deck.cards || []
+      
+      console.log('✅ Deck chargé:', currentDeck.value)
+    }
+  } catch (error) {
+    console.error('💥 Erreur chargement deck:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible de charger le deck',
+      life: 3000
+    })
+    goBack()
+  } finally {
+    isLoading.value = false
+  }
+}
+
 const loadCards = async () => {
   try {
     isLoadingCards.value = true
-    const response = await api.get(`/api/cards/${currentDeck.value.game}`)
+    
+    const gameSlug = currentDeck.value.game
+    const format = currentDeck.value.format // ← Récupérer le format du deck
+    
+    console.log(`🃏 Chargement cartes pour: ${gameSlug} (${format})`)
+    
+    const response = await api.get(`/api/cards/${gameSlug}?format=${format}&limit=10000`) // ← Passer le format
     availableCards.value = response.data
-  } catch (error) {
+    
+    console.log(`✅ ${availableCards.value.length} cartes ${gameSlug} chargées`)
+    console.log('🔍 Structure première carte:', availableCards.value[0])
+    console.log('🔍 Total dans availableCards:', availableCards.value.length)
+    console.log('🔍 Filtered cards length:', filteredCards.value.length)
+    console.log('🔍 isStandardLegal:', availableCards.value[0].isStandardLegal)  } catch (error) {
     console.error('Erreur chargement cartes:', error)
-    // Charger données de test
     loadMockCards()
   } finally {
     isLoadingCards.value = false
@@ -856,24 +911,21 @@ const showCardPreview = (card) => {
 
 // Lifecycle
 onMounted(async () => {
-  // Déterminer le mode (création/édition/copie)
-  if (route.params.id) {
-    // Mode édition
+  // Mode édition avec slugs depuis l'URL
+  if (props.gameSlug && props.formatSlug && props.deckSlug) {
+    await loadDeckBySlug(props.gameSlug, props.formatSlug, props.deckSlug)
+  } else if (route.params.id) {
+    // Fallback mode édition par ID
     await loadExistingDeck(route.params.id)
-  } else if (route.query.copy) {
-    // Mode copie
-    await copyExistingDeck(route.query.copy)
   } else {
-    // Mode création - utiliser préférences de jeu si disponibles
+    // Mode création pur (si besoin)
     const preferredGames = gameFilterStore.selectedGames
     if (preferredGames.length > 0) {
-      // Mapper les IDs vers les noms de jeux
       const gameMapping = { 1: 'hearthstone', 2: 'magic', 3: 'pokemon' }
       currentDeck.value.game = gameMapping[preferredGames[0]] || 'hearthstone'
     }
   }
   
-  // Charger les cartes du jeu sélectionné
   await loadCards()
 })
 
@@ -951,17 +1003,11 @@ watch(() => currentDeck.value.game, (newGame) => {
 
 /* Header de l'éditeur */
 .editor-header {
-  background: white;
-  border-bottom: 1px solid var(--surface-200);
   padding: 1rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 2rem;
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  box-shadow: var(--shadow-small);
 }
 
 .header-left {
@@ -1034,34 +1080,37 @@ watch(() => currentDeck.value.game, (newGame) => {
   background: rgba(38, 166, 154, 0.1) !important;
 }
 
-/* Layout principal */
+/* Layout principal - NOUVELLE GRILLE 5x6 */
 .editor-layout {
   display: grid;
   grid-template-columns: 1fr 400px;
   min-height: calc(100vh - 80px);
+  background: white;
 }
 
-/* Panneau library */
+/* Panneau library - AMÉLIORÉ */
 .library-panel {
-  background: var(--surface-100);
-  border-right: 1px solid var(--surface-200);
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .library-header {
   background: white;
   padding: 1.5rem 2rem;
-  border-bottom: 1px solid var(--surface-200);
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .library-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #1f2937;
   margin: 0;
   display: flex;
   align-items: center;
@@ -1073,19 +1122,20 @@ watch(() => currentDeck.value.game, (newGame) => {
 }
 
 .library-stats {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
 .available-cards {
-  font-weight: 500;
+  font-weight: 600;
+  color: #10b981;
 }
 
 /* Filtres library */
 .library-filters {
   background: white;
   padding: 1rem 2rem;
-  border-bottom: 1px solid var(--surface-200);
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -1145,12 +1195,13 @@ watch(() => currentDeck.value.game, (newGame) => {
   background: rgba(255, 87, 34, 0.1) !important;
 }
 
-/* Cards library */
+/* Cards library - NOUVELLE GRILLE PARFAITE */
 .cards-library {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: #f8fafc;
 }
 
 .library-loading {
@@ -1160,23 +1211,65 @@ watch(() => currentDeck.value.game, (newGame) => {
   align-items: center;
   justify-content: center;
   padding: 3rem;
-  color: var(--text-secondary);
+  color: #64748b;
+  background: #f8fafc;
 }
 
 .emerald-spinner {
   width: 40px;
   height: 40px;
   margin-bottom: 1rem;
+  border: 3px solid #e2e8f0;
+  border-top: 3px solid #10b981;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* GRILLE AUTO-EXPANSIVE */
 .cards-grid {
-  flex: 1;
-  padding: 1rem;
+  padding: 1.5rem;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(6, minmax(220px, auto));
   gap: 1rem;
-  overflow-y: auto;
-  max-height: calc(100vh - 320px);
+}
+
+.cards-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.cards-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cards-grid::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.cards-grid::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Animation d'entrée pour les cartes */
+.cards-grid > * {
+  animation: fadeInCard 0.3s ease-out;
+}
+
+@keyframes fadeInCard {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Pagination */
@@ -1203,40 +1296,60 @@ watch(() => currentDeck.value.game, (newGame) => {
   border-bottom: 2px solid #4a5568;
 }
 
+/* Header row avec decklist côte à côte */
+.editor-header-row {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  background: white;
+  border-bottom: 1px solid var(--surface-200);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: var(--shadow-small);
+}
+
+.deck-panel-header {
+  background: #1a1a1a;
+}
+
+.deck-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
 .deck-title {
   color: #f7fafc;
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0 0 1rem 0;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.deck-title i {
-  color: var(--primary);
-}
-
-.deck-stats {
-  display: flex;
-  gap: 2rem;
-}
-
-.stat-item {
-  display: flex;
-  align-items: baseline;
-  gap: 0.25rem;
-}
-
-.stat-value {
-  color: #f7fafc;
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 700;
+  margin: 0;
 }
 
-.stat-label {
-  color: #a0aec0;
+.format-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
   font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.format-standard {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.format-wild {
+  background: rgba(249, 115, 22, 0.2);
+  color: #f97316;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.format-default {
+  background: rgba(168, 162, 158, 0.2);
+  color: #a8a29e;
+  border: 1px solid rgba(168, 162, 158, 0.3);
 }
 
 /* Affichage du deck */
@@ -1390,21 +1503,34 @@ watch(() => currentDeck.value.game, (newGame) => {
   border-top: 1px solid var(--surface-200);
 }
 
-/* Responsive */
+/* Responsive - Adaptation du nombre de colonnes */
+@media (max-width: 1400px) {
+  .cards-grid {
+    grid-template-columns: repeat(4, 1fr); /* 4 colonnes */
+  }
+}
+
 @media (max-width: 1024px) {
   .editor-layout {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
+    grid-template-rows: auto 1fr;
   }
   
   .deck-panel {
     order: -1;
     max-height: 300px;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
   }
   
   .library-panel {
     border-right: none;
-    border-top: 1px solid var(--surface-200);
+  }
+  
+  .cards-grid {
+    grid-template-columns: repeat(3, 1fr); /* 3 colonnes */
+    padding: 1rem;
+    gap: 0.75rem;
   }
 }
 
@@ -1436,18 +1562,13 @@ watch(() => currentDeck.value.game, (newGame) => {
   }
   
   .cards-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(2, 1fr); /* 2 colonnes */
     padding: 0.75rem;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
   
   .form-row {
     grid-template-columns: 1fr;
-  }
-  
-  .deck-stats {
-    justify-content: center;
-    gap: 1rem;
   }
   
   .deck-actions {
@@ -1456,7 +1577,12 @@ watch(() => currentDeck.value.game, (newGame) => {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
+  .cards-grid {
+    grid-template-columns: 1fr; /* 1 colonne */
+    padding: 0.5rem;
+  }
+  
   .editor-title {
     font-size: 1.25rem;
   }
@@ -1469,10 +1595,6 @@ watch(() => currentDeck.value.game, (newGame) => {
   
   .separator {
     display: none;
-  }
-  
-  .cards-grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   }
 }
 

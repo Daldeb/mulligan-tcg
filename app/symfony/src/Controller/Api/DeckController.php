@@ -71,15 +71,17 @@ class DeckController extends AbstractController
         $deck->setGame($game);
         $deck->setGameFormat($gameFormat);
         $deck->setUser($this->getUser());
-        $deck->setIsPublic(false); // Privé par défaut
-        $deck->setValidDeck(false); // Pas encore valide (pas de cartes)
+        $deck->setIsPublic(false); 
+        $deck->setValidDeck(false); 
 
         // Générer un slug unique
         $baseSlug = $this->generateSlug($data['title']);
         $slug = $this->ensureUniqueSlug($baseSlug, $this->getUser());
         
-        // Note: Il faudra ajouter une colonne slug à l'entité Deck
-        // $deck->setSlug($slug);
+        // Générer un slug unique
+        $baseSlug = $this->generateSlug($data['title']);
+        $slug = $this->ensureUniqueSlug($baseSlug, $this->getUser());
+        $deck->setSlug($slug);  
 
         // Validation Symfony
         $errors = $this->validator->validate($deck);
@@ -127,18 +129,19 @@ class DeckController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function getBySlug(string $gameSlug, string $formatSlug, string $deckSlug): JsonResponse
     {
-        // Temporaire : recherche par ID si pas de colonne slug
-        // À terme : $deck = $this->deckRepository->findBySlugAndUser($deckSlug, $this->getUser());
-        
         $game = $this->gameRepository->findOneBy(['slug' => $gameSlug]);
-        $format = $this->formatRepository->findOneBy(['slug' => $formatSlug]);
-        
+        $format = $this->formatRepository->findOneBy([
+            'slug' => $formatSlug,
+            'game' => $game  // 🎯 Chercher le format pour CE jeu spécifique
+        ]);
+                
         if (!$game || !$format) {
             return $this->json(['success' => false, 'message' => 'Jeu ou format introuvable'], 404);
         }
 
-        // Recherche temporaire par titre (à remplacer par slug)
+        // Recherche par slug exact
         $deck = $this->deckRepository->findOneBy([
+            'slug' => $deckSlug,
             'user' => $this->getUser(),
             'game' => $game,
             'gameFormat' => $format
@@ -146,11 +149,6 @@ class DeckController extends AbstractController
 
         if (!$deck) {
             return $this->json(['success' => false, 'message' => 'Deck introuvable'], 404);
-        }
-
-        // Vérifier que l'utilisateur est propriétaire
-        if ($deck->getUser() !== $this->getUser()) {
-            return $this->json(['success' => false, 'message' => 'Accès non autorisé'], 403);
         }
 
         return $this->json([
@@ -273,16 +271,13 @@ class DeckController extends AbstractController
      */
     private function ensureUniqueSlug(string $baseSlug, $user): string
     {
-        $slug = $baseSlug;
-        $counter = 1;
-
-        // Vérifier l'unicité (temporaire sans colonne slug)
-        // À terme : while ($this->deckRepository->findOneBy(['slug' => $slug, 'user' => $user])) {
-        while ($this->deckRepository->findOneBy(['user' => $user]) && $counter < 100) {
-            $slug = $baseSlug . '-' . $counter;
-            $counter++;
+        $slug = $baseSlug . '-' . substr(uniqid(), -6); // aggro-beast-a1b2c3
+        
+        // Vérifier unicité globale par slug
+        while ($this->deckRepository->findOneBy(['slug' => $slug])) {
+            $slug = $baseSlug . '-' . substr(uniqid(), -6);
         }
-
+        
         return $slug;
     }
 

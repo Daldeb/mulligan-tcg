@@ -42,8 +42,8 @@ const routes = [
   
   // Nouvelle route pour éditer un deck avec slug propre
   {
-    path: '/mes-decks/:gameSlug/:formatSlug/:deckSlug',
-    name: 'deck-editor',
+    path: '/edition/:gameSlug/:formatSlug/:deckSlug',
+    name: 'deck-editor', 
     component: () => import('../views/DecksEditor.vue'),
     meta: {
       title: 'Éditeur de deck - MULLIGAN TCG',
