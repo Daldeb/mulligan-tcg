@@ -37,18 +37,6 @@
               />
             </div>
           </div>
-
-          <!-- Header de la decklist (droite) -->
-          <div class="deck-panel-header">
-            <div class="deck-header">
-              <div class="deck-title-row">
-                <h3 class="deck-title">{{ currentDeck.name || 'Deck sans nom' }}</h3>
-                <span class="format-badge" :class="formatBadgeClass">
-                  {{ currentDeck.format?.toUpperCase() }}
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- Layout principal split -->
@@ -1288,6 +1276,13 @@ watch(() => currentDeck.value.game, (newGame) => {
   background: #1a1a1a;
   display: flex;
   flex-direction: column;
+  position: fixed; /* ← AJOUTER */
+  top: 80px; /* ← AJOUTER (hauteur du header) */
+  right: 0; /* ← AJOUTER */
+  width: 400px; /* ← AJOUTER */
+  height: calc(100vh - 80px); /* ← AJOUTER */
+  z-index: 40; /* ← AJOUTER */
+  overflow-y: auto; /* ← AJOUTER si nécessaire */
 }
 
 .deck-header {
