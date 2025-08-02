@@ -1608,8 +1608,8 @@ watch(() => currentDeck.value.game, (newGame) => {
   display: flex;
   flex-direction: column;
   position: sticky;
-  top: 220px; /* ← CORRECTION : coller sous le AppHeader au lieu de top: 0 */
-  height: calc(100vh - 220px); /* ← AJUSTER la hauteur en conséquence */
+  top: 260px; /* ← CORRECTION : coller sous le AppHeader au lieu de top: 0 */
+  height: calc(100vh - 260px); /* ← AJUSTER la hauteur en conséquence */
   overflow-y: auto;
   z-index: 20;
 }
