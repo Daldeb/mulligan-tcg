@@ -22,7 +22,7 @@ class ForumRepository extends ServiceEntityRepository
     }
 
     /**
-     * Trouve un forum par son slug (cas d’usage API/route)
+     * Trouve un forum par son slug (cas d'usage API/route)
      */
     public function findOneBySlug(string $slug): ?Forum
     {
@@ -40,6 +40,20 @@ class ForumRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('f')
             ->andWhere('f.isOfficial = true')
+            ->orderBy('f.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Trouve les forums associés aux jeux sélectionnés par l'utilisateur
+     */
+    public function findByGameIds(array $gameIds): array
+    {
+        return $this->createQueryBuilder('f')
+            ->where('f.game IN (:gameIds)')
+            ->orWhere('f.game IS NULL') // Inclure les forums sans jeu associé
+            ->setParameter('gameIds', $gameIds)
             ->orderBy('f.name', 'ASC')
             ->getQuery()
             ->getResult();

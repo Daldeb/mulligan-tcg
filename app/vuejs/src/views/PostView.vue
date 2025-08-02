@@ -61,7 +61,7 @@ const formatDate = (d) => new Date(d).toLocaleString();
 
 const fetchPost = async () => {
   try {
-    const res = await api.get(`/posts/${postId}`);
+    const res = await api.get(`/api/posts/${postId}`);
     post.value = res.data;
     comments.value = res.data.comments;
   } catch (err) {
@@ -81,7 +81,7 @@ const submitComment = async () => {
   commentError.value = '';
 
   try {
-    await api.post(`/posts/${postId}/comments`, {
+    await api.post(`/api/posts/${postId}/comments`, {
       content: newComment.value
     });
     newComment.value = '';

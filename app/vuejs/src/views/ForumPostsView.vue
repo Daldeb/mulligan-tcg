@@ -50,7 +50,7 @@ const formatDate = (d) => new Date(d).toLocaleString();
 
 onMounted(async () => {
   try {
-    const res = await api.get(`/forums/${slug}/posts`);
+    const res = await api.get(`/api/forums/${slug}/posts`);
     forum.value = res.data.forum;
     posts.value = res.data.posts;
   } catch (e) {

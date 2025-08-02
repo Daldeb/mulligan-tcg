@@ -9,6 +9,12 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoading = ref(false)
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
+  
+  // Computed pour les jeux sélectionnés
+  const selectedGames = computed(() => user.value?.selectedGames || [])
+  
+  // Computed pour vérifier si l'utilisateur a des jeux sélectionnés
+  const hasSelectedGames = computed(() => selectedGames.value.length > 0)
 
   const login = async (email, password) => {
     isLoading.value = true
@@ -124,15 +130,63 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Nouvelle méthode pour mettre à jour les jeux sélectionnés
+  const updateSelectedGames = async (gameIds) => {
+    try {
+      const response = await api.put('/api/profile', { 
+        selectedGames: gameIds 
+      })
+      
+      if (user.value) {
+        user.value.selectedGames = gameIds
+      }
+      
+      return { success: true }
+    } catch (error) {
+      console.error('Erreur mise à jour jeux:', error)
+      return { 
+        success: false, 
+        error: error.response?.data?.message || 'Erreur de mise à jour des jeux' 
+      }
+    }
+  }
+
+  // Méthodes utilitaires pour les jeux sélectionnés
+  const hasGameSelected = (gameId) => {
+    return selectedGames.value.includes(gameId)
+  }
+
+  const toggleGame = async (gameId) => {
+    if (!user.value) return { success: false, error: 'Utilisateur non connecté' }
+
+    const currentGames = [...selectedGames.value]
+    const index = currentGames.indexOf(gameId)
+    
+    if (index > -1) {
+      // Retirer le jeu
+      currentGames.splice(index, 1)
+    } else {
+      // Ajouter le jeu
+      currentGames.push(gameId)
+    }
+
+    return await updateSelectedGames(currentGames)
+  }
+
   return {
     user,
     token,
     isLoading,
     isAuthenticated,
+    selectedGames,
+    hasSelectedGames,
     login,
     register,
     logout,
     checkAuthStatus,
-    updateProfile
+    updateProfile,
+    updateSelectedGames,
+    hasGameSelected,
+    toggleGame
   }
 })

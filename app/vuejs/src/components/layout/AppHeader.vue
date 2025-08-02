@@ -208,9 +208,6 @@
             <router-link to="/classements" class="nav-item" active-class="nav-active">
               <Button label="Classements" icon="pi pi-chart-bar" class="nav-button" />
             </router-link>
-            <router-link to="/boutiques" class="nav-item" active-class="nav-active">
-              <Button label="Boutiques" icon="pi pi-shopping-cart" class="nav-button" />
-            </router-link>
           </div>
 
         </div>

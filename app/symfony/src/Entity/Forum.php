@@ -33,6 +33,13 @@ class Forum
     #[ORM\Column(type: 'datetime')]
     private \DateTimeInterface $createdAt;
 
+    /**
+     * Jeu associé au forum
+     */
+    #[ORM\ManyToOne(targetEntity: Game::class)]
+    #[ORM\JoinColumn(name: 'game_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Game $game = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -107,5 +114,51 @@ class Forum
     {
         $this->createdAt = $createdAt;
         return $this;
+    }
+
+    /**
+     * Gestion de la relation avec Game
+     */
+    public function getGame(): ?Game
+    {
+        return $this->game;
+    }
+
+    public function setGame(?Game $game): self
+    {
+        $this->game = $game;
+        return $this;
+    }
+
+    /**
+     * Récupère l'ID du jeu associé (helper)
+     */
+    public function getGameId(): ?int
+    {
+        return $this->game?->getId();
+    }
+
+    /**
+     * Vérifie si le forum a un jeu associé
+     */
+    public function hasGame(): bool
+    {
+        return $this->game !== null;
+    }
+
+    /**
+     * Récupère le nom du jeu associé (helper)
+     */
+    public function getGameName(): ?string
+    {
+        return $this->game?->getName();
+    }
+
+    /**
+     * Récupère le slug du jeu associé (helper)
+     */
+    public function getGameSlug(): ?string
+    {
+        return $this->game?->getSlug();
     }
 }

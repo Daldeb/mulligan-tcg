@@ -51,10 +51,29 @@ class Post
     #[ORM\Column(type: 'boolean')]
     private bool $isLocked = false;
 
+    // Nouveaux champs pour les fonctionnalités Reddit-like
+
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $attachments = null; // Images, fichiers joints
+
+    #[ORM\Column(type: 'string', length: 500, nullable: true)]
+    private ?string $linkUrl = null; // URL externe
+
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $linkPreview = null; // Métadonnées du lien
+
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $tags = null; // Tags du post
+
+    #[ORM\Column(type: 'string', length: 50)]
+    private string $postType = 'text'; // 'text', 'link', 'image'
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
     }
+
+    // Getters et setters existants
 
     public function getId(): ?int
     {
@@ -180,5 +199,151 @@ class Post
     {
         $this->isLocked = $isLocked;
         return $this;
+    }
+
+    // Nouveaux getters et setters pour les fonctionnalités Reddit-like
+
+    public function getAttachments(): ?array
+    {
+        return $this->attachments;
+    }
+
+    public function setAttachments(?array $attachments): self
+    {
+        $this->attachments = $attachments;
+        return $this;
+    }
+
+    public function getLinkUrl(): ?string
+    {
+        return $this->linkUrl;
+    }
+
+    public function setLinkUrl(?string $linkUrl): self
+    {
+        $this->linkUrl = $linkUrl;
+        return $this;
+    }
+
+    public function getLinkPreview(): ?array
+    {
+        return $this->linkPreview;
+    }
+
+    public function setLinkPreview(?array $linkPreview): self
+    {
+        $this->linkPreview = $linkPreview;
+        return $this;
+    }
+
+    public function getTags(): ?array
+    {
+        return $this->tags;
+    }
+
+    public function setTags(?array $tags): self
+    {
+        $this->tags = $tags;
+        return $this;
+    }
+
+    public function getPostType(): string
+    {
+        return $this->postType;
+    }
+
+    public function setPostType(string $postType): self
+    {
+        $this->postType = $postType;
+        return $this;
+    }
+
+    // Méthodes utilitaires
+
+    /**
+     * Vérifie si le post a des pièces jointes
+     */
+    public function hasAttachments(): bool
+    {
+        return $this->attachments !== null && !empty($this->attachments);
+    }
+
+    /**
+     * Ajoute une pièce jointe
+     */
+    public function addAttachment(array $attachment): self
+    {
+        if ($this->attachments === null) {
+            $this->attachments = [];
+        }
+        $this->attachments[] = $attachment;
+        return $this;
+    }
+
+    /**
+     * Vérifie si le post a un lien externe
+     */
+    public function hasLink(): bool
+    {
+        return $this->linkUrl !== null && !empty($this->linkUrl);
+    }
+
+    /**
+     * Vérifie si le post a des tags
+     */
+    public function hasTags(): bool
+    {
+        return $this->tags !== null && !empty($this->tags);
+    }
+
+    /**
+     * Ajoute un tag
+     */
+    public function addTag(string $tag): self
+    {
+        if ($this->tags === null) {
+            $this->tags = [];
+        }
+        if (!in_array($tag, $this->tags)) {
+            $this->tags[] = $tag;
+        }
+        return $this;
+    }
+
+    /**
+     * Retire un tag
+     */
+    public function removeTag(string $tag): self
+    {
+        if ($this->tags !== null) {
+            $this->tags = array_values(array_filter($this->tags, fn($t) => $t !== $tag));
+        }
+        return $this;
+    }
+
+    /**
+     * Vérifie le type de post
+     */
+    public function isTextPost(): bool
+    {
+        return $this->postType === 'text';
+    }
+
+    public function isLinkPost(): bool
+    {
+        return $this->postType === 'link';
+    }
+
+    public function isImagePost(): bool
+    {
+        return $this->postType === 'image';
+    }
+
+    /**
+     * Met à jour le timestamp de modification
+     */
+    public function updateTimestamp(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
     }
 }

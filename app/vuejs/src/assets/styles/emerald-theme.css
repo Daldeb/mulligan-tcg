@@ -431,6 +431,48 @@
   .profile-page.is-profile-view {
   margin-top: 0px !important;
 }
+/* Gaming Cards spécifiques par jeu */
+.gaming-card {
+  position: relative;
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface-100) 100%);
+}
+
+.gaming-card:hover {
+  transform: translateY(-6px) scale(1.02) !important;
+}
+
+/* Hearthstone - Marron/Orange */
+.gaming-card.hearthstone::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #8B4513, #FF6347, #FFB347);
+}
+
+/* Magic - Noir/Violet */
+.gaming-card.magic::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #2C2C2C, #6B46C1, #8B5CF6);
+}
+
+/* Pokemon - Rouge/Jaune */
+.gaming-card.pokemon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #DC2626, #F59E0B, #FCD34D);
+}
 
   /* Dark mode support (désactivé pour l'instant) */
   /*

@@ -144,4 +144,84 @@ class FileUploadService
         imagedestroy($sourceImage);
         imagedestroy($destImage);
     }
+
+
+    public function uploadPostImage(UploadedFile $file, int $postId): string
+    {
+        // Validation du fichier
+        $this->validateImageFile($file);
+
+        // Générer un nom de fichier unique
+        $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $safeFilename = $this->slugger->slug($originalFilename);
+        $newFilename = 'post_' . $postId . '_' . uniqid() . '.' . $file->guessExtension();
+
+        // Créer le dossier s'il n'existe pas
+        $postDirectory = $this->uploadsDirectory . '/posts';
+        if (!is_dir($postDirectory)) {
+            mkdir($postDirectory, 0755, true);
+        }
+
+        try {
+            $file->move($postDirectory, $newFilename);
+        } catch (FileException $e) {
+            throw new \Exception('Erreur lors de l\'upload du fichier: ' . $e->getMessage());
+        }
+
+        return 'posts/' . $newFilename;
+    }
+
+    public function uploadPostAttachment(UploadedFile $file, int $postId): array
+    {
+        // Validation étendue pour différents types de fichiers
+        $this->validateAttachmentFile($file);
+
+        // Générer un nom de fichier unique
+        $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $safeFilename = $this->slugger->slug($originalFilename);
+        $newFilename = 'attachment_' . $postId . '_' . uniqid() . '.' . $file->guessExtension();
+
+        // Créer le dossier s'il n'existe pas
+        $attachmentDirectory = $this->uploadsDirectory . '/attachments';
+        if (!is_dir($attachmentDirectory)) {
+            mkdir($attachmentDirectory, 0755, true);
+        }
+
+        try {
+            $file->move($attachmentDirectory, $newFilename);
+        } catch (FileException $e) {
+            throw new \Exception('Erreur lors de l\'upload du fichier: ' . $e->getMessage());
+        }
+
+        return [
+            'filename' => 'attachments/' . $newFilename,
+            'originalName' => $file->getClientOriginalName(),
+            'size' => $file->getSize(),
+            'mimeType' => $file->getMimeType()
+        ];
+    }
+
+    private function validateAttachmentFile(UploadedFile $file): void
+    {
+        // Vérifier la taille (max 10MB)
+        if ($file->getSize() > 10 * 1024 * 1024) {
+            throw new \Exception('Le fichier est trop volumineux (maximum 10MB)');
+        }
+
+        // Types autorisés : images + documents
+        $allowedMimeTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/pdf', 'text/plain', 'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        
+        if (!in_array($file->getMimeType(), $allowedMimeTypes)) {
+            throw new \Exception('Type de fichier non autorisé');
+        }
+    }
+
+    public function getPostImageUrl(string $filename): string
+    {
+        return $this->publicPath . '/uploads/' . $filename;
+    }
 }
