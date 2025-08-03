@@ -86,7 +86,16 @@
                   <div class="post-meta">
                     <div class="author-info">
                       <div class="author-avatar">
-                        {{ post.author?.charAt(0).toUpperCase() }}
+                        <img 
+                          v-if="post.authorAvatar"
+                          :src="`${backendUrl}/uploads/${post.authorAvatar}`"
+                          class="author-avatar-image"
+                          alt="Avatar"
+                          @error="handleImageError"
+                        />
+                        <span v-else class="author-avatar-fallback">
+                          {{ post.author?.charAt(0).toUpperCase() }}
+                        </span>
                       </div>
                       <span class="author-name">{{ post.author }}</span>
                     </div>
@@ -134,7 +143,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api';
 
@@ -142,6 +151,8 @@ import api from '@/services/api';
 import hearthstoneImg from '@/assets/images/forums/hearthstone-bg.jpg'
 import magicImg from '@/assets/images/forums/magic-bg.jpg'
 import pokemonImg from '@/assets/images/forums/pokemon-bg.jpg'
+
+const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
 
 const forums = ref([]);
 const loading = ref(true);
@@ -446,14 +457,32 @@ onMounted(async () => {
 .author-avatar {
   width: 24px;
   height: 24px;
-  background: var(--primary-light);
-  color: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.author-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.author-avatar-fallback {
+  background: var(--primary-light);
+  color: white;
   font-weight: 600;
+  font-size: 0.75rem;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
 }
 
 .author-name {

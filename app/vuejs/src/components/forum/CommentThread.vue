@@ -21,7 +21,15 @@
           
           <!-- Avatar -->
           <div class="comment-avatar">
-            {{ comment.author?.charAt(0).toUpperCase() }}
+            <img 
+              v-if="comment.authorAvatar"
+              :src="`${backendUrl}/uploads/${comment.authorAvatar}`"
+              class="comment-avatar-image"
+              alt="Avatar"
+            />
+            <span v-else class="comment-avatar-fallback">
+              {{ comment.author?.charAt(0).toUpperCase() }}
+            </span>
           </div>
           
           <!-- Ligne verticale pour les enfants -->
@@ -81,7 +89,15 @@
             <div v-if="actualIsReplyFormOpen" class="reply-form">
               <div class="reply-form-header">
                 <div class="reply-avatar">
-                  U
+                  <img 
+                    v-if="currentUserAvatar"
+                    :src="`${backendUrl}/uploads/${currentUserAvatar}`"
+                    class="reply-avatar-image"
+                    alt="Avatar"
+                  />
+                  <span v-else class="reply-avatar-fallback">
+                    {{ getCurrentUserInitial() }}
+                  </span>
                 </div>
                 <span class="reply-to">Répondre à {{ comment.author }}</span>
               </div>
@@ -140,6 +156,15 @@
 
 <script setup>
 import { defineProps, defineEmits, computed, inject, ref, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore() 
+const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
+const currentUserAvatar = computed(() => authStore.user?.avatar) 
+
+const getCurrentUserInitial = () => { 
+  return authStore.user?.pseudo?.charAt(0).toUpperCase() || 'U'
+}
 
 const props = defineProps({
   comment: {
@@ -574,5 +599,45 @@ const renderMarkdown = (content) => {
   .comment-children {
     padding-left: 0.5rem;
   }
+}
+
+.comment-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.comment-avatar-fallback {
+  background: var(--secondary-light);
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.reply-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.reply-avatar-fallback {
+  background: var(--primary-light);
+  color: white;
+  font-weight: 600;
+  font-size: 0.75rem;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
 }
 </style>

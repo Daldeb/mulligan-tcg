@@ -286,7 +286,15 @@
                 
                 <div class="post-author">
                   <div class="author-avatar">
-                    {{ post.author?.charAt(0).toUpperCase() }}
+                    <img 
+                      v-if="post.authorAvatar"
+                      :src="`${backendUrl}/uploads/${post.authorAvatar}`"
+                      class="author-avatar-image"
+                      alt="Avatar"
+                    />
+                    <span v-else class="author-avatar-fallback">
+                      {{ post.author?.charAt(0).toUpperCase() }}
+                    </span>
                   </div>
                   <div class="author-info">
                     <span class="author-name">{{ post.author }}</span>
@@ -443,6 +451,8 @@ import PostCreateForm from '@/components/forum/PostCreateForm.vue'
 import hearthstoneImg from '@/assets/images/forums/hearthstone-bg.jpg'
 import magicImg from '@/assets/images/forums/magic-bg.jpg'
 import pokemonImg from '@/assets/images/forums/pokemon-bg.jpg'
+
+const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
 
 const route = useRoute()
 const slug = route.params.slug
@@ -1885,5 +1895,25 @@ onUnmounted(() => {
   .page-numbers {
     flex-wrap: wrap;
   }
+}
+
+.author-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.author-avatar-fallback {
+  background: var(--primary-light);
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
 }
 </style>

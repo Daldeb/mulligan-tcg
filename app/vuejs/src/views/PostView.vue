@@ -40,7 +40,15 @@
           <div class="post-meta">
             <div class="post-author">
               <div class="author-avatar">
-                {{ post.author?.charAt(0).toUpperCase() }}
+                <img 
+                  v-if="post.authorAvatar"
+                  :src="`${backendUrl}/uploads/${post.authorAvatar}`"
+                  class="author-avatar-image"
+                  alt="Avatar"
+                />
+                <span v-else class="author-avatar-fallback">
+                  {{ post.author?.charAt(0).toUpperCase() }}
+                </span>
               </div>
               <div class="author-info">
                 <strong class="author-name">{{ post.author }}</strong>
@@ -232,7 +240,15 @@
         <div class="add-comment-form">
           <div class="comment-form-header">
             <div class="form-avatar">
-              {{ getCurrentUserInitial() }}
+              <img 
+                v-if="authStore.user?.avatar"
+                :src="`${backendUrl}/uploads/${authStore.user.avatar}`"
+                class="form-avatar-image"
+                alt="Avatar"
+              />
+              <span v-else class="form-avatar-fallback">
+                {{ getCurrentUserInitial() }}
+              </span>
             </div>
             <h3>Ajouter un commentaire</h3>
           </div>
@@ -322,6 +338,8 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 import CommentThread from '@/components/forum/CommentThread.vue'
+
+const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -1673,5 +1691,45 @@ onMounted(fetchPost)
     aspect-ratio: 1;
     max-height: 300px;
   }
+}
+
+/* À ajouter à la fin du style */
+.author-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.author-avatar-fallback {
+  background: var(--primary-light);
+  color: white;
+  font-weight: 600;
+  font-size: 1.25rem;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.form-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.form-avatar-fallback {
+  background: var(--primary-light);
+  color: white;
+  font-weight: 600;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
 }
 </style>

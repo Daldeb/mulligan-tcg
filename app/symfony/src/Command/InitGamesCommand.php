@@ -57,7 +57,6 @@ class InitGamesCommand extends Command
                 'formats' => [
                     ['name' => 'Standard', 'slug' => 'standard', 'description' => 'Format utilisant les cartes des 2 dernières années', 'order' => 1],
                     ['name' => 'Commander', 'slug' => 'commander', 'description' => 'Format multijoueur avec deck de 100 cartes uniques', 'order' => 2],
-                    ['name' => 'Modern', 'slug' => 'modern', 'description' => 'Format utilisant les cartes depuis 2003', 'order' => 3],
                 ]
             ],
             [
