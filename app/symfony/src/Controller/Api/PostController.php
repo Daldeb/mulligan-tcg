@@ -5,8 +5,13 @@ namespace App\Controller\Api;
 use App\Entity\Post;
 use App\Entity\Forum;
 use App\Entity\User;
+use App\Entity\PostVote;
+use App\Entity\PostSave;
 use App\Repository\ForumRepository;
 use App\Repository\PostRepository;
+use App\Repository\PostVoteRepository;
+use App\Repository\PostSaveRepository;
+use App\Repository\CommentVoteRepository;
 use App\Service\FileUploadService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -24,7 +29,10 @@ class PostController extends AbstractController
         private EntityManagerInterface $em,
         private PostRepository $postRepo,
         private ForumRepository $forumRepo,
-        private FileUploadService $fileUploadService
+        private FileUploadService $fileUploadService,
+        private PostVoteRepository $postVoteRepo,
+        private PostSaveRepository $postSaveRepo,
+        private CommentVoteRepository $commentVoteRepo
     ) {}
 
     #[Route('', name: 'api_post_create', methods: ['POST'])]
@@ -142,16 +150,47 @@ class PostController extends AbstractController
             return $this->json(['error' => 'Post not found'], Response::HTTP_NOT_FOUND);
         }
 
+        // Récupérer le vote de l'utilisateur actuel (si connecté)
+        $userVote = null;
+        $isSaved = false;
+        if ($this->getUser()) {
+            $vote = $this->postVoteRepo->findOneBy([
+                'user' => $this->getUser(),
+                'post' => $post
+            ]);
+            $userVote = $vote ? $vote->getType() : null;
+            
+            // Vérifier si le post est sauvegardé par l'utilisateur
+            $isSaved = $this->postSaveRepo->isPostSavedByUser($this->getUser(), $post);
+        }
+
         // On récupère tous les commentaires plats pour l'instant
         $comments = $this->em->getRepository(\App\Entity\Comment::class)
             ->findBy(['post' => $post], ['createdAt' => 'ASC']);
 
         $commentData = array_map(function ($comment) {
+            // Calculer les votes pour chaque commentaire
+            $upvotes = $this->commentVoteRepo->countVotesForComment($comment->getId(), 'UP');
+            $downvotes = $this->commentVoteRepo->countVotesForComment($comment->getId(), 'DOWN');
+            
+            // Récupérer le vote de l'utilisateur pour ce commentaire (si connecté)
+            $userCommentVote = null;
+            if ($this->getUser()) {
+                $vote = $this->commentVoteRepo->findOneBy([
+                    'user' => $this->getUser(),
+                    'comment' => $comment
+                ]);
+                $userCommentVote = $vote ? $vote->getType() : null;
+            }
+            
             return [
                 'id' => $comment->getId(),
                 'content' => $comment->isDeleted() ? '[Commentaire supprimé]' : $comment->getContent(),
                 'author' => $comment->getAuthor()->getPseudo(),
                 'score' => $comment->getScore(),
+                'upvotes' => $upvotes,
+                'downvotes' => $downvotes,
+                'userVote' => $userCommentVote,
                 'parentId' => $comment->getParent()?->getId(),
                 'createdAt' => $comment->getCreatedAt()->format('Y-m-d H:i:s'),
             ];
@@ -163,6 +202,8 @@ class PostController extends AbstractController
             'content' => $post->isDeleted() ? '[Post supprimé]' : $post->getContent(),
             'author' => $post->getAuthor()->getPseudo(),
             'score' => $post->getScore(),
+            'userVote' => $userVote,
+            'isSaved' => $isSaved,
             'postType' => $post->getPostType(),
             'linkUrl' => $post->getLinkUrl(),
             'linkPreview' => $post->getLinkPreview(),
@@ -179,6 +220,103 @@ class PostController extends AbstractController
         ]);
     }
 
+    #[Route('/{id}/vote', name: 'api_post_vote', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function vote(int $id, Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        $post = $this->postRepo->find($id);
+        if (!$post) {
+            return $this->json(['error' => 'Post not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $voteType = $data['type'] ?? null;
+
+        if (!in_array($voteType, [PostVote::TYPE_UP, PostVote::TYPE_DOWN])) {
+            return $this->json(['error' => 'Invalid vote type'], Response::HTTP_BAD_REQUEST);
+        }
+
+        // Vérifier si l'utilisateur a déjà voté
+        $existingVote = $this->postVoteRepo->findOneBy([
+            'user' => $user,
+            'post' => $post
+        ]);
+
+        if ($existingVote) {
+            if ($existingVote->getType() === $voteType) {
+                // Même vote = ne rien faire (pas de toggle)
+                $userVote = $voteType; // Garde le vote existant
+            } else {
+                // Vote opposé = neutraliser (supprimer le vote)
+                $this->em->remove($existingVote);
+                $userVote = null;
+            }
+        } else {
+            // Nouveau vote
+            $vote = new PostVote();
+            $vote->setUser($user);
+            $vote->setPost($post);
+            $vote->setType($voteType);
+            $this->em->persist($vote);
+            $userVote = $voteType;
+        }
+
+        $this->em->flush();
+
+        // Recalculer le score
+        $this->updatePostScore($post);
+
+        return $this->json([
+            'success' => true,
+            'newScore' => $post->getScore(),
+            'userVote' => $userVote
+        ]);
+    }
+
+    #[Route('/{id}/vote', name: 'api_post_remove_vote', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function removeVote(int $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        $post = $this->postRepo->find($id);
+        if (!$post) {
+            return $this->json(['error' => 'Post not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        $existingVote = $this->postVoteRepo->findOneBy([
+            'user' => $user,
+            'post' => $post
+        ]);
+
+        if ($existingVote) {
+            $this->em->remove($existingVote);
+            $this->em->flush();
+            $this->updatePostScore($post);
+        }
+
+        return $this->json([
+            'success' => true,
+            'newScore' => $post->getScore(),
+            'userVote' => null
+        ]);
+    }
+
+    private function updatePostScore(Post $post): void
+    {
+        $upvotes = $this->postVoteRepo->countVotesForPost($post->getId(), PostVote::TYPE_UP);
+        $downvotes = $this->postVoteRepo->countVotesForPost($post->getId(), PostVote::TYPE_DOWN);
+        
+        $score = $upvotes - $downvotes;
+        $post->setScore($score);
+        
+        $this->em->flush();
+    }
+
     private function generateSlug(string $title): string
     {
         $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $title)));
@@ -192,5 +330,76 @@ class PostController extends AbstractController
         }
 
         return $slug;
+    }
+
+    #[Route('/{id}/save', name: 'api_post_save', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function savePost(int $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        $post = $this->postRepo->find($id);
+        if (!$post) {
+            return $this->json(['error' => 'Post not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        // Vérifier si le post est déjà sauvegardé
+        $existingSave = $this->postSaveRepo->findOneBy([
+            'user' => $user,
+            'post' => $post
+        ]);
+
+        if ($existingSave) {
+            // Déjà sauvegardé = désauvegarder (toggle)
+            $this->em->remove($existingSave);
+            $isSaved = false;
+            $message = 'Post retiré des sauvegardes';
+        } else {
+            // Pas encore sauvegardé = sauvegarder
+            $postSave = new PostSave();
+            $postSave->setUser($user);
+            $postSave->setPost($post);
+            $this->em->persist($postSave);
+            $isSaved = true;
+            $message = 'Post ajouté aux sauvegardes';
+        }
+
+        $this->em->flush();
+
+        return $this->json([
+            'success' => true,
+            'isSaved' => $isSaved,
+            'message' => $message
+        ]);
+    }
+
+    #[Route('/{id}/save', name: 'api_post_unsave', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function unsavePost(int $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        $post = $this->postRepo->find($id);
+        if (!$post) {
+            return $this->json(['error' => 'Post not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        $existingSave = $this->postSaveRepo->findOneBy([
+            'user' => $user,
+            'post' => $post
+        ]);
+
+        if ($existingSave) {
+            $this->em->remove($existingSave);
+            $this->em->flush();
+        }
+
+        return $this->json([
+            'success' => true,
+            'isSaved' => false,
+            'message' => 'Post retiré des sauvegardes'
+        ]);
     }
 }

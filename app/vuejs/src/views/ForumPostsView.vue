@@ -29,8 +29,17 @@
         <span class="breadcrumb-current">{{ forum.name }}</span>
       </nav>
 
-      <!-- Forum Header -->
-      <header class="forum-header">
+      <!-- Forum Header avec image d'arrière-plan -->
+      <header 
+        class="forum-header"
+        :style="{ 
+          backgroundImage: getForumImageUrl(forum.slug) ? 
+            `url(${getForumImageUrl(forum.slug)})` : 
+            'none',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center top'
+        }"
+      >
         <div class="forum-info">
           <div class="forum-icon">
             <i class="pi pi-comments"></i>
@@ -47,7 +56,6 @@
                 <i class="pi pi-users"></i>
                 <span>Communauté active</span>
               </div>
-
             </div>
           </div>
         </div>
@@ -177,11 +185,19 @@
           >
             <!-- Post Vote Section -->
             <div class="post-votes">
-              <button class="vote-btn upvote" title="Upvote">
+              <button 
+                @click="handleUpvote(post)"
+                :class="['vote-btn', 'upvote', { active: post.userVote === 'UP' }]" 
+                title="Upvote"
+              >
                 <i class="pi pi-chevron-up"></i>
               </button>
               <span class="vote-score">{{ post.score || 0 }}</span>
-              <button class="vote-btn downvote" title="Downvote">
+              <button 
+                @click="handleDownvote(post)"
+                :class="['vote-btn', 'downvote', { active: post.userVote === 'DOWN' }]" 
+                title="Downvote"
+              >
                 <i class="pi pi-chevron-down"></i>
               </button>
             </div>
@@ -253,14 +269,17 @@
                   <span>{{ post.commentsCount || 0 }} commentaires</span>
                 </RouterLink>
                 
-                <button class="action-btn share">
+                <button @click="sharePost(post)" class="action-btn share">
                   <i class="pi pi-share-alt"></i>
                   <span>Partager</span>
                 </button>
                 
-                <button class="action-btn save">
-                  <i class="pi pi-bookmark"></i>
-                  <span>Sauvegarder</span>
+                <button 
+                  @click="savePost(post)" 
+                  :class="['action-btn', 'save', { active: post.isSaved }]"
+                >
+                  <i :class="post.isSaved ? 'pi pi-bookmark-fill' : 'pi pi-bookmark'"></i>
+                  <span>{{ post.isSaved ? 'Sauvegardé' : 'Sauvegarder' }}</span>
                 </button>
 
                 <div class="post-time">
@@ -330,6 +349,13 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast Notification -->
+    <div v-if="showToast" class="toast-notification">
+      <div class="toast-content">
+        <span>{{ toastMessage }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -338,6 +364,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/services/api'
 import PostCreateForm from '@/components/forum/PostCreateForm.vue'
+
+// Imports des images d'arrière-plan
+import hearthstoneImg from '@/assets/images/forums/hearthstone-bg.jpg'
+import magicImg from '@/assets/images/forums/magic-bg.jpg'
+import pokemonImg from '@/assets/images/forums/pokemon-bg.jpg'
 
 const route = useRoute()
 const slug = route.params.slug
@@ -348,6 +379,8 @@ const posts = ref([])
 const loading = ref(true)
 const error = ref('')
 const showCreateModal = ref(false)
+const showToast = ref(false)
+const toastMessage = ref('')
 
 // Search & Filtering
 const searchQuery = ref('')
@@ -363,6 +396,96 @@ const sortFilters = [
   { value: 'top', label: 'Top', icon: 'pi pi-star' },
   { value: 'comments', label: 'Commentaires', icon: 'pi pi-comment' }
 ]
+
+// Image functions
+const getForumImageUrl = (forumSlug) => {
+  const slug = forumSlug.toLowerCase();
+  if (slug.includes('hearthstone')) return hearthstoneImg;
+  if (slug.includes('magic')) return magicImg;
+  if (slug.includes('pokemon')) return pokemonImg;
+  return null;
+};
+
+// Fonctions de vote
+const voteOnPost = async (post, voteType) => {
+  try {
+    const response = await api.post(`/api/posts/${post.id}/vote`, { type: voteType })
+    
+    // Mettre à jour le post local
+    post.score = response.data.newScore
+    post.userVote = response.data.userVote
+    
+  } catch (error) {
+    console.error('Erreur vote:', error)
+  }
+}
+
+const handleUpvote = (post) => {
+  voteOnPost(post, 'UP')
+}
+
+const handleDownvote = (post) => {
+  voteOnPost(post, 'DOWN')
+}
+
+// Fonction de partage
+const sharePost = async (post) => {
+  const postUrl = `${window.location.origin}/forums/${forum.value.slug}/posts/${post.id}`
+  
+  try {
+    await navigator.clipboard.writeText(postUrl)
+    showToastMessage('Lien copié dans le presse-papier ! 📋')
+  } catch (error) {
+    console.error('Erreur copie:', error)
+    // Fallback pour les navigateurs plus anciens
+    fallbackCopyTextToClipboard(postUrl)
+  }
+}
+
+// Fallback pour navigateurs sans clipboard API
+const fallbackCopyTextToClipboard = (text) => {
+  const textArea = document.createElement('textarea')
+  textArea.value = text
+  document.body.appendChild(textArea)
+  textArea.focus()
+  textArea.select()
+  try {
+    document.execCommand('copy')
+    showToastMessage('Lien copié ! 📋')
+  } catch (err) {
+    console.error('Erreur copie fallback:', err)
+    showToastMessage('Erreur lors de la copie ❌')
+  }
+  document.body.removeChild(textArea)
+}
+
+// Fonction pour afficher le toast
+const showToastMessage = (message) => {
+  toastMessage.value = message
+  showToast.value = true
+  
+  // Masquer automatiquement après 2.5 secondes
+  setTimeout(() => {
+    showToast.value = false
+  }, 2500)
+}
+
+// Fonction de sauvegarde
+const savePost = async (post) => {
+  try {
+    const response = await api.post(`/api/posts/${post.id}/save`)
+    
+    // Mettre à jour le post local
+    post.isSaved = response.data.isSaved
+    
+    // Afficher le message de feedback
+    showToastMessage(response.data.message + ' 📌')
+    
+  } catch (error) {
+    console.error('Erreur sauvegarde:', error)
+    showToastMessage('Erreur lors de la sauvegarde ❌')
+  }
+}
 
 // Computed
 const filteredPosts = computed(() => {
@@ -602,7 +725,7 @@ onMounted(fetchForumData)
   font-weight: 500;
 }
 
-/* Forum Header */
+/* Forum Header avec image d'arrière-plan */
 .forum-header {
   display: flex;
   justify-content: space-between;
@@ -613,12 +736,16 @@ onMounted(fetchForumData)
   border-radius: var(--border-radius-large);
   box-shadow: var(--shadow-medium);
   margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden; /* Important pour l'image de fond */
 }
 
 .forum-info {
   display: flex;
   gap: 1rem;
   flex: 1;
+  position: relative;
+  z-index: 2; /* Au-dessus de l'image */
 }
 
 .forum-icon {
@@ -632,6 +759,7 @@ onMounted(fetchForumData)
   color: white;
   font-size: 1.5rem;
   flex-shrink: 0;
+  box-shadow: var(--shadow-medium); /* Ajout d'ombre pour faire ressortir l'icône */
 }
 
 .forum-details {
@@ -641,16 +769,19 @@ onMounted(fetchForumData)
 .forum-title {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: white;
   margin-bottom: 0.5rem;
   line-height: 1.2;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.3);
 }
 
 .forum-description {
-  color: var(--text-secondary);
+  color: rgba(255,255,255,0.95);
   margin-bottom: 1rem;
   font-size: 1.125rem;
   line-height: 1.5;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.7), 0 0 6px rgba(0,0,0,0.2);
+  font-weight: 500;
 }
 
 .forum-stats {
@@ -662,9 +793,10 @@ onMounted(fetchForumData)
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--text-secondary);
+  color: rgba(255,255,255,0.9);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
 }
 
 .create-post-btn {
@@ -672,6 +804,9 @@ onMounted(fetchForumData)
   height: fit-content;
   font-size: 1rem;
   padding: 0.875rem 1.5rem;
+  position: relative;
+  z-index: 2; /* Au-dessus de l'image */
+  box-shadow: var(--shadow-medium); /* Ajout d'ombre pour faire ressortir le bouton */
 }
 
 /* Controls Bar */
@@ -970,6 +1105,16 @@ onMounted(fetchForumData)
   color: #ef4444;
 }
 
+.vote-btn.active.upvote {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.vote-btn.active.downvote {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
 .vote-score {
   font-weight: 600;
   font-size: 0.875rem;
@@ -1180,6 +1325,15 @@ onMounted(fetchForumData)
   color: var(--primary);
 }
 
+.action-btn.save.active {
+  background: rgba(255, 87, 34, 0.1);
+  color: var(--accent);
+}
+
+.action-btn.save:hover {
+  color: var(--accent);
+}
+
 .post-time {
   margin-left: auto;
   color: var(--text-secondary);
@@ -1324,6 +1478,49 @@ onMounted(fetchForumData)
 
 .modal-body {
   padding: 2rem;
+}
+
+/* Toast Notification */
+.toast-notification {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  z-index: 9999;
+  animation: slideInRight 0.3s ease-out, fadeOutUp 0.3s ease-in 2.2s forwards;
+}
+
+.toast-content {
+  background: var(--primary);
+  color: white;
+  padding: 0.875rem 1.5rem;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-large);
+  font-weight: 500;
+  font-size: 0.875rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeOutUp {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
 }
 
 /* Responsive Design */

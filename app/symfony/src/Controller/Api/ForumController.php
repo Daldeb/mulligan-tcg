@@ -5,8 +5,10 @@ namespace App\Controller\Api;
 use App\Entity\Forum;
 use App\Entity\Post;
 use App\Entity\User;
+use App\Entity\Comment;
 use App\Service\FileUploadService;
 use App\Repository\ForumRepository;
+use App\Repository\PostSaveRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,7 +25,8 @@ class ForumController extends AbstractController
     public function __construct(
         private EntityManagerInterface $em,
         private ForumRepository $forumRepo,
-        private FileUploadService $fileUploadService
+        private FileUploadService $fileUploadService,
+        private PostSaveRepository $postSaveRepo
     ) {}
 
     #[Route('', name: 'api_forum_create', methods: ['POST'])]
@@ -109,13 +112,38 @@ class ForumController extends AbstractController
             20
         );
 
-        $data = array_map(function (Post $post) {
+        // Récupérer le compteur de commentaires pour chaque post
+        $commentRepo = $this->em->getRepository(Comment::class);
+        
+        $data = array_map(function (Post $post) use ($commentRepo) {
+            // Compter les commentaires non supprimés pour ce post
+            $commentsCount = $commentRepo->createQueryBuilder('c')
+                ->select('COUNT(c.id)')
+                ->where('c.post = :post')
+                ->andWhere('c.isDeleted = false')
+                ->setParameter('post', $post)
+                ->getQuery()
+                ->getSingleScalarResult();
+
+            // Vérifier si le post est sauvegardé par l'utilisateur connecté
+            $isSaved = false;
+            if ($this->getUser()) {
+                $isSaved = $this->postSaveRepo->isPostSavedByUser($this->getUser(), $post);
+            }
+
             return [
                 'id' => $post->getId(),
                 'title' => $post->getTitle(),
                 'slug' => $post->getSlug(),
                 'author' => $post->getAuthor()->getPseudo(),
                 'score' => $post->getScore(),
+                'commentsCount' => (int) $commentsCount,
+                'isSaved' => $isSaved,
+                'content' => $post->getContent(), // Ajouter le contenu pour les previews
+                'postType' => $post->getPostType(),
+                'linkUrl' => $post->getLinkUrl(),
+                'tags' => $post->getTags(),
+                'attachments' => $post->getAttachments(),
                 'createdAt' => $post->getCreatedAt()->format('Y-m-d H:i:s'),
                 'isPinned' => $post->isPinned(),
                 'isLocked' => $post->isLocked(),

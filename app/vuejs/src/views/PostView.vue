@@ -51,7 +51,7 @@
             <div class="post-stats">
               <div class="stat-item">
                 <i class="pi pi-heart"></i>
-                <span>{{ post.score }}</span>
+                <span>{{ post.score || 0 }}</span>
               </div>
               <div class="stat-item">
                 <i class="pi pi-comment"></i>
@@ -128,21 +128,32 @@
 
         <!-- Post Actions -->
         <footer class="post-actions">
-          <button class="action-btn upvote">
+          <button 
+            @click="handleUpvote(post)"
+            :class="['action-btn', 'upvote', { active: post.userVote === 'UP' }]" 
+            title="Upvote"
+          >
             <i class="pi pi-chevron-up"></i>
             Upvote
           </button>
-          <button class="action-btn downvote">
+          <button 
+            @click="handleDownvote(post)"
+            :class="['action-btn', 'downvote', { active: post.userVote === 'DOWN' }]" 
+            title="Downvote"
+          >
             <i class="pi pi-chevron-down"></i>
             Downvote
           </button>
-          <button class="action-btn share">
+          <button @click="sharePost(post)" class="action-btn share">
             <i class="pi pi-share-alt"></i>
             Partager
           </button>
-          <button class="action-btn save">
-            <i class="pi pi-bookmark"></i>
-            Sauvegarder
+          <button 
+            @click="savePost(post)" 
+            :class="['action-btn', 'save', { active: post.isSaved }]"
+          >
+            <i :class="post.isSaved ? 'pi pi-bookmark-fill' : 'pi pi-bookmark'"></i>
+            {{ post.isSaved ? 'Sauvegardé' : 'Sauvegarder' }}
           </button>
         </footer>
       </article>
@@ -213,70 +224,52 @@
           </div>
         </div>
 
-        <!-- Comments List -->
+        <!-- Comments List - HIÉRARCHIQUE -->
         <div class="comments-list">
-          <div v-if="comments.length === 0" class="no-comments">
+          <div v-if="commentTree.length === 0" class="no-comments">
             <i class="pi pi-comment"></i>
             <h3>Aucun commentaire pour l'instant</h3>
             <p>Soyez le premier à partager votre opinion !</p>
           </div>
 
-          <article 
-            v-for="comment in comments" 
-            :key="comment.id" 
-            class="comment-card"
-          >
-            <div class="comment-sidebar">
-              <div class="comment-avatar">
-                {{ comment.author?.charAt(0).toUpperCase() }}
-              </div>
-              <div class="comment-line"></div>
-            </div>
-            
-            <div class="comment-content">
-              <header class="comment-header">
-                <div class="comment-meta">
-                  <strong class="comment-author">{{ comment.author }}</strong>
-                  <time class="comment-date">{{ formatDate(comment.createdAt) }}</time>
-                  <span v-if="comment.score !== 0" class="comment-score">
-                    {{ comment.score > 0 ? '+' : '' }}{{ comment.score }}
-                  </span>
-                </div>
-              </header>
-              
-              <div class="comment-body" v-html="renderMarkdown(comment.content)"></div>
-              
-              <footer class="comment-actions">
-                <button class="comment-action upvote">
-                  <i class="pi pi-chevron-up"></i>
-                  {{ comment.upvotes || 0 }}
-                </button>
-                <button class="comment-action downvote">
-                  <i class="pi pi-chevron-down"></i>
-                  {{ comment.downvotes || 0 }}
-                </button>
-                <button class="comment-action reply">
-                  <i class="pi pi-reply"></i>
-                  Répondre
-                </button>
-                <button class="comment-action share">
-                  <i class="pi pi-share-alt"></i>
-                  Partager
-                </button>
-              </footer>
-            </div>
-          </article>
+          <!-- Affichage hiérarchique avec CommentThread -->
+          <CommentThread
+            v-for="comment in commentTree"
+            :key="comment.id"
+            :comment="comment"
+            :is-collapsed="isCommentCollapsed(comment.id)"
+            :is-reply-form-open="isReplyFormOpen(comment.id)"
+            :reply-content="replyContents[comment.id] || ''"
+            :child-collapsed-states="collapsedComments"
+            :child-reply-form-states="replyForms"
+            :child-reply-contents="replyContents"
+            :get-current-user-initial="getCurrentUserInitial"
+            @toggle-collapse="toggleCommentCollapse"
+            @toggle-reply="toggleReplyForm"
+            @submit-reply="submitReply"
+            @update-reply-content="updateReplyContent"
+            @comment-upvote="handleCommentUpvote"
+            @comment-downvote="handleCommentDownvote"
+          />
         </div>
       </section>
+    </div>
+
+    <!-- Toast Notification -->
+    <div v-if="showToast" class="toast-notification">
+      <div class="toast-content">
+        <span>{{ toastMessage }}</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
+import CommentThread from '@/components/forum/CommentThread.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -291,6 +284,250 @@ const error = ref('')
 const newComment = ref('')
 const loadingComment = ref(false)
 const commentError = ref('')
+
+// Toast notifications
+const showToast = ref(false)
+const toastMessage = ref('')
+
+// États pour la hiérarchie des commentaires
+const commentTree = ref([])
+const collapsedComments = ref(new Set()) // IDs des commentaires pliés
+const replyForms = ref(new Set()) // IDs des formulaires de réponse ouverts
+const replyContents = ref({}) // Contenu des formulaires de réponse
+
+// Fonction pour transformer les commentaires plats en arbre hiérarchique
+const buildCommentTree = (flatComments) => {
+  const commentMap = new Map()
+  const tree = []
+  
+  // 1. Créer une map de tous les commentaires avec leurs enfants
+  flatComments.forEach(comment => {
+    commentMap.set(comment.id, {
+      ...comment,
+      children: [],
+      level: 0 // Niveau de profondeur (0 = racine)
+    })
+  })
+  
+  // 2. Organiser la hiérarchie
+  flatComments.forEach(comment => {
+    const commentWithChildren = commentMap.get(comment.id)
+    
+    if (comment.parentId) {
+      // C'est une réponse - l'ajouter aux enfants du parent
+      const parent = commentMap.get(comment.parentId)
+      if (parent) {
+        commentWithChildren.level = parent.level + 1
+        parent.children.push(commentWithChildren)
+      }
+    } else {
+      // C'est un commentaire racine
+      tree.push(commentWithChildren)
+    }
+  })
+  
+  return tree
+}
+
+// Fonction pour mettre à jour l'arbre des commentaires
+const updateCommentTree = () => {
+  commentTree.value = buildCommentTree(comments.value)
+}
+
+// Fonctions pour gérer le collapse/expand
+const toggleCommentCollapse = (commentId) => {
+  if (collapsedComments.value.has(commentId)) {
+    collapsedComments.value.delete(commentId)
+  } else {
+    collapsedComments.value.add(commentId)
+  }
+}
+
+const isCommentCollapsed = (commentId) => {
+  return collapsedComments.value.has(commentId)
+}
+
+// Fonctions pour gérer les formulaires de réponse
+const toggleReplyForm = (commentId) => {
+  if (replyForms.value.has(commentId)) {
+    replyForms.value.delete(commentId)
+    delete replyContents.value[commentId]
+  } else {
+    replyForms.value.add(commentId)
+    replyContents.value[commentId] = ''
+  }
+}
+
+const isReplyFormOpen = (commentId) => {
+  return replyForms.value.has(commentId)
+}
+
+// Provide des fonctions pour les composants enfants
+provide('isCommentCollapsed', isCommentCollapsed)
+provide('isReplyFormOpen', isReplyFormOpen)
+provide('getReplyContent', (id) => replyContents.value[id] || '')
+
+// Fonction pour mettre à jour le contenu d'une réponse
+const updateReplyContent = (commentId, content) => {
+  replyContents.value[commentId] = content
+}
+
+// Fonction pour soumettre une réponse
+const submitReply = async (parentCommentId) => {
+  const content = replyContents.value[parentCommentId]
+  
+  if (!content || !content.trim()) {
+    showToastMessage('Le commentaire ne peut pas être vide ❌')
+    return
+  }
+
+  try {
+    await api.post(`/api/comments/${parentCommentId}/comments`, {
+      content: content.trim()
+    })
+    
+    // Fermer le formulaire et vider le contenu
+    replyForms.value.delete(parentCommentId)
+    delete replyContents.value[parentCommentId]
+    
+    // Recharger les commentaires
+    await fetchPost()
+    
+    showToastMessage('Réponse publiée ! 💬')
+  } catch (error) {
+    console.error('Erreur ajout réponse:', error)
+    showToastMessage('Erreur lors de la publication ❌')
+  }
+}
+
+// Fonctions de vote
+const voteOnPost = async (post, voteType) => {
+  try {
+    const response = await api.post(`/api/posts/${post.id}/vote`, { type: voteType })
+    
+    // Mettre à jour le post local
+    post.score = response.data.newScore
+    post.userVote = response.data.userVote
+    
+  } catch (error) {
+    console.error('Erreur vote:', error)
+    showToastMessage('Erreur lors du vote ❌')
+  }
+}
+
+const handleUpvote = (post) => {
+  voteOnPost(post, 'UP')
+}
+
+const handleDownvote = (post) => {
+  voteOnPost(post, 'DOWN')
+}
+
+// Fonction de partage
+const sharePost = async (post) => {
+  const postUrl = `${window.location.origin}/forums/${forumSlug}/posts/${post.id}`
+  
+  try {
+    await navigator.clipboard.writeText(postUrl)
+    showToastMessage('Lien copié dans le presse-papier ! 📋')
+  } catch (error) {
+    console.error('Erreur copie:', error)
+    // Fallback pour les navigateurs plus anciens
+    fallbackCopyTextToClipboard(postUrl)
+  }
+}
+
+// Fallback pour navigateurs sans clipboard API
+const fallbackCopyTextToClipboard = (text) => {
+  const textArea = document.createElement('textarea')
+  textArea.value = text
+  document.body.appendChild(textArea)
+  textArea.focus()
+  textArea.select()
+  try {
+    document.execCommand('copy')
+    showToastMessage('Lien copié ! 📋')
+  } catch (err) {
+    console.error('Erreur copie fallback:', err)
+    showToastMessage('Erreur lors de la copie ❌')
+  }
+  document.body.removeChild(textArea)
+}
+
+// Fonction pour afficher le toast
+const showToastMessage = (message) => {
+  toastMessage.value = message
+  showToast.value = true
+  
+  // Masquer automatiquement après 2.5 secondes
+  setTimeout(() => {
+    showToast.value = false
+  }, 2500)
+}
+
+// Fonction de sauvegarde
+const savePost = async (post) => {
+  try {
+    const response = await api.post(`/api/posts/${post.id}/save`)
+    
+    // Mettre à jour le post local
+    post.isSaved = response.data.isSaved
+    
+    // Afficher le message de feedback
+    showToastMessage(response.data.message + ' 📌')
+    
+  } catch (error) {
+    console.error('Erreur sauvegarde:', error)
+    showToastMessage('Erreur lors de la sauvegarde ❌')
+  }
+}
+
+// Fonctions de vote sur commentaires
+const voteOnComment = async (comment, voteType) => {
+  try {
+    const response = await api.post(`/api/comments/${comment.id}/vote`, { type: voteType })
+    
+    // Mettre à jour le commentaire local dans l'arbre
+    const updateCommentInTree = (tree) => {
+      for (const node of tree) {
+        if (node.id === comment.id) {
+          node.score = response.data.newScore
+          node.userVote = response.data.userVote
+          
+          // Recalculer les upvotes/downvotes
+          if (response.data.userVote === 'UP') {
+            node.upvotes = Math.max(0, response.data.newScore + (node.downvotes || 0))
+          } else if (response.data.userVote === 'DOWN') {
+            node.downvotes = Math.max(0, (node.upvotes || 0) - response.data.newScore)
+          } else {
+            // Vote neutralisé
+            node.upvotes = Math.max(0, response.data.newScore)
+            node.downvotes = 0
+          }
+          return true
+        }
+        if (node.children && updateCommentInTree(node.children)) {
+          return true
+        }
+      }
+      return false
+    }
+    
+    updateCommentInTree(commentTree.value)
+    
+  } catch (error) {
+    console.error('Erreur vote commentaire:', error)
+    showToastMessage('Erreur lors du vote ❌')
+  }
+}
+
+const handleCommentUpvote = (comment) => {
+  voteOnComment(comment, 'UP')
+}
+
+const handleCommentDownvote = (comment) => {
+  voteOnComment(comment, 'DOWN')
+}
 
 const formatDate = (dateString) => {
   const date = new Date(dateString)
@@ -363,6 +600,7 @@ const fetchPost = async () => {
     const res = await api.get(`/api/posts/${postId}`)
     post.value = res.data
     comments.value = res.data.comments || []
+    updateCommentTree()
   } catch (err) {
     console.error('Erreur chargement post:', err)
     error.value = 'Impossible de charger le post. Vérifiez votre connexion.'
@@ -385,10 +623,12 @@ const submitComment = async () => {
       content: newComment.value.trim()
     })
     newComment.value = ''
-    await fetchPost() // Recharger les commentaires
+    await fetchPost() // Recharger les commentaires et rebuild l'arbre
+    showToastMessage('Commentaire publié ! 💬')
   } catch (err) {
     console.error('Erreur ajout commentaire:', err)
     commentError.value = 'Impossible d\'ajouter le commentaire. Réessayez.'
+    showToastMessage('Erreur lors de la publication ❌')
   } finally {
     loadingComment.value = false
   }
@@ -802,6 +1042,25 @@ onMounted(fetchPost)
   color: #ef4444;
 }
 
+.action-btn.upvote.active {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.action-btn.downvote.active {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.action-btn.save.active {
+  background: rgba(255, 87, 34, 0.1);
+  color: var(--accent);
+}
+
+.action-btn.save:hover {
+  color: var(--accent);
+}
+
 /* Comments Section */
 .comments-section {
   background: white;
@@ -945,15 +1204,18 @@ onMounted(fetchPost)
   font-size: 0.875rem;
 }
 
-/* Comments List */
+/* Comments List - HIÉRARCHIQUE */
 .comments-list {
   padding: 2rem;
+  background: var(--surface-50);
 }
 
 .no-comments {
   text-align: center;
   padding: 3rem 2rem;
   color: var(--text-secondary);
+  background: white;
+  border-radius: var(--border-radius);
 }
 
 .no-comments i {
@@ -971,144 +1233,47 @@ onMounted(fetchPost)
   margin: 0;
 }
 
-/* Comment Cards */
-.comment-card {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--surface-200);
+/* Toast Notification */
+.toast-notification {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  z-index: 9999;
+  animation: slideInRight 0.3s ease-out, fadeOutUp 0.3s ease-in 2.2s forwards;
 }
 
-.comment-card:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.comment-sidebar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.comment-avatar {
-  width: 40px;
-  height: 40px;
-  background: var(--secondary-light);
+.toast-content {
+  background: var(--primary);
   color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 1rem;
-  flex-shrink: 0;
-}
-
-.comment-line {
-  width: 2px;
-  height: 100%;
-  background: var(--surface-300);
-  min-height: 60px;
-}
-
-.comment-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.comment-header {
-  margin-bottom: 0.75rem;
-}
-
-.comment-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.comment-author {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.comment-date {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
-.comment-score {
-  color: var(--primary);
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.comment-body {
-  color: var(--text-primary);
-  line-height: 1.6;
-  margin-bottom: 1rem;
-  word-wrap: break-word;
-}
-
-.comment-body strong {
-  font-weight: 600;
-}
-
-.comment-body code {
-  background: var(--surface-200);
-  padding: 0.125rem 0.375rem;
-  border-radius: 3px;
-  font-family: 'Fira Code', monospace;
-  font-size: 0.875rem;
-}
-
-.comment-body blockquote {
-  border-left: 3px solid var(--primary);
-  padding-left: 0.75rem;
-  margin: 0.75rem 0;
-  background: var(--surface-100);
-  padding: 0.75rem;
-  border-radius: 0 var(--border-radius-small) var(--border-radius-small) 0;
-}
-
-.comment-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.comment-action {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
-  background: transparent;
-  border: none;
-  border-radius: var(--border-radius-small);
-  color: var(--text-secondary);
-  font-size: 0.875rem;
+  padding: 0.875rem 1.5rem;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-large);
   font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
+  font-size: 0.875rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.comment-action:hover {
-  background: var(--surface-200);
-  color: var(--text-primary);
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.comment-action.upvote:hover {
-  color: #22c55e;
-}
-
-.comment-action.downvote:hover {
-  color: #ef4444;
-}
-
-.comment-action.reply:hover {
-  color: var(--primary);
+@keyframes fadeOutUp {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
 }
 
 /* Responsive Design */
@@ -1183,20 +1348,6 @@ onMounted(fetchPost)
     padding: 1.5rem;
   }
   
-  .comment-card {
-    gap: 0.75rem;
-  }
-  
-  .comment-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 0.875rem;
-  }
-  
-  .comment-actions {
-    flex-wrap: wrap;
-  }
-  
   .attachments-grid {
     grid-template-columns: 1fr;
   }
@@ -1215,21 +1366,6 @@ onMounted(fetchPost)
   .post-badges {
     flex-direction: column;
     align-items: flex-start;
-  }
-  
-  .comment-meta {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-  }
-  
-  .comment-actions {
-    gap: 0.25rem;
-  }
-  
-  .comment-action {
-    font-size: 0.75rem;
-    padding: 0.375rem 0.5rem;
   }
 }
 </style>
