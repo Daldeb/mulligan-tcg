@@ -369,21 +369,55 @@ provide('getReplyContent', (id) => replyContents.value[id] || '')
 
 // Fonction pour mettre à jour le contenu d'une réponse
 const updateReplyContent = (commentId, content) => {
-  replyContents.value[commentId] = content
+  // DEBUG: Voir ce qu'on reçoit
+  // console.log('updateReplyContent called with:', commentId, content)
+  // console.log('Type de content reçu:', typeof content)
+  
+  // S'assurer qu'on stocke une string propre
+  if (typeof content === 'string') {
+    replyContents.value[commentId] = content
+  } else {
+    // console.warn('Content n\'est pas un string:', content)
+    replyContents.value[commentId] = String(content || '')
+  }
+  
+  // console.log('replyContents après update:', replyContents.value[commentId])
 }
 
 // Fonction pour soumettre une réponse
 const submitReply = async (parentCommentId) => {
   const content = replyContents.value[parentCommentId]
   
-  if (!content || !content.trim()) {
+  // DEBUG: Voir ce qu'on récupère
+  // console.log('Content récupéré:', content)
+  // console.log('Type de content:', typeof content)
+  
+  // Filtrer et nettoyer le contenu
+  let textContent = ''
+  
+  if (typeof content === 'string') {
+    textContent = content
+  } else if (Array.isArray(content)) {
+    // Si c'est un Array, prendre le dernier élément string
+    const stringElements = content.filter(item => typeof item === 'string')
+    textContent = stringElements[stringElements.length - 1] || ''
+  } else {
+    textContent = String(content || '')
+  }
+  
+  // Nettoyer le contenu des artifacts de Vue
+  textContent = textContent.replace(/\$event[^,]*,/g, '').replace(/\[object Object\]/g, '').trim()
+  
+  // console.log('Text content final:', textContent)
+  
+  if (!textContent || !textContent.trim()) {
     showToastMessage('Le commentaire ne peut pas être vide ❌')
     return
   }
 
   try {
     await api.post(`/api/comments/${parentCommentId}/comments`, {
-      content: content.trim()
+      content: textContent.trim()
     })
     
     // Fermer le formulaire et vider le contenu
@@ -395,7 +429,7 @@ const submitReply = async (parentCommentId) => {
     
     showToastMessage('Réponse publiée ! 💬')
   } catch (error) {
-    console.error('Erreur ajout réponse:', error)
+    // console.error('Erreur ajout réponse:', error)
     showToastMessage('Erreur lors de la publication ❌')
   }
 }
@@ -410,7 +444,7 @@ const voteOnPost = async (post, voteType) => {
     post.userVote = response.data.userVote
     
   } catch (error) {
-    console.error('Erreur vote:', error)
+    // console.error('Erreur vote:', error)
     showToastMessage('Erreur lors du vote ❌')
   }
 }

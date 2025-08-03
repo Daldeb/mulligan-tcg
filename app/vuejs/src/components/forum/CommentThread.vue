@@ -88,11 +88,11 @@
               
               <div class="reply-editor">
                 <textarea 
-                  :value="localContent"
-                  @input="handleInput"
+                  v-model="localContent"
                   rows="3" 
                   class="reply-textarea"
                   placeholder="Écrivez votre réponse..."
+                  @input="handleInput"
                 ></textarea>
                 
                 <div class="reply-actions">
@@ -130,7 +130,7 @@
         @toggle-collapse="$emit('toggle-collapse', $event)"
         @toggle-reply="$emit('toggle-reply', $event)"
         @submit-reply="$emit('submit-reply', $event)"
-        @update-reply-content="$emit('update-reply-content', $event, arguments[1])"
+        @update-reply-content="(commentId, content) => $emit('update-reply-content', commentId, content)"
         @comment-upvote="$emit('comment-upvote', $event)"
         @comment-downvote="$emit('comment-downvote', $event)"
       />
@@ -186,30 +186,20 @@ const actualIsReplyFormOpen = computed(() => {
   return isReplyFormOpenInjected(props.comment.id)
 })
 
-const actualReplyContent = computed(() => {
-  // Si on a une prop directe non-vide, on l'utilise
-  if (typeof props.replyContent === 'string' && props.replyContent !== '') {
-    return props.replyContent
-  }
-  // Sinon on utilise l'injection
-  return getReplyContent(props.comment.id) || ''
-})
-
-// Computed pour s'assurer que replyContent est toujours une string (gardé pour compatibilité)
-const safeReplyContent = computed(() => {
-  return actualReplyContent.value
-})
-
 // Fonction pour gérer l'input local
 const handleInput = (event) => {
-  localContent.value = event.target.value
-  emit('update-reply-content', props.comment.id, event.target.value)
+  const inputValue = event.target.value
+  
+  // DEBUG: Voir ce qu'on émet
+//   console.log('handleInput - inputValue:', inputValue)
+//   console.log('handleInput - commentId:', props.comment.id)
+  
+  // Met à jour l'état local
+  localContent.value = inputValue
+  
+  // Émet vers le parent avec les bons arguments
+  emit('update-reply-content', props.comment.id, inputValue)
 }
-
-// Synchroniser localContent avec les props/injection
-watch(actualReplyContent, (newValue) => {
-  localContent.value = newValue
-}, { immediate: true })
 
 // Reset localContent quand le formulaire se ferme
 watch(actualIsReplyFormOpen, (isOpen) => {
