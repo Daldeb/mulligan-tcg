@@ -72,7 +72,7 @@
             
             <div class="posts-list">
               <div 
-                v-for="post in forum.posts.slice(0, 3)" 
+                v-for="post in getFeaturedPosts(forum.posts)" 
                 :key="post.id" 
                 class="post-preview"
               >
@@ -162,6 +162,48 @@ const getForumImageUrl = (forumSlug) => {
   if (slug.includes('pokemon')) return pokemonImg;
   return null;
 };
+
+const getFeaturedPosts = (posts) => {
+  if (!posts || posts.length === 0) return []
+  
+  // Trier par date décroissante pour avoir les plus récents
+  const sortedByDate = [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  
+  // Prendre les 2 plus récents
+  const recentPosts = sortedByDate.slice(0, 2)
+  
+  // Calculer le "hot score" pour tous les posts
+  const postsWithHotScore = posts.map(post => ({
+    ...post,
+    hotScore: calculateHotScore(post)
+  }))
+  
+  // Trier par hot score et prendre le meilleur (en excluant ceux déjà sélectionnés)
+  const recentPostIds = new Set(recentPosts.map(p => p.id))
+  const hotPosts = postsWithHotScore
+    .filter(post => !recentPostIds.has(post.id))
+    .sort((a, b) => b.hotScore - a.hotScore)
+  
+  // Assembler : 2 récents + 1 hot (ou juste les récents si pas assez de posts)
+  const featured = [...recentPosts]
+  if (hotPosts.length > 0) {
+    featured.push(hotPosts[0])
+  }
+  
+  return featured.slice(0, 3) // Maximum 3 posts
+}
+
+const calculateHotScore = (post) => {
+  const score = post.score || 0
+  const comments = post.commentsCount || 0
+  const now = new Date()
+  const postDate = new Date(post.createdAt)
+  const hoursOld = Math.max(1, (now - postDate) / (1000 * 60 * 60)) // Minimum 1 heure
+  
+  // Algorithme Reddit-like : (score + commentaires * 2) / (âge^1.8)
+  // Plus le post est récent et a d'interactions, plus il est "hot"
+  return (score + comments * 2) / Math.pow(hoursOld + 2, 1.8)
+}
 
 const formatDate = (dateString) => {
   const date = new Date(dateString);

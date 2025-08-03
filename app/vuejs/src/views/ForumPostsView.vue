@@ -107,6 +107,80 @@
           </div>
         </div>
 
+                <!-- Advanced Filters -->
+        <div class="advanced-filters">
+          <button 
+            @click="showAdvancedFilters = !showAdvancedFilters"
+            :class="['filter-toggle', { active: showAdvancedFilters || hasActiveAdvancedFilters }]"
+          >
+            <i class="pi pi-filter"></i>
+            Filtres avancés
+            <i :class="['pi', showAdvancedFilters ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
+          </button>
+          
+          <div v-if="showAdvancedFilters" class="filters-panel">
+            <!-- Time Period Filter -->
+            <div class="filter-group">
+              <label class="filter-label">Période</label>
+              <div class="filter-options">
+                <button 
+                  v-for="period in timePeriods" 
+                  :key="period.value"
+                  @click="currentPeriod = period.value"
+                  :class="['filter-option', { active: currentPeriod === period.value }]"
+                >
+                  {{ period.label }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Post Type Filter -->
+            <div class="filter-group">
+              <label class="filter-label">Type de post</label>
+              <div class="filter-options">
+                <button 
+                  v-for="type in postTypes" 
+                  :key="type.value"
+                  @click="togglePostType(type.value)"
+                  :class="['filter-option', 'checkbox', { active: selectedPostTypes.includes(type.value) }]"
+                >
+                  <i :class="type.icon"></i>
+                  {{ type.label }}
+                  <i v-if="selectedPostTypes.includes(type.value)" class="pi pi-check"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Popular Tags Filter -->
+            <div v-if="popularTags.length" class="filter-group">
+              <label class="filter-label">Tags populaires</label>
+              <div class="filter-options tags-grid">
+                <button 
+                  v-for="tag in popularTags" 
+                  :key="tag.name"
+                  @click="toggleTag(tag.name)"
+                  :class="['tag-filter', { active: selectedTags.includes(tag.name) }]"
+                >
+                  #{{ tag.name }}
+                  <span class="tag-count">({{ tag.count }})</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Filter Actions -->
+            <div class="filter-actions">
+              <button @click="resetAdvancedFilters" class="reset-filters-btn">
+                <i class="pi pi-refresh"></i>
+                Réinitialiser
+              </button>
+              <button @click="showAdvancedFilters = false" class="apply-filters-btn">
+                <i class="pi pi-check"></i>
+                Appliquer ({{ filteredPosts.length }})
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- View Toggle -->
         <div class="view-toggle">
           <button 
@@ -360,7 +434,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/services/api'
 import PostCreateForm from '@/components/forum/PostCreateForm.vue'
@@ -388,6 +462,101 @@ const currentSort = ref('new')
 const viewMode = ref('card') // 'card' ou 'compact'
 const currentPage = ref(1)
 const postsPerPage = 10
+
+// === FILTRES AVANCÉS MANQUANTS ===
+const showAdvancedFilters = ref(false)
+
+// Filtres par période
+const currentPeriod = ref('all')
+const timePeriods = [
+  { value: 'all', label: 'Toutes' },
+  { value: 'today', label: 'Aujourd\'hui' },
+  { value: 'week', label: 'Cette semaine' },
+  { value: 'month', label: 'Ce mois' },
+  { value: 'year', label: 'Cette année' }
+]
+
+// Filtres par type
+const selectedPostTypes = ref([])
+const postTypes = [
+  { value: 'text', label: 'Texte', icon: 'pi pi-align-left' },
+  { value: 'link', label: 'Lien', icon: 'pi pi-link' },
+  { value: 'image', label: 'Image', icon: 'pi pi-image' }
+]
+
+// Filtres par tags et scores
+const selectedTags = ref([])
+
+// Tags populaires
+const popularTags = computed(() => {
+  const tagCounts = {}
+  posts.value.forEach(post => {
+    if (post.tags) {
+      post.tags.forEach(tag => {
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1
+      })
+    }
+  })
+  return Object.entries(tagCounts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+})
+
+// Détection des filtres actifs
+const hasActiveAdvancedFilters = computed(() => 
+  currentPeriod.value !== 'all' ||
+  selectedPostTypes.value.length > 0 ||
+  selectedTags.value.length > 0
+)
+
+// Fonctions manquantes
+const togglePostType = (type) => {
+  const index = selectedPostTypes.value.indexOf(type)
+  if (index > -1) {
+    selectedPostTypes.value.splice(index, 1)
+  } else {
+    selectedPostTypes.value.push(type)
+  }
+}
+
+const toggleTag = (tag) => {
+  const index = selectedTags.value.indexOf(tag)
+  if (index > -1) {
+    selectedTags.value.splice(index, 1)
+  } else {
+    selectedTags.value.push(tag)
+  }
+}
+
+const resetAdvancedFilters = () => {
+  currentPeriod.value = 'all'
+  selectedPostTypes.value = []
+  selectedTags.value = []
+}
+
+// Scroll intelligent - ferme seulement si on scroll vraiment loin
+let lastScrollY = 0
+const handleScroll = () => {
+  if (showAdvancedFilters.value) {
+    const currentScrollY = window.scrollY
+    
+    // Se ferme seulement si on scroll vers le bas ET qu'on a dépassé une distance significative
+    if (currentScrollY > lastScrollY && currentScrollY > 600) {
+      // On a scrollé vers le bas de plus de 300px depuis le haut de la page
+      showAdvancedFilters.value = false
+    }
+    
+    lastScrollY = currentScrollY
+  }
+}
+
+// Fermer les filtres au clic extérieur
+const handleClickOutside = (event) => {
+  if (showAdvancedFilters.value && !event.target.closest('.advanced-filters')) {
+    showAdvancedFilters.value = false
+  }
+}
 
 // Sort options
 const sortFilters = [
@@ -502,7 +671,46 @@ const filteredPosts = computed(() => {
     )
   }
 
-  // Sort filter
+  // === NOUVEAUX FILTRES AVANCÉS ===
+  
+  // Filtre par période
+  if (currentPeriod.value !== 'all') {
+    const now = new Date()
+    const filterDate = new Date()
+    
+    switch (currentPeriod.value) {
+      case 'today':
+        filterDate.setHours(0, 0, 0, 0)
+        break
+      case 'week':
+        filterDate.setDate(now.getDate() - 7)
+        break
+      case 'month':
+        filterDate.setMonth(now.getMonth() - 1)
+        break
+      case 'year':
+        filterDate.setFullYear(now.getFullYear() - 1)
+        break
+    }
+    
+    filtered = filtered.filter(post => new Date(post.createdAt) >= filterDate)
+  }
+
+  // Filtre par type de post
+  if (selectedPostTypes.value.length > 0) {
+    filtered = filtered.filter(post => 
+      selectedPostTypes.value.includes(post.postType || 'text')
+    )
+  }
+
+  // Filtre par tags
+  if (selectedTags.value.length > 0) {
+    filtered = filtered.filter(post => 
+      post.tags && post.tags.some(tag => selectedTags.value.includes(tag))
+    )
+  }
+
+  // Sort filter (inchangé)
   switch (currentSort.value) {
     case 'hot':
       filtered.sort((a, b) => calculateHotScore(b) - calculateHotScore(a))
@@ -653,7 +861,17 @@ watch([searchQuery, currentSort], () => {
   currentPage.value = 1 // Reset pagination when filters change
 })
 
-onMounted(fetchForumData)
+onMounted(() => {
+  fetchForumData()
+  window.addEventListener('scroll', handleScroll)
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
+  document.removeEventListener('click', handleClickOutside)
+})
+
 </script>
 
 <style scoped>

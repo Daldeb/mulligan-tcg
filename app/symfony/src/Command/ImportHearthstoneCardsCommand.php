@@ -23,6 +23,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
     name: 'app:import-hearthstone-cards',
     description: 'Import Hearthstone cards from HearthstoneJSON API with local image storage and memory optimization'
 )]
+
+//la plus classique : php bin/console app:import-hearthstone-cards -l frFR --collectible-only
 class ImportHearthstoneCardsCommand extends Command
 {
     private int $batchSize = 25; // Réduit pour éviter surcharge mémoire

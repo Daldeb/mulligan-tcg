@@ -191,12 +191,40 @@
             <span class="comments-count">({{ comments.length }})</span>
           </h2>
           
-          <div class="comments-sort">
-            <select class="sort-select">
-              <option value="top">Les plus populaires</option>
-              <option value="new">Les plus récents</option>
-              <option value="old">Les plus anciens</option>
-            </select>
+          <!-- Contrôles de recherche et tri -->
+          <div class="comments-controls">
+            <!-- Recherche commentaires -->
+            <div class="comment-search">
+              <div class="search-input-wrapper">
+                <i class="pi pi-search search-icon"></i>
+                <input
+                  v-model="commentSearch"
+                  type="text"
+                  placeholder="Rechercher dans les commentaires..."
+                  class="search-input"
+                />
+                <button 
+                  v-if="commentSearch"
+                  @click="commentSearch = ''"
+                  class="clear-search"
+                >
+                  <i class="pi pi-times"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Tri commentaires -->
+            <div class="comment-sort-tabs">
+              <button 
+                v-for="option in commentSortOptions" 
+                :key="option.value"
+                @click="commentSort = option.value"
+                :class="['sort-tab', { active: commentSort === option.value }]"
+              >
+                <i :class="option.icon"></i>
+                {{ option.label }}
+              </button>
+            </div>
           </div>
         </header>
 
@@ -289,7 +317,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, provide } from 'vue'
+import { ref, computed, onMounted, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
@@ -318,6 +346,15 @@ const commentTree = ref([])
 const collapsedComments = ref(new Set()) // IDs des commentaires pliés
 const replyForms = ref(new Set()) // IDs des formulaires de réponse ouverts
 const replyContents = ref({}) // Contenu des formulaires de réponse
+const commentSearch = ref('')
+const commentSort = ref('top')
+
+const commentSortOptions = [
+  { value: 'top', label: 'Populaires', icon: 'pi pi-star' },
+  { value: 'new', label: 'Récents', icon: 'pi pi-clock' },
+  { value: 'old', label: 'Anciens', icon: 'pi pi-history' },
+  { value: 'controversial', label: 'Controversés', icon: 'pi pi-exclamation-triangle' }
+]
 
 // États pour le carrousel d'images
 const currentImageIndex = ref(0)
@@ -351,12 +388,45 @@ const goToImage = (index) => {
 }
 
 // Fonction pour transformer les commentaires plats en arbre hiérarchique
+// Fonction pour transformer les commentaires plats en arbre hiérarchique avec filtres
 const buildCommentTree = (flatComments) => {
+  let filteredComments = [...flatComments]
+  
+  // === FILTRE PAR RECHERCHE ===
+  if (commentSearch.value.trim()) {
+    const query = commentSearch.value.toLowerCase()
+    filteredComments = filteredComments.filter(comment =>
+      comment.content.toLowerCase().includes(query) ||
+      comment.author.toLowerCase().includes(query)
+    )
+  }
+  
+  // === TRI DES COMMENTAIRES ===
+  switch (commentSort.value) {
+    case 'top':
+      filteredComments.sort((a, b) => (b.score || 0) - (a.score || 0))
+      break
+    case 'new':
+      filteredComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      break
+    case 'old':
+      filteredComments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      break
+    case 'controversial':
+      // Algorithme controversé : posts avec beaucoup de votes mais score faible
+      filteredComments.sort((a, b) => {
+        const aControversy = Math.abs(a.score || 0) + (a.totalVotes || 0)
+        const bControversy = Math.abs(b.score || 0) + (b.totalVotes || 0)
+        return bControversy - aControversy
+      })
+      break
+  }
+  
   const commentMap = new Map()
   const tree = []
   
   // 1. Créer une map de tous les commentaires avec leurs enfants
-  flatComments.forEach(comment => {
+  filteredComments.forEach(comment => {
     commentMap.set(comment.id, {
       ...comment,
       children: [],
@@ -365,7 +435,7 @@ const buildCommentTree = (flatComments) => {
   })
   
   // 2. Organiser la hiérarchie
-  flatComments.forEach(comment => {
+  filteredComments.forEach(comment => {
     const commentWithChildren = commentMap.get(comment.id)
     
     if (comment.parentId) {
@@ -711,6 +781,9 @@ const submitComment = async () => {
     loadingComment.value = false
   }
 }
+watch([commentSearch, commentSort], () => {
+  updateCommentTree()
+})
 
 onMounted(fetchPost)
 </script>
@@ -1170,9 +1243,9 @@ onMounted(fetchPost)
 }
 
 .comments-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.5rem;
   padding: 2rem;
   background: var(--surface-100);
   border-bottom: 1px solid var(--surface-200);
@@ -1191,6 +1264,98 @@ onMounted(fetchPost)
 .comments-count {
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+/* === FILTRES COMMENTAIRES === */
+
+.comments-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.comment-search {
+  flex: 1;
+  min-width: 250px;
+}
+
+.comment-search .search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.comment-search .search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--text-secondary);
+  z-index: 1;
+}
+
+.comment-search .search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border: 2px solid var(--surface-300);
+  border-radius: var(--border-radius);
+  font-size: 0.875rem;
+  transition: border-color var(--transition-fast);
+}
+
+.comment-search .search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.1);
+}
+
+.comment-search .clear-search {
+  position: absolute;
+  right: 0.375rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.375rem;
+  border-radius: var(--border-radius-small);
+  transition: background var(--transition-fast);
+}
+
+.comment-search .clear-search:hover {
+  background: var(--surface-200);
+}
+
+.comment-sort-tabs {
+  display: flex;
+  background: var(--surface-200);
+  border-radius: var(--border-radius);
+  padding: 0.25rem;
+}
+
+.comment-sort-tabs .sort-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-small);
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+.comment-sort-tabs .sort-tab:hover {
+  background: var(--surface-300);
+  color: var(--text-primary);
+}
+
+.comment-sort-tabs .sort-tab.active {
+  background: white;
+  color: var(--primary);
+  box-shadow: var(--shadow-small);
 }
 
 .sort-select {
@@ -1376,7 +1541,7 @@ onMounted(fetchPost)
   }
 }
 
-/* Responsive carrousel */
+/* Responsive pour les contrôles commentaires */
 @media (max-width: 768px) {
   .post-page {
     padding: 1rem 0.5rem;
@@ -1419,6 +1584,24 @@ onMounted(fetchPost)
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
+  }
+  
+  .comments-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .comment-search {
+    min-width: auto;
+  }
+  
+  .comment-sort-tabs {
+    justify-content: center;
+  }
+  
+  .comment-sort-tabs .sort-tab {
+    flex: 1;
+    justify-content: center;
   }
   
   .add-comment-form {

@@ -103,20 +103,6 @@
             </div>
           </template>
 
-          <!-- Messages -->
-          <div class="action-item">
-            <Button 
-              icon="pi pi-envelope" 
-              class="action-button"
-              :class="{ 'has-badge': unreadMessages > 0 }"
-              @click="openMessages"
-              v-tooltip.bottom="'Messages'"
-            />
-            <span v-if="unreadMessages > 0" class="notification-badge">
-              {{ unreadMessages }}
-            </span>
-          </div>
-
           <!-- Profil / Connexion -->
           <template v-if="authStore.isAuthenticated">
             <!-- Section profil avec avatar + pseudo -->
