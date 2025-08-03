@@ -8,6 +8,8 @@ use App\Repository\RoleRequestRepository;
 use App\Repository\AddressRepository;
 use App\Service\AddressService;
 use App\Entity\Shop;
+use App\Entity\Post;
+use App\Entity\Comment;
 use App\Entity\Address;
 use App\Service\FileUploadService;
 use App\Service\ShopVerificationService; 
@@ -39,6 +41,13 @@ class ProfileController extends AbstractController
     {
         /** @var User $user */
         $user = $this->getUser();
+
+            // 🆕 Calculer les statistiques des topics
+        $postRepository = $this->entityManager->getRepository(Post::class);
+        $commentRepository = $this->entityManager->getRepository(Comment::class);
+
+        $topicsCreated = $postRepository->countTopicsCreatedByUser($user);
+        $topicsParticipated = $commentRepository->countTopicsParticipatedByUser($user);
         
         // Récupérer les demandes de rôle de l'utilisateur
         $roleRequests = $this->roleRequestRepository->findNonRejectedByUser($user);
@@ -72,6 +81,10 @@ class ProfileController extends AbstractController
             'roles' => $user->getRoles(),
             'isVerified' => $user->isVerified(),
             'selectedGames' => $user->getSelectedGames(),
+            'stats' => [
+                'topicsCreated' => $topicsCreated,
+                'topicsParticipated' => $topicsParticipated
+            ],
             'address' => $userAddress,
             'createdAt' => $user->getCreatedAt()?->format('c'),
             'lastLoginAt' => $user->getLastLoginAt()?->format('c'),
@@ -624,6 +637,69 @@ public function updateShop(Request $request, EntityManagerInterface $em): JsonRe
         } catch (\Exception $e) {
             return $this->json(['error' => $e->getMessage()], 400);
         }
+    }
+
+    #[Route('/api/profile/posts', name: 'api_profile_posts', methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
+    public function getUserPosts(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        // Paramètres de pagination
+        $page = max(1, (int) $request->query->get('page', 1));
+        $limit = min(50, max(1, (int) $request->query->get('limit', 10)));
+        $offset = ($page - 1) * $limit;
+        
+        // Récupérer les posts de l'utilisateur avec pagination
+        $postRepository = $this->entityManager->getRepository(Post::class);
+        $posts = $postRepository->findByUserWithPagination($user, $limit, $offset);
+        $totalPosts = $postRepository->countByUser($user);
+        
+        // Sérialiser les posts
+        $postsData = array_map(function (Post $post) {
+            // Compter les commentaires
+            $commentRepository = $this->entityManager->getRepository(Comment::class);
+            $commentsCount = $commentRepository->createQueryBuilder('c')
+                ->select('COUNT(c.id)')
+                ->where('c.post = :post')
+                ->andWhere('c.isDeleted = false')
+                ->setParameter('post', $post)
+                ->getQuery()
+                ->getSingleScalarResult();
+
+            return [
+                'id' => $post->getId(),
+                'title' => $post->getTitle(),
+                'slug' => $post->getSlug(),
+                'content' => substr($post->getContent(), 0, 200) . (strlen($post->getContent()) > 200 ? '...' : ''),
+                'score' => $post->getScore(),
+                'commentsCount' => (int) $commentsCount,
+                'postType' => $post->getPostType(),
+                'tags' => $post->getTags(),
+                'createdAt' => $post->getCreatedAt()->format('c'),
+                'updatedAt' => $post->getUpdatedAt()?->format('c'),
+                'isPinned' => $post->isPinned(),
+                'isLocked' => $post->isLocked(),
+                'forum' => [
+                    'id' => $post->getForum()->getId(),
+                    'name' => $post->getForum()->getName(),
+                    'slug' => $post->getForum()->getSlug()
+                ]
+            ];
+        }, $posts);
+        
+        return $this->json([
+            'posts' => $postsData,
+            'pagination' => [
+                'currentPage' => $page,
+                'totalPages' => ceil($totalPosts / $limit),
+                'totalPosts' => $totalPosts,
+                'postsPerPage' => $limit,
+                'hasNextPage' => ($page * $limit) < $totalPosts,
+                'hasPrevPage' => $page > 1
+            ]
+        ]);
     }
 
 }

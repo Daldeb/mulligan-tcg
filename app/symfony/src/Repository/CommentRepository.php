@@ -47,4 +47,18 @@ class CommentRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * Compte le nombre de topics distincts auxquels un utilisateur a participé (via commentaires)
+     */
+    public function countTopicsParticipatedByUser($user): int
+    {
+        return $this->createQueryBuilder('c')
+            ->select('COUNT(DISTINCT c.post)')
+            ->where('c.author = :user')
+            ->andWhere('c.isDeleted = false')
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

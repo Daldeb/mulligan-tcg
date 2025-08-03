@@ -1126,7 +1126,7 @@
   </template>
 </Card>
           
-          <!-- Widget Mes Topics -->
+          <!-- Widget Mes Topics avec liste expandable -->
           <Card class="sidebar-card topics-card slide-in-down">
             <template #header>
               <div class="card-header-custom topics-header">
@@ -1148,11 +1148,79 @@
                 </div>
                 
                 <Button 
-                  label="Voir tous mes topics"
-                  icon="pi pi-external-link"
+                  :label="showPostsList ? 'Masquer mes posts' : 'Voir tous mes topics'"
+                  :icon="showPostsList ? 'pi pi-chevron-up' : 'pi pi-external-link'"
                   class="emerald-outline-btn small"
                   @click="goToMyTopics"
                 />
+              </div>
+              
+              <!-- Liste expandable des posts -->
+              <div v-if="showPostsList" class="posts-list-container">
+                <!-- Loading state -->
+                <div v-if="isLoadingPosts" class="posts-loading">
+                  <i class="pi pi-spin pi-spinner"></i>
+                  <span>Chargement de vos posts...</span>
+                </div>
+                
+                <!-- Posts list -->
+                <div v-else-if="userPosts.length > 0" class="user-posts-list">
+                  <div 
+                    v-for="post in userPosts" 
+                    :key="post.id"
+                    class="user-post-item"
+                    @click="goToPost(post)"
+                  >
+                    <div class="post-header">
+                      <h4 class="post-title">{{ post.title }}</h4>
+                      <span class="post-type-badge" :class="`type-${post.postType}`">
+                        <i :class="getPostTypeIcon(post.postType)"></i>
+                      </span>
+                    </div>
+                    
+                    <div class="post-meta">
+                      <span class="post-forum">{{ post.forum.name }}</span>
+                      <span class="post-date">{{ formatPostDate(post.createdAt) }}</span>
+                    </div>
+                    
+                    <div class="post-stats">
+                      <span class="post-score">
+                        <i class="pi pi-heart"></i>
+                        {{ post.score }}
+                      </span>
+                      <span class="post-comments">
+                        <i class="pi pi-comment"></i>
+                        {{ post.commentsCount }}
+                      </span>
+                    </div>
+                    
+                    <div v-if="post.tags && post.tags.length" class="post-tags">
+                      <span v-for="tag in post.tags.slice(0, 3)" :key="tag" class="post-tag">
+                        #{{ tag }}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <!-- Pagination -->
+                  <div v-if="postsPagination.hasNextPage" class="posts-pagination">
+                    <Button 
+                      label="Charger plus"
+                      icon="pi pi-chevron-down"
+                      class="emerald-outline-btn small"
+                      @click="loadMorePosts"
+                      :loading="isLoadingPosts"
+                    />
+                    <small class="pagination-info">
+                      {{ userPosts.length }} sur {{ postsPagination.totalPosts }} posts
+                    </small>
+                  </div>
+                </div>
+                
+                <!-- Empty state -->
+                <div v-else class="no-posts">
+                  <i class="pi pi-inbox"></i>
+                  <p>Vous n'avez encore créé aucun post</p>
+                </div>
               </div>
             </template>
           </Card>
@@ -1485,6 +1553,20 @@ import Checkbox from 'primevue/checkbox'
 const authStore = useAuthStore()
 const router = useRouter()
 const toast = useToast()
+
+
+const userPosts = ref([])
+const isLoadingPosts = ref(false)
+const showPostsList = ref(false)
+const postsPagination = ref({
+  currentPage: 1,
+  totalPages: 0,
+  totalPosts: 0,
+  postsPerPage: 10,
+  hasNextPage: false,
+  hasPrevPage: false
+})
+
 
 // State
 const editMode = ref(false)
@@ -2586,8 +2668,69 @@ const contactUser = (email) => {
   window.location.href = `mailto:${email}?subject=Concernant votre demande de rôle sur MULLIGAN TCG`
 }
 
-const goToMyTopics = () => {
-  router.push('/my-topics')
+const goToMyTopics = async () => {
+  if (showPostsList.value) {
+    showPostsList.value = false
+    return
+  }
+  
+  showPostsList.value = true
+  await loadUserPosts(1)
+}
+
+// 🆕 Méthodes pour gérer les posts utilisateur
+const loadUserPosts = async (page = 1) => {
+  isLoadingPosts.value = true
+  
+  try {
+    const response = await api.get('/api/profile/posts', {
+      params: {
+        page: page,
+        limit: 10
+      }
+    })
+    
+    userPosts.value = response.data.posts
+    postsPagination.value = response.data.pagination
+    
+  } catch (error) {
+    console.error('Erreur chargement posts utilisateur:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible de charger vos posts',
+      life: 3000
+    })
+  } finally {
+    isLoadingPosts.value = false
+  }
+}
+
+const loadMorePosts = async () => {
+  if (postsPagination.value.hasNextPage && !isLoadingPosts.value) {
+    await loadUserPosts(postsPagination.value.currentPage + 1)
+  }
+}
+
+const goToPost = (post) => {
+  router.push(`/forums/${post.forum.slug}/posts/${post.id}`)
+}
+
+const formatPostDate = (dateString) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  })
+}
+
+const getPostTypeIcon = (type) => {
+  switch (type) {
+    case 'link': return 'pi pi-link'
+    case 'image': return 'pi pi-image'
+    default: return 'pi pi-align-left'
+  }
 }
 
 const createEvent = () => {
@@ -4446,6 +4589,265 @@ onMounted(async () => {
   
   .color-text-input {
     max-width: none;
+  }
+}
+
+/* === LISTE DES POSTS UTILISATEUR === */
+.posts-list-container {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--surface-200);
+  animation: slideDown 0.3s ease-out;
+}
+
+.posts-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.posts-loading .pi-spinner {
+  font-size: 1.25rem;
+  color: var(--primary);
+}
+
+.user-posts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.user-post-item {
+  background: var(--surface-100);
+  border: 1px solid var(--surface-200);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.user-post-item:hover {
+  background: white;
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-small);
+}
+
+.post-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.post-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin: 0;
+  flex: 1;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.post-type-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.post-type-badge.type-text {
+  background: rgba(38, 166, 154, 0.1);
+  color: var(--primary);
+}
+
+.post-type-badge.type-link {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.post-type-badge.type-image {
+  background: rgba(236, 72, 153, 0.1);
+  color: #ec4899;
+}
+
+.post-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.post-forum {
+  color: var(--primary);
+  font-weight: 600;
+  background: rgba(38, 166, 154, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+
+.post-date {
+  color: var(--text-secondary);
+}
+
+.post-stats {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.post-score,
+.post-comments {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.post-score .pi {
+  color: #ef4444;
+}
+
+.post-comments .pi {
+  color: var(--primary);
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.post-tag {
+  background: var(--surface-200);
+  color: var(--text-secondary);
+  padding: 0.125rem 0.375rem;
+  border-radius: 8px;
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+.posts-pagination {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--surface-200);
+  margin-top: 0.75rem;
+}
+
+.pagination-info {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.no-posts {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.no-posts .pi {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+  opacity: 0.5;
+}
+
+.no-posts p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* Scrollbar personnalisée pour la liste des posts */
+.user-posts-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.user-posts-list::-webkit-scrollbar-track {
+  background: var(--surface-200);
+  border-radius: 2px;
+}
+
+.user-posts-list::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 2px;
+}
+
+.user-posts-list::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-dark);
+}
+
+/* Animation pour l'apparition de la liste */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive pour les posts utilisateur */
+@media (max-width: 768px) {
+  .posts-list-container {
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+  
+  .user-posts-list {
+    max-height: 300px;
+  }
+  
+  .user-post-item {
+    padding: 0.75rem;
+  }
+  
+  .post-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .post-type-badge {
+    align-self: flex-end;
+  }
+  
+  .post-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  
+  .post-stats {
+    gap: 0.75rem;
+  }
+  
+  .post-tags {
+    gap: 0.25rem;
   }
 }
 

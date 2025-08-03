@@ -54,4 +54,45 @@ class PostRepository extends ServiceEntityRepository
 
         return $qb->getQuery()->getResult();
     }
+
+    /**
+     * Récupère les posts d'un utilisateur avec pagination
+     */
+    public function findByUserWithPagination($user, int $limit = 10, int $offset = 0): array
+    {
+        return $this->createQueryBuilder('p')
+            ->where('p.author = :user')
+            ->setParameter('user', $user)
+            ->orderBy('p.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->setFirstResult($offset)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Compte le nombre total de posts d'un utilisateur
+     */
+    public function countByUser($user): int
+    {
+        return $this->createQueryBuilder('p')
+            ->select('COUNT(p.id)')
+            ->where('p.author = :user')
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * Compte le nombre de topics créés par un utilisateur
+     */
+    public function countTopicsCreatedByUser($user): int
+    {
+        return $this->createQueryBuilder('p')
+            ->select('COUNT(p.id)')
+            ->where('p.author = :user')
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }
