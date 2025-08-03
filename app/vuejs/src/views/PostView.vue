@@ -95,32 +95,56 @@
           <!-- Main content -->
           <div class="content-body" v-html="renderMarkdown(post.content)"></div>
 
-          <!-- Attachments -->
-          <div v-if="post.attachments && post.attachments.length" class="post-attachments">
-            <h4 class="attachments-title">
-              <i class="pi pi-paperclip"></i>
-              Fichiers joints
-            </h4>
-            <div class="attachments-grid">
-              <div v-for="attachment in post.attachments" :key="attachment.filename" class="attachment-item">
-                <div v-if="attachment.type === 'image'" class="image-attachment">
-                  <img :src="attachment.url" :alt="attachment.originalName" @click="openImageModal(attachment)" />
-                  <div class="image-overlay">
-                    <i class="pi pi-search-plus"></i>
-                  </div>
+          <!-- Carrousel d'images -->
+          <div v-if="imageAttachments.length" class="image-carousel">
+            <div class="carousel-container">
+              <div class="carousel-track" :style="{ transform: `translateX(-${currentImageIndex * 100}%)` }">
+                <div 
+                  v-for="(image, index) in imageAttachments" 
+                  :key="index" 
+                  class="carousel-slide"
+                >
+                  <img 
+                    :src="image.url" 
+                    :alt="image.originalName" 
+                    @click="openImageModal(image)"
+                    class="carousel-image"
+                  />
                 </div>
-                <div v-else class="file-attachment">
-                  <div class="file-icon">
-                    <i class="pi pi-file"></i>
-                  </div>
-                  <div class="file-info">
-                    <span class="file-name">{{ attachment.originalName }}</span>
-                    <span class="file-size">{{ formatFileSize(attachment.size) }}</span>
-                  </div>
-                  <a :href="attachment.url" download class="file-download">
-                    <i class="pi pi-download"></i>
-                  </a>
-                </div>
+              </div>
+
+              <!-- Boutons de navigation (si plus d'une image) -->
+              <div v-if="imageAttachments.length > 1" class="carousel-navigation">
+                <button 
+                  @click="previousImage" 
+                  class="carousel-btn carousel-btn-prev"
+                  :disabled="currentImageIndex === 0"
+                >
+                  <i class="pi pi-chevron-left"></i>
+                </button>
+                <button 
+                  @click="nextImage" 
+                  class="carousel-btn carousel-btn-next"
+                  :disabled="currentImageIndex === imageAttachments.length - 1"
+                >
+                  <i class="pi pi-chevron-right"></i>
+                </button>
+              </div>
+
+              <!-- Indicateurs de pagination (points) -->
+              <div v-if="imageAttachments.length > 1" class="carousel-dots">
+                <button
+                  v-for="(image, index) in imageAttachments"
+                  :key="index"
+                  @click="goToImage(index)"
+                  :class="['carousel-dot', { active: currentImageIndex === index }]"
+                  :aria-label="`Image ${index + 1} sur ${imageAttachments.length}`"
+                ></button>
+              </div>
+
+              <!-- Compteur d'images -->
+              <div v-if="imageAttachments.length > 1" class="image-counter">
+                {{ currentImageIndex + 1 }} / {{ imageAttachments.length }}
               </div>
             </div>
           </div>
@@ -265,7 +289,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, provide } from 'vue'
+import { ref, computed, onMounted, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
@@ -294,6 +318,37 @@ const commentTree = ref([])
 const collapsedComments = ref(new Set()) // IDs des commentaires pliés
 const replyForms = ref(new Set()) // IDs des formulaires de réponse ouverts
 const replyContents = ref({}) // Contenu des formulaires de réponse
+
+// États pour le carrousel d'images
+const currentImageIndex = ref(0)
+
+// Computed pour extraire uniquement les images
+  const imageAttachments = computed(() => {
+    if (!post.value.attachments) return []
+    return post.value.attachments
+      .filter(attachment => attachment.type === 'image')
+      .map(attachment => ({
+        ...attachment,
+        url: `${import.meta.env.VITE_BACKEND_URL}${attachment.url}`
+      }))
+  })
+
+// Fonctions du carrousel
+const nextImage = () => {
+  if (currentImageIndex.value < imageAttachments.value.length - 1) {
+    currentImageIndex.value++
+  }
+}
+
+const previousImage = () => {
+  if (currentImageIndex.value > 0) {
+    currentImageIndex.value--
+  }
+}
+
+const goToImage = (index) => {
+  currentImageIndex.value = index
+}
 
 // Fonction pour transformer les commentaires plats en arbre hiérarchique
 const buildCommentTree = (flatComments) => {
@@ -369,28 +424,17 @@ provide('getReplyContent', (id) => replyContents.value[id] || '')
 
 // Fonction pour mettre à jour le contenu d'une réponse
 const updateReplyContent = (commentId, content) => {
-  // DEBUG: Voir ce qu'on reçoit
-  // console.log('updateReplyContent called with:', commentId, content)
-  // console.log('Type de content reçu:', typeof content)
-  
   // S'assurer qu'on stocke une string propre
   if (typeof content === 'string') {
     replyContents.value[commentId] = content
   } else {
-    // console.warn('Content n\'est pas un string:', content)
     replyContents.value[commentId] = String(content || '')
   }
-  
-  // console.log('replyContents après update:', replyContents.value[commentId])
 }
 
 // Fonction pour soumettre une réponse
 const submitReply = async (parentCommentId) => {
   const content = replyContents.value[parentCommentId]
-  
-  // DEBUG: Voir ce qu'on récupère
-  // console.log('Content récupéré:', content)
-  // console.log('Type de content:', typeof content)
   
   // Filtrer et nettoyer le contenu
   let textContent = ''
@@ -407,8 +451,6 @@ const submitReply = async (parentCommentId) => {
   
   // Nettoyer le contenu des artifacts de Vue
   textContent = textContent.replace(/\$event[^,]*,/g, '').replace(/\[object Object\]/g, '').trim()
-  
-  // console.log('Text content final:', textContent)
   
   if (!textContent || !textContent.trim()) {
     showToastMessage('Le commentaire ne peut pas être vide ❌')
@@ -429,7 +471,6 @@ const submitReply = async (parentCommentId) => {
     
     showToastMessage('Réponse publiée ! 💬')
   } catch (error) {
-    // console.error('Erreur ajout réponse:', error)
     showToastMessage('Erreur lors de la publication ❌')
   }
 }
@@ -444,7 +485,6 @@ const voteOnPost = async (post, voteType) => {
     post.userVote = response.data.userVote
     
   } catch (error) {
-    // console.error('Erreur vote:', error)
     showToastMessage('Erreur lors du vote ❌')
   }
 }
@@ -622,7 +662,7 @@ const formatFileSize = (bytes) => {
 }
 
 const openImageModal = (attachment) => {
-  // Implémenter modal d'image
+  // Ouvrir l'image en grand
   window.open(attachment.url, '_blank')
 }
 
@@ -634,6 +674,10 @@ const fetchPost = async () => {
     const res = await api.get(`/api/posts/${postId}`)
     post.value = res.data
     comments.value = res.data.comments || []
+    
+    // Reset l'index du carrousel quand on charge un nouveau post
+    currentImageIndex.value = 0
+    
     updateCommentTree()
   } catch (err) {
     console.error('Erreur chargement post:', err)
@@ -938,106 +982,128 @@ onMounted(fetchPost)
   border-radius: 0 var(--border-radius) var(--border-radius) 0;
 }
 
-/* Attachments */
-.post-attachments {
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--surface-200);
+/* Carrousel d'images Reddit-style */
+.image-carousel {
+  margin-top: 1.5rem;
 }
 
-.attachments-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.attachments-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.image-attachment {
+.carousel-container {
   position: relative;
-  aspect-ratio: 16/9;
+  background: #000;
   border-radius: var(--border-radius);
   overflow: hidden;
-  cursor: pointer;
+  aspect-ratio: 16/9;
+  max-height: 500px;
 }
 
-.image-attachment img {
-  width: 100%;
+.carousel-track {
+  display: flex;
   height: 100%;
-  object-fit: cover;
+  transition: transform 0.3s ease-in-out;
 }
 
-.image-overlay {
+.carousel-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.carousel-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.carousel-image:hover {
+  transform: scale(1.02);
+}
+
+.carousel-navigation {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: white;
-  opacity: 0;
-  transition: opacity var(--transition-fast);
+  justify-content: space-between;
+  pointer-events: none;
 }
 
-.image-attachment:hover .image-overlay {
-  opacity: 1;
-}
-
-.file-attachment {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--surface-100);
-  border-radius: var(--border-radius);
-}
-
-.file-icon {
+.carousel-btn {
   width: 40px;
   height: 40px;
-  background: var(--primary-light);
+  background: rgba(0, 0, 0, 0.7);
   color: white;
-  border-radius: var(--border-radius);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 1rem;
+  transition: all var(--transition-fast);
+  pointer-events: auto;
+  margin: 0 1rem;
 }
 
-.file-info {
-  flex: 1;
+.carousel-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.1);
 }
 
-.file-name {
-  display: block;
-  font-weight: 500;
-  color: var(--text-primary);
+.carousel-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
 }
 
-.file-size {
+.carousel-dots {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.carousel-dot:hover {
+  background: rgba(255, 255, 255, 0.8);
+  transform: scale(1.2);
+}
+
+.carousel-dot.active {
+  background: white;
+  transform: scale(1.3);
+}
+
+.image-counter {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
   font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
-.file-download {
-  padding: 0.5rem;
-  color: var(--primary);
-  text-decoration: none;
-  border-radius: var(--border-radius-small);
-  transition: background var(--transition-fast);
-}
-
-.file-download:hover {
-  background: var(--surface-200);
+  font-weight: 500;
 }
 
 /* Post Actions */
@@ -1310,7 +1376,7 @@ onMounted(fetchPost)
   }
 }
 
-/* Responsive Design */
+/* Responsive carrousel */
 @media (max-width: 768px) {
   .post-page {
     padding: 1rem 0.5rem;
@@ -1382,13 +1448,31 @@ onMounted(fetchPost)
     padding: 1.5rem;
   }
   
-  .attachments-grid {
-    grid-template-columns: 1fr;
-  }
-  
   .action-btn {
     font-size: 0.875rem;
     padding: 0.5rem 0.75rem;
+  }
+  
+  .carousel-container {
+    aspect-ratio: 4/3;
+    max-height: 400px;
+  }
+  
+  .carousel-btn {
+    width: 36px;
+    height: 36px;
+    margin: 0 0.5rem;
+  }
+  
+  .carousel-dots {
+    bottom: 0.5rem;
+    padding: 0.375rem 0.75rem;
+  }
+  
+  .image-counter {
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.75rem;
   }
 }
 
@@ -1400,6 +1484,11 @@ onMounted(fetchPost)
   .post-badges {
     flex-direction: column;
     align-items: flex-start;
+  }
+  
+  .carousel-container {
+    aspect-ratio: 1;
+    max-height: 300px;
   }
 }
 </style>
