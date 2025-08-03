@@ -1,181 +1,107 @@
 <template>
   <div class="home-page">
-    <!-- Breadcrumbs (seulement en mode carte) -->
-    <nav v-if="viewMode === 'map'" class="home-breadcrumb">
-      <button @click="showHomeView" class="breadcrumb-link">
-        <i class="pi pi-home"></i>
-        Page d'accueil
-      </button>
-      <i class="pi pi-chevron-right breadcrumb-separator"></i>
-      <span class="breadcrumb-current">Carte des boutiques</span>
-    </nav>
-
     <div class="container">
       <div class="main-grid">
         
         <!-- Contenu principal (3/4) -->
         <div class="main-content">
           
-          <!-- Mode Accueil normal -->
-          <template v-if="viewMode === 'home'">
-            <!-- Section Derniers Tournois -->
-            <section class="content-section slide-in-up">
-              <Card class="gaming-card tournament-card">
-                <template #content>
-                  <div class="section-content tournaments">
-                    <div class="section-header">
-                      <i class="pi pi-trophy section-icon"></i>
-                      <h2 class="section-title">DERNIERS TOURNOIS</h2>
+          <!-- Section Derniers Tournois -->
+          <section class="content-section slide-in-up">
+            <Card class="gaming-card tournament-card">
+              <template #content>
+                <div class="section-content tournaments">
+                  <div class="section-header">
+                    <i class="pi pi-trophy section-icon"></i>
+                    <h2 class="section-title">DERNIERS TOURNOIS</h2>
+                  </div>
+                  <div class="placeholder-content">
+                    <div class="placeholder-text">
+                      Tournois récemment terminés
                     </div>
-                    <div class="placeholder-content">
-                      <div class="placeholder-text">
-                        Tournois récemment terminés
+                    <Button 
+                      label="Voir tous les résultats"
+                      icon="pi pi-external-link"
+                      class="emerald-outline-btn"
+                    />
+                  </div>
+                </div>
+              </template>
+            </Card>
+          </section>
+
+          <!-- Section Tournois à Venir -->
+          <section class="content-section slide-in-up">
+            <Card class="gaming-card upcoming-card">
+              <template #content>
+                <div class="section-content upcoming">
+                  <div class="section-header">
+                    <i class="pi pi-calendar section-icon"></i>
+                    <h2 class="section-title">TOURNOIS À VENIR</h2>
+                  </div>
+                  <div class="placeholder-content">
+                    <div class="upcoming-info">
+                      <div class="next-tournament">
+                        <span class="tournament-date">Prochain tournoi dans</span>
+                        <span class="countdown">3 jours</span>
                       </div>
-                      <Button 
-                        label="Voir tous les résultats"
-                        icon="pi pi-external-link"
-                        class="emerald-outline-btn"
-                      />
+                    <Button 
+                      label="Voir tous les résultats"
+                      icon="pi pi-external-link"
+                      class="emerald-outline-btn"
+                    />
                     </div>
                   </div>
-                </template>
-              </Card>
-            </section>
+                </div>
+              </template>
+            </Card>
+          </section>
 
-            <!-- Section Tournois à Venir -->
-            <section class="content-section slide-in-up">
-              <Card class="gaming-card upcoming-card">
-                <template #content>
-                  <div class="section-content upcoming">
-                    <div class="section-header">
-                      <i class="pi pi-calendar section-icon"></i>
-                      <h2 class="section-title">TOURNOIS À VENIR</h2>
-                    </div>
-                    <div class="placeholder-content">
-                      <div class="upcoming-info">
-                        <div class="next-tournament">
-                          <span class="tournament-date">Prochain tournoi dans</span>
-                          <span class="countdown">3 jours</span>
-                        </div>
-                      <Button 
-                        label="Voir tous les résultats"
-                        icon="pi pi-external-link"
-                        class="emerald-outline-btn"
-                      />
-                      </div>
-                    </div>
-                  </div>
-                </template>
-              </Card>
-            </section>
-
-            <!-- Section Meilleurs Decks -->
-            <section class="content-section slide-in-up">
-              <div class="section-header standalone">
-                <i class="pi pi-clone section-icon"></i>
-                <h2 class="section-title">MEILLEURS DECKS</h2>
-              </div>
-              
-              <div class="decks-grid">
-                <Card 
-                  v-for="(deck, index) in topDecks" 
-                  :key="index" 
-                  class="deck-card gaming-card hover-lift"
-                >
-                  <template #content>
-                    <div class="deck-content">
-                      <div class="deck-image">
-                        <div class="deck-placeholder">
-                          <i class="pi pi-clone deck-icon"></i>
-                        </div>
-                        <div class="deck-rank">#{{ index + 1 }}</div>
-                      </div>
-                      <div class="deck-info">
-                        <h3 class="deck-name">{{ deck.name }}</h3>
-                        <div class="deck-stats">
-                          <span class="win-rate">{{ deck.winRate }}% WR</span>
-                          <span class="games-played">{{ deck.games }} parties</span>
-                        </div>
-                      </div>
-                    </div>
-                  </template>
-                </Card>
-              </div>
-            </section>
-          </template>
-
-          <!-- Mode Carte -->
-          <template v-else-if="viewMode === 'map'">
-            <div class="map-section slide-in-up">
-              <ShopMap />
+          <!-- Section Meilleurs Decks -->
+          <section class="content-section slide-in-up">
+            <div class="section-header standalone">
+              <i class="pi pi-clone section-icon"></i>
+              <h2 class="section-title">MEILLEURS DECKS</h2>
             </div>
             
-            <!-- Widgets sous la carte en mode map -->
-            <div class="under-map-widgets">
-              <!-- Widget Favoris -->
-              <Card class="sidebar-card favorites-card slide-in-down">
+            <div class="decks-grid">
+              <Card 
+                v-for="(deck, index) in topDecks" 
+                :key="index" 
+                class="deck-card gaming-card hover-lift"
+              >
                 <template #content>
-                  <div class="sidebar-content-inner">
-                    <div class="empty-state">
-                      <i class="pi pi-heart empty-icon"></i>
-                      <h4 class="empty-title">Vos favoris</h4>
-                      <p class="empty-description">
-                        Aucun favori pour le moment
-                      </p>
-                      <Button 
-                        label="Explorer"
-                        icon="pi pi-search"
-                        class="emerald-outline-btn small"
-                      />
+                  <div class="deck-content">
+                    <div class="deck-image">
+                      <div class="deck-placeholder">
+                        <i class="pi pi-clone deck-icon"></i>
+                      </div>
+                      <div class="deck-rank">#{{ index + 1 }}</div>
                     </div>
-                  </div>
-                </template>
-              </Card>
-
-              <!-- Widget Stats utilisateur -->
-              <Card class="sidebar-card stats-card slide-in-down">
-                <template #content>
-                  <div class="sidebar-content-inner">
-                    <div class="user-stats">
-                      <h4 class="stats-title">Vos statistiques</h4>
-                      <div class="stats-grid">
-                        <div class="stat-item">
-                          <span class="stat-value">0</span>
-                          <span class="stat-label">Victoires</span>
-                        </div>
-                        <div class="stat-item">
-                          <span class="stat-value">0</span>
-                          <span class="stat-label">Decks</span>
-                        </div>
-                        <div class="stat-item">
-                          <span class="stat-value">0</span>
-                          <span class="stat-label">Cartes</span>
-                        </div>
-                        <div class="stat-item">
-                          <span class="stat-value">0</span>
-                          <span class="stat-label">Tournois</span>
-                        </div>
+                    <div class="deck-info">
+                      <h3 class="deck-name">{{ deck.name }}</h3>
+                      <div class="deck-stats">
+                        <span class="win-rate">{{ deck.winRate }}% WR</span>
+                        <span class="games-played">{{ deck.games }} parties</span>
                       </div>
                     </div>
                   </div>
                 </template>
               </Card>
             </div>
-          </template>
+          </section>
         </div>
 
-        <!-- Sidebar droite (1/4) - TOUJOURS VISIBLE -->
+        <!-- Sidebar droite (1/4) -->
         <aside class="sidebar">
           <div class="sidebar-content">
             
             <!-- Widget Accéder à la carte -->
             <Card class="sidebar-card map-card slide-in-down">
               <template #header>
-                <div class="card-header-custom map-header" @click="viewMode === 'home' ? showMapView() : null" :class="{ clickable: viewMode === 'home' }">
+                <div class="card-header-custom map-header clickable" @click="goToMap">
                   <i class="pi pi-map-marker header-icon"></i>
-                  <h3 class="header-title">
-                    {{ viewMode === 'home' ? 'Accéder à la carte' : 'Boutiques populaires' }}
-                  </h3>
+                  <h3 class="header-title">Accéder à la carte</h3>
                 </div>
               </template>
               <template #content>
@@ -184,15 +110,13 @@
                     Les boutiques les plus populaires
                   </div>
                   
-
-                  
                   <!-- Liste des boutiques -->
                   <div class="shops-list">
                     <div 
-                      v-for="shop in (viewMode === 'map' ? popularShops : popularShops.slice(0, 5))" 
+                      v-for="shop in popularShops.slice(0, 5)" 
                       :key="shop.id"
                       class="shop-item hover-lift"
-                      @click="handleShopClick(shop)"
+                      @click="goToMap"
                     >
                       <div class="shop-avatar">
                         <i class="pi pi-shop"></i>
@@ -216,8 +140,8 @@
               </template>
             </Card>
 
-            <!-- Widget Favoris (seulement en mode home) -->
-            <Card v-if="viewMode === 'home'" class="sidebar-card favorites-card slide-in-down">
+            <!-- Widget Favoris -->
+            <Card class="sidebar-card favorites-card slide-in-down">
               <template #content>
                 <div class="sidebar-content-inner">
                   <div class="empty-state">
@@ -236,8 +160,8 @@
               </template>
             </Card>
 
-            <!-- Widget Stats utilisateur (seulement en mode home) -->
-            <Card v-if="viewMode === 'home'" class="sidebar-card stats-card slide-in-down">
+            <!-- Widget Stats utilisateur -->
+            <Card class="sidebar-card stats-card slide-in-down">
               <template #content>
                 <div class="sidebar-content-inner">
                   <div class="user-stats">
@@ -273,13 +197,13 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import ShopMap from '@/components/ShopMap.vue'
+import { useRouter } from 'vue-router'
 import api from '@/services/api'
 
-// State pour la navigation
-const viewMode = ref('home') // 'home' ou 'map'
+// Router
+const router = useRouter()
 
-// State existant
+// State
 const popularShops = ref([])
 const loadingShops = ref(false)
 
@@ -291,24 +215,16 @@ const topDecks = ref([
   { name: 'Tempo Deck', winRate: 59, games: 623 }
 ])
 
-// Navigation methods
-const showMapView = () => {
-  viewMode.value = 'map'
-  // Scroll vers le haut pour voir la carte
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-const showHomeView = () => {
-  viewMode.value = 'home'
-  // Scroll vers le haut
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+// Navigation vers la carte
+const goToMap = () => {
+  router.push({ name: 'shop-map' })
 }
 
 // Charger les vraies données des boutiques populaires
 const loadPopularShops = async () => {
   try {
     loadingShops.value = true
-    const response = await api.shops.getPopular(10) // Plus de boutiques pour le mode carte
+    const response = await api.shops.getPopular(5) // Seulement 5 pour la sidebar
     
     if (response.data.success) {
       popularShops.value = response.data.data.map(shop => ({
@@ -320,30 +236,16 @@ const loadPopularShops = async () => {
     }
   } catch (error) {
     console.error('Erreur chargement boutiques populaires:', error)
-    // Plus de données par défaut pour le mode carte
+    // Données par défaut
     popularShops.value = [
       { id: 1, name: 'Magic Store', description: 'Spécialiste cartes premium' },
       { id: 2, name: 'TCG Palace', description: 'Collection rare et vintage' },
       { id: 3, name: 'Card Kingdom', description: 'Nouveautés et exclusivités' },
       { id: 4, name: 'Deck Master', description: 'Accessoires et protection' },
-      { id: 5, name: 'Game Zone', description: 'Tournois et événements' },
-      { id: 6, name: 'Card Shop Plus', description: 'Cartes anciennes et modernes' },
-      { id: 7, name: 'TCG Arena', description: 'Compétitions hebdomadaires' },
-      { id: 8, name: 'Magic Corner', description: 'Conseil et stratégie' },
-      { id: 9, name: 'Collectible World', description: 'Univers des collectionneurs' },
-      { id: 10, name: 'Pro Gaming Store', description: 'Matériel et coaching' }
+      { id: 5, name: 'Game Zone', description: 'Tournois et événements' }
     ]
   } finally {
     loadingShops.value = false
-  }
-}
-
-// Gestion du clic sur une boutique
-const handleShopClick = (shop) => {
-  console.log('Clic sur boutique:', shop.name)
-  // TODO: Navigation vers page détail boutique ou action spécifique
-  if (viewMode.value === 'home') {
-    showMapView()
   }
 }
 
@@ -373,46 +275,6 @@ onMounted(() => {
   padding: 2rem 0;
 }
 
-/* Breadcrumbs pour la carte */
-.home-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0 auto 2rem auto;
-  max-width: 1400px;
-  padding: 0 2rem;
-}
-
-.breadcrumb-link {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: none;
-  border: none;
-  color: var(--primary);
-  text-decoration: none;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color var(--transition-fast);
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--border-radius);
-}
-
-.breadcrumb-link:hover {
-  background: var(--surface-200);
-  color: var(--primary-dark);
-}
-
-.breadcrumb-separator {
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-}
-
-.breadcrumb-current {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
 .container {
   max-width: 1400px;
   margin: 0 auto;
@@ -435,17 +297,6 @@ onMounted(() => {
 
 .content-section {
   animation: slideInUp 0.6s ease-out;
-}
-
-/* Section spéciale pour la carte */
-.map-section {
-  background: white;
-  border-radius: var(--border-radius-large);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-small);
-  min-height: 600px;
-  position: relative;
-  z-index: 1; /* Assure que la carte reste sous le header principal */
 }
 
 /* Gaming cards base */
@@ -710,19 +561,6 @@ onMounted(() => {
   letter-spacing: 0.5px;
 }
 
-/* Widgets sous la carte en mode map */
-.under-map-widgets {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  margin-top: 2rem;
-  animation: slideInUp 0.6s ease-out;
-}
-
-.full-width {
-  width: 100% !important;
-}
-
 /* Shops list */
 .shops-list {
   display: flex;
@@ -898,6 +736,30 @@ onMounted(() => {
   font-size: 0.875rem !important;
 }
 
+/* Animations */
+@keyframes slideInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in-up {
+  animation: slideInUp 0.6s ease-out;
+}
+
+.slide-in-down {
+  animation: slideInUp 0.6s ease-out;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .main-grid {
@@ -919,10 +781,6 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .container {
-    padding: 0 1rem;
-  }
-  
-  .home-breadcrumb {
     padding: 0 1rem;
   }
   

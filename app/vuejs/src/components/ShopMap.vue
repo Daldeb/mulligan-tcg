@@ -20,6 +20,12 @@
 
     <!-- Conteneur de la carte -->
     <div class="map-wrapper">
+      <!-- Indicateur d'aide pour le zoom -->
+      <div v-if="!isCtrlPressed" class="zoom-help">
+        <i class="pi pi-info-circle"></i>
+        <span>Maintenez <kbd>{{ isMac ? 'Cmd' : 'Ctrl' }}</kbd> pour zoomer sur la carte</span>
+      </div>
+      
       <div id="shop-map" class="map-container"></div>
       
       <!-- Loading overlay -->
@@ -57,6 +63,10 @@ const shops = ref([])
 const totalShops = ref(0)
 const onlineShops = ref(0)
 
+// State pour la gestion des touches
+const isCtrlPressed = ref(false)
+const isMac = ref(navigator.platform.toUpperCase().indexOf('MAC') >= 0)
+
 // Lifecycle
 onMounted(async () => {
   await initMap()
@@ -71,6 +81,11 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  // Nettoyer les event listeners
+  document.removeEventListener('keydown', handleKeyDown)
+  document.removeEventListener('keyup', handleKeyUp)
+  window.removeEventListener('blur', handleWindowBlur)
+  
   if (map.value) {
     map.value.remove()
   }
@@ -79,17 +94,61 @@ onUnmounted(() => {
 // Methods
 const initMap = async () => {
   try {
-    // Initialiser la carte centrée sur la France
-    map.value = L.map('shop-map').setView([46.603354, 1.888334], 6)
+    // Initialiser la carte centrée sur la France avec zoom désactivé par défaut
+    map.value = L.map('shop-map', {
+      scrollWheelZoom: false, // Désactive le zoom avec la molette par défaut
+      doubleClickZoom: true,  // Garde le double-clic pour zoomer
+      touchZoom: false,       // Désactive le zoom tactile par défaut
+      boxZoom: true,         // Garde le zoom par sélection
+      keyboard: true         // Garde les contrôles clavier
+    }).setView([46.603354, 1.888334], 6)
     
     // Ajouter les tuiles OpenStreetMap
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map.value)
     
-    console.log('✅ Carte initialisée')
+    // Ajouter les event listeners pour les touches
+    setupKeyboardListeners()
+    
+    console.log('✅ Carte initialisée avec zoom conditionnel')
   } catch (error) {
     console.error('❌ Erreur initialisation carte:', error)
+  }
+}
+
+const setupKeyboardListeners = () => {
+  // Ajouter les listeners
+  document.addEventListener('keydown', handleKeyDown)
+  document.addEventListener('keyup', handleKeyUp)
+  window.addEventListener('blur', handleWindowBlur)
+}
+
+const handleKeyDown = (e) => {
+  if (e.ctrlKey || e.metaKey) { // metaKey = Cmd sur Mac
+    isCtrlPressed.value = true
+    if (map.value) {
+      map.value.scrollWheelZoom.enable()
+      map.value.touchZoom.enable()
+    }
+  }
+}
+
+const handleKeyUp = (e) => {
+  if (!e.ctrlKey && !e.metaKey) {
+    isCtrlPressed.value = false
+    if (map.value) {
+      map.value.scrollWheelZoom.disable()
+      map.value.touchZoom.disable()
+    }
+  }
+}
+
+const handleWindowBlur = () => {
+  isCtrlPressed.value = false
+  if (map.value) {
+    map.value.scrollWheelZoom.disable()
+    map.value.touchZoom.disable()
   }
 }
 
@@ -306,6 +365,33 @@ const getShopTypeLabel = (type) => {
   border-radius: var(--border-radius-large);
   box-shadow: var(--shadow-small);
   overflow: hidden;
+}
+
+.zoom-help {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: rgba(38, 166, 154, 0.95);
+  color: white;
+  padding: 8px 12px;
+  border-radius: var(--border-radius);
+  font-size: 0.875rem;
+  font-weight: 500;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  transition: opacity 0.3s ease;
+}
+
+.zoom-help kbd {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .map-container {
