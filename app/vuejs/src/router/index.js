@@ -92,7 +92,7 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/posts/:id',
+    path: '/forums/:forumSlug/posts/:id',
     name: 'PostView',
     component: () => import('../views/PostView.vue'),
     meta: {

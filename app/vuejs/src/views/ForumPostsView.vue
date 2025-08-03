@@ -1,33 +1,332 @@
 <template>
-  <div class="container mx-auto px-4 py-6">
-    <div v-if="loading" class="text-center py-8">Chargement...</div>
+  <div class="forum-page">
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-container">
+      <div class="emerald-spinner"></div>
+      <p>Chargement du forum...</p>
+    </div>
 
-    <div v-else>
-      <h1 class="text-3xl font-bold mb-1">{{ forum.name }}</h1>
-      <p class="text-secondary mb-6">{{ forum.description }}</p>
+    <!-- Error State -->
+    <div v-else-if="error" class="error-container">
+      <i class="pi pi-exclamation-triangle error-icon"></i>
+      <h3>Erreur de chargement</h3>
+      <p>{{ error }}</p>
+      <button @click="fetchForumData" class="p-button emerald-button primary">
+        <i class="pi pi-refresh"></i>
+        Réessayer
+      </button>
+    </div>
 
-      <RouterLink to="/forums" class="text-primary text-sm hover:underline">
-        ← Retour aux forums
-      </RouterLink>
+    <!-- Forum Content -->
+    <div v-else class="forum-container">
+      <!-- Breadcrumb Navigation -->
+      <nav class="forum-breadcrumb">
+        <RouterLink to="/forums" class="breadcrumb-link">
+          <i class="pi pi-home"></i>
+          Forums
+        </RouterLink>
+        <i class="pi pi-chevron-right breadcrumb-separator"></i>
+        <span class="breadcrumb-current">{{ forum.name }}</span>
+      </nav>
 
-      <PostCreateForm :forumSlug="forum.slug" class="mt-6" />
+      <!-- Forum Header -->
+      <header class="forum-header">
+        <div class="forum-info">
+          <div class="forum-icon">
+            <i class="pi pi-comments"></i>
+          </div>
+          <div class="forum-details">
+            <h1 class="forum-title">{{ forum.name }}</h1>
+            <p class="forum-description">{{ forum.description }}</p>
+            <div class="forum-stats">
+              <div class="stat-item">
+                <i class="pi pi-file"></i>
+                <span>{{ filteredPosts.length }} posts</span>
+              </div>
+              <div class="stat-item">
+                <i class="pi pi-users"></i>
+                <span>Communauté active</span>
+              </div>
 
-      <div v-if="posts.length === 0" class="text-sm text-secondary mt-6">
-        Aucun sujet pour le moment.
+            </div>
+          </div>
+        </div>
+        
+        <!-- Create Post Button -->
+        <button 
+          @click="showCreateModal = true"
+          class="p-button emerald-button primary create-post-btn"
+        >
+          <i class="pi pi-plus"></i>
+          Créer un post
+        </button>
+      </header>
+
+      <!-- Search & Filters Bar -->
+      <div class="controls-bar">
+        <!-- Search -->
+        <div class="search-container">
+          <div class="search-input-wrapper">
+            <i class="pi pi-search search-icon"></i>
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Rechercher dans ce forum..."
+              class="search-input"
+            />
+            <button 
+              v-if="searchQuery"
+              @click="searchQuery = ''"
+              class="clear-search"
+            >
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sort Filters -->
+        <div class="sort-container">
+          <div class="sort-tabs">
+            <button 
+              v-for="filter in sortFilters" 
+              :key="filter.value"
+              @click="currentSort = filter.value"
+              :class="['sort-tab', { active: currentSort === filter.value }]"
+            >
+              <i :class="filter.icon"></i>
+              {{ filter.label }}
+            </button>
+          </div>
+        </div>
+
+        <!-- View Toggle -->
+        <div class="view-toggle">
+          <button 
+            @click="viewMode = 'card'"
+            :class="['view-btn', { active: viewMode === 'card' }]"
+            title="Vue carte"
+          >
+            <i class="pi pi-th-large"></i>
+          </button>
+          <button 
+            @click="viewMode = 'compact'"
+            :class="['view-btn', { active: viewMode === 'compact' }]"
+            title="Vue compacte"
+          >
+            <i class="pi pi-list"></i>
+          </button>
+        </div>
       </div>
 
-      <div v-else class="mt-4 space-y-4">
-        <div
-          v-for="post in posts"
-          :key="post.id"
-          class="p-card p-4 rounded-xl shadow-md bg-white hover-lift"
-        >
-          <RouterLink :to="`/posts/${post.id}`" class="text-accent text-lg font-semibold hover:underline">
-            {{ post.title }}
-          </RouterLink>
-          <div class="text-sm text-secondary mt-1">
-            par <strong>{{ post.author }}</strong> · {{ formatDate(post.createdAt) }} · Score : {{ post.score }}
+      <!-- Active Filters Display -->
+      <div v-if="searchQuery || currentSort !== 'new'" class="active-filters">
+        <div class="filter-tags">
+          <span v-if="searchQuery" class="filter-tag">
+            <i class="pi pi-search"></i>
+            "{{ searchQuery }}"
+            <button @click="searchQuery = ''" class="remove-filter">
+              <i class="pi pi-times"></i>
+            </button>
+          </span>
+          <span v-if="currentSort !== 'new'" class="filter-tag">
+            <i class="pi pi-sort-alt"></i>
+            {{ getSortLabel(currentSort) }}
+            <button @click="currentSort = 'new'" class="remove-filter">
+              <i class="pi pi-times"></i>
+            </button>
+          </span>
+        </div>
+        <button @click="clearAllFilters" class="clear-all-btn">
+          Effacer tout
+        </button>
+      </div>
+
+      <!-- Posts List -->
+      <main class="posts-section">
+        <!-- No Posts State -->
+        <div v-if="filteredPosts.length === 0 && !loading" class="no-posts">
+          <div v-if="searchQuery" class="no-results">
+            <i class="pi pi-search"></i>
+            <h3>Aucun résultat trouvé</h3>
+            <p>Essayez avec d'autres mots-clés ou explorez les posts récents.</p>
+            <button @click="searchQuery = ''" class="p-button p-button-text">
+              Effacer la recherche
+            </button>
           </div>
+          <div v-else class="empty-forum">
+            <i class="pi pi-inbox"></i>
+            <h3>Aucun post pour l'instant</h3>
+            <p>Soyez le premier à démarrer une discussion dans ce forum !</p>
+            <button 
+              @click="showCreateModal = true"
+              class="p-button emerald-button primary"
+            >
+              <i class="pi pi-plus"></i>
+              Créer le premier post
+            </button>
+          </div>
+        </div>
+
+        <!-- Posts Grid/List -->
+        <div v-else :class="['posts-container', viewMode]">
+          <article 
+            v-for="(post, index) in paginatedPosts" 
+            :key="post.id"
+            :class="['post-card', viewMode]"
+            :style="{ animationDelay: `${index * 0.05}s` }"
+          >
+            <!-- Post Vote Section -->
+            <div class="post-votes">
+              <button class="vote-btn upvote" title="Upvote">
+                <i class="pi pi-chevron-up"></i>
+              </button>
+              <span class="vote-score">{{ post.score || 0 }}</span>
+              <button class="vote-btn downvote" title="Downvote">
+                <i class="pi pi-chevron-down"></i>
+              </button>
+            </div>
+
+            <!-- Post Content -->
+            <div class="post-content">
+              <!-- Post Meta -->
+              <div class="post-meta">
+                <div class="post-type-badge" :class="`type-${post.postType || 'text'}`">
+                  <i :class="getPostTypeIcon(post.postType)"></i>
+                </div>
+                
+                <div class="post-author">
+                  <div class="author-avatar">
+                    {{ post.author?.charAt(0).toUpperCase() }}
+                  </div>
+                  <div class="author-info">
+                    <span class="author-name">{{ post.author }}</span>
+                    <time class="post-date">{{ formatRelativeDate(post.createdAt) }}</time>
+                  </div>
+                </div>
+
+                <!-- Post Tags -->
+                <div v-if="post.tags && post.tags.length" class="post-tags">
+                  <span v-for="tag in post.tags" :key="tag" class="tag">
+                    #{{ tag }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Post Title & Preview -->
+              <div class="post-main">
+                <RouterLink 
+                  :to="`/forums/${forum.slug}/posts/${post.id}`"
+                  class="post-title-link"
+                >
+                  <h2 class="post-title">{{ post.title }}</h2>
+                </RouterLink>
+
+                <!-- Post Preview Content -->
+                <div v-if="viewMode === 'card'" class="post-preview">
+                  <p v-if="post.content" class="content-preview">
+                    {{ truncateContent(post.content, 150) }}
+                  </p>
+                  
+                  <!-- Link Preview -->
+                  <div v-if="post.postType === 'link' && post.linkUrl" class="link-preview-mini">
+                    <i class="pi pi-link"></i>
+                    <span>{{ getDomainFromUrl(post.linkUrl) }}</span>
+                  </div>
+
+                  <!-- Attachment Preview -->
+                  <div v-if="post.attachments && post.attachments.length" class="attachments-preview">
+                    <div class="attachment-count">
+                      <i class="pi pi-paperclip"></i>
+                      <span>{{ post.attachments.length }} fichier(s)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Post Actions -->
+              <footer class="post-actions">
+                <RouterLink 
+                  :to="`/forums/${forum.slug}/posts/${post.id}`"
+                  class="action-btn comments"
+                >
+                  <i class="pi pi-comment"></i>
+                  <span>{{ post.commentsCount || 0 }} commentaires</span>
+                </RouterLink>
+                
+                <button class="action-btn share">
+                  <i class="pi pi-share-alt"></i>
+                  <span>Partager</span>
+                </button>
+                
+                <button class="action-btn save">
+                  <i class="pi pi-bookmark"></i>
+                  <span>Sauvegarder</span>
+                </button>
+
+                <div class="post-time">
+                  {{ formatDate(post.createdAt) }}
+                </div>
+              </footer>
+            </div>
+          </article>
+        </div>
+
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="pagination-container">
+          <div class="pagination">
+            <button 
+              @click="currentPage--"
+              :disabled="currentPage === 1"
+              class="page-btn"
+            >
+              <i class="pi pi-chevron-left"></i>
+              Précédent
+            </button>
+            
+            <div class="page-numbers">
+              <button 
+                v-for="page in visiblePages" 
+                :key="page"
+                @click="currentPage = page"
+                :class="['page-number', { active: page === currentPage }]"
+              >
+                {{ page }}
+              </button>
+            </div>
+            
+            <button 
+              @click="currentPage++"
+              :disabled="currentPage === totalPages"
+              class="page-btn"
+            >
+              Suivant
+              <i class="pi pi-chevron-right"></i>
+            </button>
+          </div>
+          
+          <div class="pagination-info">
+            Affichage {{ (currentPage - 1) * postsPerPage + 1 }}-{{ Math.min(currentPage * postsPerPage, filteredPosts.length) }} 
+            sur {{ filteredPosts.length }} posts
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Create Post Modal -->
+    <div v-if="showCreateModal" class="modal-overlay" @click="closeModal">
+      <div class="modal-content" @click.stop>
+        <header class="modal-header">
+          <h2>Créer un nouveau post</h2>
+          <button @click="showCreateModal = false" class="modal-close">
+            <i class="pi pi-times"></i>
+          </button>
+        </header>
+        <div class="modal-body">
+          <PostCreateForm 
+            :forumSlug="forum.slug" 
+            @post-created="handlePostCreated"
+            @cancel="showCreateModal = false"
+          />
         </div>
       </div>
     </div>
@@ -35,38 +334,1141 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
-import api from '@/services/api';
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import api from '@/services/api'
 import PostCreateForm from '@/components/forum/PostCreateForm.vue'
 
-const route = useRoute();
-const slug = route.params.slug;
-const forum = ref({});
-const posts = ref([]);
-const loading = ref(true);
+const route = useRoute()
+const slug = route.params.slug
 
-const formatDate = (d) => new Date(d).toLocaleString();
+// Data
+const forum = ref({})
+const posts = ref([])
+const loading = ref(true)
+const error = ref('')
+const showCreateModal = ref(false)
 
-onMounted(async () => {
-  try {
-    const res = await api.get(`/api/forums/${slug}/posts`);
-    forum.value = res.data.forum;
-    posts.value = res.data.posts;
-  } catch (e) {
-    console.error('Erreur chargement forum', e);
-  } finally {
-    loading.value = false;
+// Search & Filtering
+const searchQuery = ref('')
+const currentSort = ref('new')
+const viewMode = ref('card') // 'card' ou 'compact'
+const currentPage = ref(1)
+const postsPerPage = 10
+
+// Sort options
+const sortFilters = [
+  { value: 'new', label: 'Nouveau', icon: 'pi pi-clock' },
+  { value: 'hot', label: 'Tendance', icon: 'pi pi-fire' },
+  { value: 'top', label: 'Top', icon: 'pi pi-star' },
+  { value: 'comments', label: 'Commentaires', icon: 'pi pi-comment' }
+]
+
+// Computed
+const filteredPosts = computed(() => {
+  let filtered = [...posts.value]
+
+  // Search filter
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    filtered = filtered.filter(post => 
+      post.title.toLowerCase().includes(query) ||
+      post.content?.toLowerCase().includes(query) ||
+      post.author.toLowerCase().includes(query) ||
+      (post.tags && post.tags.some(tag => tag.toLowerCase().includes(query)))
+    )
   }
-});
+
+  // Sort filter
+  switch (currentSort.value) {
+    case 'hot':
+      filtered.sort((a, b) => calculateHotScore(b) - calculateHotScore(a))
+      break
+    case 'top':
+      filtered.sort((a, b) => (b.score || 0) - (a.score || 0))
+      break
+    case 'comments':
+      filtered.sort((a, b) => (b.commentsCount || 0) - (a.commentsCount || 0))
+      break
+    case 'new':
+    default:
+      filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      break
+  }
+
+  return filtered
+})
+
+const totalPages = computed(() => Math.ceil(filteredPosts.value.length / postsPerPage))
+
+const paginatedPosts = computed(() => {
+  const start = (currentPage.value - 1) * postsPerPage
+  const end = start + postsPerPage
+  return filteredPosts.value.slice(start, end)
+})
+
+const visiblePages = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  const pages = []
+  
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    if (current <= 4) {
+      pages.push(1, 2, 3, 4, 5, '...', total)
+    } else if (current >= total - 3) {
+      pages.push(1, '...', total - 4, total - 3, total - 2, total - 1, total)
+    } else {
+      pages.push(1, '...', current - 1, current, current + 1, '...', total)
+    }
+  }
+  
+  return pages.filter(page => page !== '...' || pages.indexOf(page) === pages.lastIndexOf(page))
+})
+
+// Methods
+const fetchForumData = async () => {
+  loading.value = true
+  error.value = ''
+  
+  try {
+    const res = await api.get(`/api/forums/${slug}/posts`)
+    forum.value = res.data.forum
+    posts.value = res.data.posts || []
+  } catch (err) {
+    console.error('Erreur chargement forum:', err)
+    error.value = 'Impossible de charger le forum. Vérifiez votre connexion.'
+  } finally {
+    loading.value = false
+  }
+}
+
+const calculateHotScore = (post) => {
+  const score = post.score || 0
+  const comments = post.commentsCount || 0
+  const hoursOld = (Date.now() - new Date(post.createdAt).getTime()) / (1000 * 60 * 60)
+  
+  // Algorithme simple pour le "hot score"
+  return (score + comments * 2) / Math.pow(hoursOld + 2, 1.8)
+}
+
+const formatDate = (dateString) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const formatRelativeDate = (dateString) => {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffTime = Math.abs(now - date)
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const diffHours = Math.ceil(diffTime / (1000 * 60 * 60))
+  const diffMinutes = Math.ceil(diffTime / (1000 * 60))
+  
+  if (diffMinutes < 60) return `Il y a ${diffMinutes}m`
+  if (diffHours < 24) return `Il y a ${diffHours}h`
+  if (diffDays === 1) return 'Hier'
+  if (diffDays < 7) return `Il y a ${diffDays}j`
+  if (diffDays < 30) return `Il y a ${Math.ceil(diffDays / 7)} sem.`
+  
+  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+}
+
+const getPostTypeIcon = (type) => {
+  switch (type) {
+    case 'link': return 'pi pi-link'
+    case 'image': return 'pi pi-image'
+    default: return 'pi pi-align-left'
+  }
+}
+
+const getSortLabel = (sortValue) => {
+  const filter = sortFilters.find(f => f.value === sortValue)
+  return filter ? filter.label : sortValue
+}
+
+const truncateContent = (content, maxLength) => {
+  if (!content) return ''
+  if (content.length <= maxLength) return content
+  return content.substring(0, maxLength) + '...'
+}
+
+const getDomainFromUrl = (url) => {
+  try {
+    return new URL(url).hostname.replace('www.', '')
+  } catch {
+    return url
+  }
+}
+
+const clearAllFilters = () => {
+  searchQuery.value = ''
+  currentSort.value = 'new'
+  currentPage.value = 1
+}
+
+const closeModal = () => {
+  showCreateModal.value = false
+}
+
+const handlePostCreated = () => {
+  showCreateModal.value = false
+  fetchForumData() // Recharger les posts
+}
+
+// Watchers
+watch([searchQuery, currentSort], () => {
+  currentPage.value = 1 // Reset pagination when filters change
+})
+
+onMounted(fetchForumData)
 </script>
 
 <style scoped>
-.hover-lift {
-  transition: transform 0.3s ease;
+.forum-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  background: var(--surface);
+  min-height: calc(100vh - var(--header-height));
 }
-.hover-lift:hover {
-  transform: translateY(-3px);
+
+/* Loading & Error States */
+.loading-container,
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.error-icon {
+  font-size: 3rem;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.emerald-spinner {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 1rem;
+}
+
+/* Breadcrumb */
+.forum-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-small);
+}
+
+.breadcrumb-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color var(--transition-fast);
+}
+
+.breadcrumb-link:hover {
+  color: var(--primary-dark);
+}
+
+.breadcrumb-separator {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.breadcrumb-current {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Forum Header */
+.forum-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  padding: 2rem;
+  background: white;
+  border-radius: var(--border-radius-large);
   box-shadow: var(--shadow-medium);
+  margin-bottom: 2rem;
+}
+
+.forum-info {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+}
+
+.forum-icon {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  border-radius: var(--border-radius-large);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.forum-details {
+  flex: 1;
+}
+
+.forum-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+
+.forum-description {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+
+.forum-stats {
+  display: flex;
+  gap: 2rem;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.create-post-btn {
+  white-space: nowrap;
+  height: fit-content;
+  font-size: 1rem;
+  padding: 0.875rem 1.5rem;
+}
+
+/* Controls Bar */
+.controls-bar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.5rem;
+  background: white;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-small);
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.search-container {
+  flex: 1;
+  min-width: 300px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  color: var(--text-secondary);
+  z-index: 1;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  border: 2px solid var(--surface-300);
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  transition: border-color var(--transition-fast);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1);
+}
+
+.clear-search {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--border-radius-small);
+  transition: background var(--transition-fast);
+}
+
+.clear-search:hover {
+  background: var(--surface-200);
+}
+
+.sort-container {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sort-tabs {
+  display: flex;
+  background: var(--surface-200);
+  border-radius: var(--border-radius);
+  padding: 0.25rem;
+}
+
+.sort-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-small);
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.sort-tab:hover {
+  background: var(--surface-300);
+  color: var(--text-primary);
+}
+
+.sort-tab.active {
+  background: white;
+  color: var(--primary);
+  box-shadow: var(--shadow-small);
+}
+
+.view-toggle {
+  display: flex;
+  background: var(--surface-200);
+  border-radius: var(--border-radius);
+  padding: 0.25rem;
+}
+
+.view-btn {
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-small);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.view-btn:hover {
+  background: var(--surface-300);
+  color: var(--text-primary);
+}
+
+.view-btn.active {
+  background: white;
+  color: var(--primary);
+  box-shadow: var(--shadow-small);
+}
+
+/* Active Filters */
+.active-filters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: var(--surface-100);
+  border-radius: var(--border-radius);
+  margin-bottom: 1rem;
+}
+
+.filter-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background: var(--primary);
+  color: white;
+  border-radius: 15px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.remove-filter {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.125rem;
+  border-radius: 50%;
+  transition: background var(--transition-fast);
+}
+
+.remove-filter:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.clear-all-btn {
+  background: none;
+  border: 1px solid var(--surface-300);
+  color: var(--text-secondary);
+  padding: 0.5rem 1rem;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.clear-all-btn:hover {
+  background: var(--surface-200);
+  color: var(--text-primary);
+}
+
+/* Posts Section */
+.posts-section {
+  flex: 1;
+}
+
+.no-posts {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-small);
+}
+
+.no-results,
+.empty-forum {
+  color: var(--text-secondary);
+}
+
+.no-results i,
+.empty-forum i {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-results h3,
+.empty-forum h3 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+}
+
+.no-results p,
+.empty-forum p {
+  margin: 0 0 2rem 0;
+  font-size: 1.125rem;
+}
+
+/* Posts Container */
+.posts-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.posts-container.compact {
+  gap: 0.5rem;
+}
+
+/* Post Cards */
+.post-card {
+  display: flex;
+  background: white;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-small);
+  border: 1px solid var(--surface-200);
+  overflow: hidden;
+  transition: all var(--transition-medium);
+  animation: slideInUp 0.3s ease-out;
+}
+
+.post-card:hover {
+  box-shadow: var(--shadow-medium);
+  transform: translateY(-2px);
+}
+
+.post-card.compact {
+  border-radius: var(--border-radius);
+}
+
+.post-card.compact:hover {
+  transform: translateY(-1px);
+}
+
+/* Post Votes */
+.post-votes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1rem 0.75rem;
+  background: var(--surface-100);
+  border-right: 1px solid var(--surface-200);
+  min-width: 60px;
+}
+
+.vote-btn {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-small);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.vote-btn.upvote:hover {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.vote-btn.downvote:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.vote-score {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+/* Post Content */
+.post-content {
+  flex: 1;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.post-card.compact .post-content {
+  padding: 1rem;
+  gap: 0.5rem;
+}
+
+/* Post Meta */
+.post-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.post-type-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--border-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.post-type-badge.type-text {
+  background: var(--primary);
+}
+
+.post-type-badge.type-link {
+  background: #3b82f6;
+}
+
+.post-type-badge.type-image {
+  background: #ec4899;
+}
+
+.post-author {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.author-avatar {
+  width: 32px;
+  height: 32px;
+  background: var(--primary-light);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.author-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.author-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.post-date {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.post-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.tag {
+  padding: 0.25rem 0.5rem;
+  background: var(--surface-200);
+  color: var(--text-secondary);
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Post Main Content */
+.post-main {
+  flex: 1;
+}
+
+.post-title-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.post-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin: 0 0 0.75rem 0;
+  transition: color var(--transition-fast);
+}
+
+.post-card.compact .post-title {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.post-title-link:hover .post-title {
+  color: var(--primary);
+}
+
+.post-preview {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.content-preview {
+  margin: 0 0 1rem 0;
+  font-size: 0.875rem;
+}
+
+.link-preview-mini {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-100);
+  border-radius: var(--border-radius-small);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.attachments-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+.attachment-count {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* Post Actions */
+.post-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--surface-200);
+}
+
+.post-card.compact .post-actions {
+  padding-top: 0.5rem;
+  gap: 0.75rem;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-small);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.action-btn:hover {
+  background: var(--surface-200);
+  color: var(--text-primary);
+}
+
+.action-btn.comments:hover {
+  color: var(--primary);
+}
+
+.post-time {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+/* Pagination */
+.pagination-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding: 2rem;
+  background: white;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-small);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: 1px solid var(--surface-300);
+  border-radius: var(--border-radius);
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.page-btn:hover:not(:disabled) {
+  background: var(--surface-200);
+  color: var(--text-primary);
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-numbers {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0 1rem;
+}
+
+.page-number {
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid var(--surface-300);
+  border-radius: var(--border-radius);
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-number:hover {
+  background: var(--surface-200);
+  color: var(--text-primary);
+}
+
+.page-number.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.pagination-info {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: white;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-large);
+  max-width: 800px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--surface-200);
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--border-radius-small);
+  transition: all var(--transition-fast);
+}
+
+.modal-close:hover {
+  background: var(--surface-200);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 2rem;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .forum-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.5rem;
+  }
+  
+  .controls-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .search-container {
+    min-width: auto;
+  }
+  
+  .sort-container,
+  .view-toggle {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .forum-page {
+    padding: 1rem 0.5rem;
+  }
+  
+  .forum-breadcrumb {
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .forum-header {
+    padding: 1.5rem;
+  }
+  
+  .forum-info {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .forum-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 1.25rem;
+  }
+  
+  .forum-title {
+    font-size: 1.5rem;
+  }
+  
+  .forum-stats {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .controls-bar {
+    padding: 1rem;
+  }
+  
+  .sort-tabs {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .post-card {
+    flex-direction: column;
+  }
+  
+  .post-votes {
+    flex-direction: row;
+    justify-content: center;
+    padding: 0.75rem;
+    border-right: none;
+    border-bottom: 1px solid var(--surface-200);
+    min-width: auto;
+  }
+  
+  .post-content {
+    padding: 1rem;
+  }
+  
+  .post-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .post-tags {
+    margin-left: 0;
+  }
+  
+  .post-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .action-btn {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.5rem;
+  }
+  
+  .page-numbers {
+    margin: 0 0.5rem;
+  }
+  
+  .modal-header,
+  .modal-body {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .forum-title {
+    font-size: 1.25rem;
+  }
+  
+  .forum-description {
+    font-size: 1rem;
+  }
+  
+  .sort-tab {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+  }
+  
+  .post-title {
+    font-size: 1rem;
+  }
+  
+  .post-card.compact .post-title {
+    font-size: 0.875rem;
+  }
+  
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .page-numbers {
+    flex-wrap: wrap;
+  }
 }
 </style>

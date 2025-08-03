@@ -474,6 +474,229 @@
   background: linear-gradient(90deg, #DC2626, #F59E0B, #FCD34D);
 }
 
+/* === FORUM POST COMPONENTS === */
+
+/* Forum post cards - Reddit-like design */
+.forum-post-card {
+  background: white;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-small);
+  border: 1px solid var(--surface-200);
+  transition: all var(--transition-medium);
+  overflow: hidden;
+}
+
+.forum-post-card:hover {
+  box-shadow: var(--shadow-medium);
+  transform: translateY(-2px);
+}
+
+/* Comment threading line */
+.comment-thread-line {
+  width: 2px;
+  background: linear-gradient(180deg, var(--surface-300) 0%, transparent 100%);
+  margin-left: 20px;
+  min-height: 40px;
+}
+
+/* Post type indicators */
+.post-type-indicator {
+  width: 4px;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.post-type-indicator.type-text {
+  background: var(--primary);
+}
+
+.post-type-indicator.type-link {
+  background: #3b82f6;
+}
+
+.post-type-indicator.type-image {
+  background: #ec4899;
+}
+
+/* Vote buttons */
+.vote-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: var(--surface-100);
+  border-radius: var(--border-radius);
+}
+
+.vote-btn {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-small);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vote-btn.upvote:hover {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.vote-btn.downvote:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.vote-score {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+/* Comment depth indicators */
+.comment-depth-1 { margin-left: 0; }
+.comment-depth-2 { margin-left: 2rem; }
+.comment-depth-3 { margin-left: 4rem; }
+.comment-depth-4 { margin-left: 6rem; }
+.comment-depth-5 { margin-left: 8rem; }
+
+/* Forum specific badges */
+.forum-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.forum-badge.pinned {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
+.forum-badge.locked {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.forum-badge.hot {
+  background: rgba(255, 87, 34, 0.1);
+  color: var(--accent);
+}
+
+/* Markdown content styling */
+.markdown-content {
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  color: var(--text-primary);
+  margin: 1.5rem 0 1rem 0;
+  font-weight: 600;
+}
+
+.markdown-content h1 { font-size: 1.875rem; }
+.markdown-content h2 { font-size: 1.5rem; }
+.markdown-content h3 { font-size: 1.25rem; }
+
+.markdown-content p {
+  margin: 1rem 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 1rem 0;
+  padding-left: 2rem;
+}
+
+.markdown-content li {
+  margin: 0.5rem 0;
+}
+
+.markdown-content pre {
+  background: var(--surface-200);
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  overflow-x: auto;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.875rem;
+}
+
+.markdown-content a {
+  color: var(--primary);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--transition-fast);
+}
+
+.markdown-content a:hover {
+  border-bottom-color: var(--primary);
+}
+
+/* Loading states for forum */
+.forum-skeleton {
+  background: linear-gradient(90deg, var(--surface-200) 25%, var(--surface-100) 50%, var(--surface-200) 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: var(--border-radius);
+}
+
+.post-skeleton {
+  height: 120px;
+  margin-bottom: 1rem;
+}
+
+.comment-skeleton {
+  height: 80px;
+  margin-bottom: 0.75rem;
+}
+
+/* Interactive elements */
+.interactive-hover {
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.interactive-hover:hover {
+  background: var(--surface-100);
+}
+
+/* Utility classes for forums */
+.text-muted {
+  color: var(--text-secondary);
+}
+
+.text-small {
+  font-size: 0.875rem;
+}
+
+.text-tiny {
+  font-size: 0.75rem;
+}
+
+.divider-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--surface-300), transparent);
+  margin: 1rem 0;
+}
+
   /* Dark mode support (désactivé pour l'instant) */
   /*
   @media (prefers-color-scheme: dark) {

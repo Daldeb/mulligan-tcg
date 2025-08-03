@@ -169,6 +169,12 @@ class PostController extends AbstractController
             'tags' => $post->getTags(),
             'attachments' => $post->getAttachments(),
             'createdAt' => $post->getCreatedAt()->format('Y-m-d H:i:s'),
+            'forum' => [
+                'id' => $post->getForum()->getId(),
+                'name' => $post->getForum()->getName(),
+                'slug' => $post->getForum()->getSlug(),
+                'description' => $post->getForum()->getDescription()
+            ],
             'comments' => $commentData
         ]);
     }

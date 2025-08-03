@@ -25,7 +25,14 @@
           v-for="(forum, index) in forums" 
           :key="forum.slug" 
           :class="['forum-card', 'gaming-card', getForumClass(forum.slug), 'slide-in-up']"
-          :style="{ animationDelay: `${index * 0.1}s` }"
+          :style="{ 
+            animationDelay: `${index * 0.1}s`,
+            backgroundImage: getForumImageUrl(forum.slug) ? 
+              `linear-gradient(to bottom, rgba(255,255,255,0.0) 0%, rgba(255,255,255,0.3) 30%, rgba(255,255,255,0.9) 45%, rgba(255,255,255,1) 55%), url(${getForumImageUrl(forum.slug)})` : 
+              'none',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center top'
+          }"
         >
           <!-- Forum Header -->
           <div class="forum-header">
@@ -71,7 +78,7 @@
               >
                 <div class="post-content">
                   <RouterLink 
-                    :to="`/posts/${post.id}`" 
+                    :to="`/forums/${forum.slug}/posts/${post.id}`" 
                     class="post-title hover-lift"
                   >
                     {{ post.title }}
@@ -131,6 +138,11 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api';
 
+// Imports des images d'arrière-plan
+import hearthstoneImg from '@/assets/images/forums/hearthstone-bg.jpg'
+import magicImg from '@/assets/images/forums/magic-bg.jpg'
+import pokemonImg from '@/assets/images/forums/pokemon-bg.jpg'
+
 const forums = ref([]);
 const loading = ref(true);
 const router = useRouter();
@@ -141,6 +153,14 @@ const getForumClass = (forumSlug) => {
   if (slug.includes('magic')) return 'magic';
   if (slug.includes('pokemon')) return 'pokemon';
   return '';
+};
+
+const getForumImageUrl = (forumSlug) => {
+  const slug = forumSlug.toLowerCase();
+  if (slug.includes('hearthstone')) return hearthstoneImg;
+  if (slug.includes('magic')) return magicImg;
+  if (slug.includes('pokemon')) return pokemonImg;
+  return null;
 };
 
 const formatDate = (dateString) => {
@@ -220,6 +240,7 @@ onMounted(async () => {
   transition: all var(--transition-medium);
   border: 1px solid var(--surface-200);
   position: relative;
+  overflow: hidden; /* Important pour l'image de fond */
 }
 
 .forum-card:hover {
@@ -232,6 +253,8 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 1.5rem;
+  position: relative; /* Pour s'assurer que le contenu est au-dessus de l'image */
+  z-index: 2;
 }
 
 .forum-info {
@@ -250,6 +273,7 @@ onMounted(async () => {
   justify-content: center;
   color: white;
   flex-shrink: 0;
+  box-shadow: var(--shadow-medium); /* Ajout d'ombre pour faire ressortir l'icône */
 }
 
 .forum-details {
@@ -259,15 +283,18 @@ onMounted(async () => {
 .forum-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: white;
   margin-bottom: 0.5rem;
   line-height: 1.2;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.3);
 }
 
 .forum-description {
-  color: var(--text-secondary);
+  color: rgba(255,255,255,0.95);
   margin-bottom: 1rem;
   line-height: 1.5;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.7), 0 0 6px rgba(0,0,0,0.2);
+  font-weight: 500;
 }
 
 .forum-stats {
@@ -279,19 +306,26 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--text-secondary);
+  color: rgba(255,255,255,0.9);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
 }
 
 .forum-btn {
   white-space: nowrap;
   height: fit-content;
   text-decoration: none !important;
+  box-shadow: var(--shadow-medium); /* Ajout d'ombre pour faire ressortir le bouton */
 }
 
 .forum-btn:hover {
   text-decoration: none !important;
+}
+
+.recent-posts {
+  position: relative; /* Pour s'assurer que le contenu est au-dessus de l'image */
+  z-index: 2;
 }
 
 .section-divider {
@@ -314,6 +348,8 @@ onMounted(async () => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  background: rgba(255,255,255,0.9); /* Fond semi-transparent pour améliorer la lisibilité */
+  border-radius: 12px;
 }
 
 .posts-list {
@@ -325,13 +361,14 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  background: var(--surface-100);
+  background: rgba(var(--surface-100-rgb), 0.95); /* Fond semi-transparent */
   border-radius: var(--border-radius);
   transition: all var(--transition-fast);
+  backdrop-filter: blur(5px); /* Effet de flou pour un rendu moderne */
 }
 
 .post-preview:hover {
-  background: var(--surface-200);
+  background: rgba(var(--surface-200-rgb), 0.95);
   transform: translateX(4px);
 }
 
@@ -397,6 +434,10 @@ onMounted(async () => {
   text-align: center;
   padding: 2rem;
   color: var(--text-secondary);
+  position: relative;
+  z-index: 2;
+  background: rgba(255,255,255,0.9);
+  border-radius: var(--border-radius);
 }
 
 .empty-icon {
