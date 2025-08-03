@@ -57,37 +57,6 @@
             </Card>
           </section>
 
-          <!-- Section Marketplace -->
-          <section class="content-section slide-in-up">
-            <Card class="gaming-card marketplace-card">
-              <template #content>
-                <div class="section-content marketplace">
-                  <div class="section-header">
-                    <i class="pi pi-shopping-bag section-icon"></i>
-                    <h2 class="section-title">MARKETPLACE</h2>
-                  </div>
-                  <div class="placeholder-content">
-                    <div class="marketplace-stats">
-                      <div class="stat-item">
-                        <span class="stat-value">1,247</span>
-                        <span class="stat-label">Cartes en vente</span>
-                      </div>
-                      <div class="stat-item">
-                        <span class="stat-value">€8,932</span>
-                        <span class="stat-label">Valeur totale</span>
-                      </div>
-                    </div>
-                    <Button 
-                      label="Explorer le marché"
-                      icon="pi pi-search"
-                      class="emerald-outline-btn"
-                    />
-                  </div>
-                </div>
-              </template>
-            </Card>
-          </section>
-
           <!-- Section Meilleurs Decks -->
           <section class="content-section slide-in-up">
             <div class="section-header standalone">
