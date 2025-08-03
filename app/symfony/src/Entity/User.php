@@ -96,13 +96,20 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $selectedGames = null;
 
+    /**
+     * Boutique associée à l'utilisateur (si il a le rôle ROLE_SHOP)
+     */
+    #[ORM\OneToOne(targetEntity: Shop::class, mappedBy: 'owner', cascade: ['persist', 'remove'])]
+    private ?Shop $shop = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
         $this->roles = ['ROLE_USER'];
+        $this->shop = null;
     }
 
-    // Getters and Setters existants
+    // ============= GETTERS & SETTERS EXISTANTS =============
 
     public function getId(): ?int
     {
@@ -338,7 +345,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->address !== null;
     }
 
-    // Nouvelles méthodes pour la gestion des jeux sélectionnés
+    // ============= MÉTHODES POUR LA GESTION DES JEUX SÉLECTIONNÉS =============
 
     /**
      * @return int[]|null
@@ -428,6 +435,169 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->selectedGames = empty($validIds) ? null : array_values(array_unique($validIds));
         return $this;
     }
+
+    // ============= NOUVELLES MÉTHODES POUR GESTION BOUTIQUE =============
+
+    /**
+     * Gestion de la boutique associée
+     */
+    public function getShop(): ?Shop
+    {
+        return $this->shop;
+    }
+
+    public function setShop(?Shop $shop): static
+    {
+        $this->shop = $shop;
+        
+        // Assure la cohérence bidirectionnelle
+        if ($shop && $shop->getOwner() !== $this) {
+            $shop->setOwner($this);
+        }
+        
+        return $this;
+    }
+
+    /**
+     * Vérifie si l'utilisateur possède une boutique
+     */
+    public function hasShop(): bool
+    {
+        return $this->shop !== null;
+    }
+
+    /**
+     * Vérifie si l'utilisateur a le rôle boutique
+     */
+    public function isShopOwner(): bool
+    {
+        return in_array('ROLE_SHOP', $this->getRoles(), true);
+    }
+
+    /**
+     * Vérifie si l'utilisateur peut agir en tant que boutique
+     */
+    public function canActAsShop(): bool
+    {
+        return $this->hasShop() && $this->isShopOwner() && $this->shop->isActive();
+    }
+
+    /**
+     * Retourne le nom d'affichage (nom boutique si propriétaire, sinon pseudo)
+     */
+    public function getDisplayName(): string
+    {
+        if ($this->hasShop() && $this->canActAsShop()) {
+            return $this->shop->getName();
+        }
+        
+        return $this->getFullName() ?: $this->getPseudo();
+    }
+
+    /**
+     * Retourne le type d'entité pour l'affichage (user ou shop)
+     */
+    public function getEntityType(): string
+    {
+        return $this->canActAsShop() ? 'shop' : 'user';
+    }
+
+    /**
+     * Retourne l'avatar approprié (logo boutique ou avatar user)
+     */
+    public function getDisplayAvatar(): ?string
+    {
+        if ($this->hasShop() && $this->canActAsShop() && $this->shop->getLogo()) {
+            return $this->shop->getLogo();
+        }
+        
+        return $this->getAvatar();
+    }
+
+    /**
+     * Création d'une nouvelle boutique pour cet utilisateur
+     */
+    public function createShop(string $shopName, Address $address): Shop
+    {
+        if ($this->hasShop()) {
+            throw new \LogicException('L\'utilisateur possède déjà une boutique');
+        }
+        
+        $shop = new Shop();
+        $shop->setName($shopName);
+        $shop->setAddress($address);
+        $shop->setType(Shop::TYPE_REGISTERED);
+        $shop->setOwner($this);
+        
+        $this->setShop($shop);
+        
+        return $shop;
+    }
+
+    /**
+     * Revendique une boutique existante (scrappée)
+     */
+    public function claimShop(Shop $shop): void
+    {
+        if ($this->hasShop()) {
+            throw new \LogicException('L\'utilisateur possède déjà une boutique');
+        }
+        
+        if ($shop->isClaimed()) {
+            throw new \LogicException('Cette boutique est déjà revendiquée');
+        }
+        
+        $shop->setOwner($this);
+        $this->setShop($shop);
+    }
+
+    /**
+     * Abandonne la propriété de la boutique
+     */
+    public function releaseShop(): void
+    {
+        if (!$this->hasShop()) {
+            return;
+        }
+        
+        $shop = $this->shop;
+        $this->shop = null;
+        
+        // Si c'était une boutique registered, on la supprime
+        // Si c'était une boutique verified (ex-scrappée), on la remet en scraped
+        if ($shop->getType() === Shop::TYPE_REGISTERED) {
+            // La boutique sera supprimée par cascade
+        } else {
+            $shop->setOwner(null);
+            $shop->setType(Shop::TYPE_SCRAPED);
+            $shop->setStatus(Shop::STATUS_PENDING);
+        }
+    }
+
+    /**
+     * Met à jour le rôle ROLE_SHOP selon la possession d'une boutique
+     */
+    public function updateShopRole(): void
+    {
+        $hasShopRole = $this->isShopOwner();
+        $shouldHaveShopRole = $this->hasShop() && $this->shop->isVerified();
+        
+        if ($shouldHaveShopRole && !$hasShopRole) {
+            // Ajouter le rôle
+            $roles = $this->getRoles();
+            $roles[] = 'ROLE_SHOP';
+            $this->setRoles(array_unique($roles));
+        } elseif (!$shouldHaveShopRole && $hasShopRole) {
+            // Retirer le rôle
+            $roles = array_filter(
+                $this->getRoles(),
+                fn(string $role) => $role !== 'ROLE_SHOP'
+            );
+            $this->setRoles(array_values($roles));
+        }
+    }
+
+    // ============= MÉTHODES UTILITAIRES EXISTANTES =============
 
     public function generateVerificationToken(): void
     {

@@ -90,4 +90,50 @@ api.notifications = {
     api.get(`/api/notifications/type/${type}?limit=${limit}`)
 }
 
+/**
+ * API Shops - Méthodes pour gérer les boutiques
+ */
+api.shops = {
+  // Liste toutes les boutiques avec filtres optionnels
+  getAll: (filters = {}) => {
+    const params = new URLSearchParams(
+      Object.entries(filters).filter(([_, value]) => value !== null && value !== '')
+    ).toString()
+    return api.get(`/api/shops${params ? '?' + params : ''}`)
+  },
+  
+  // Données optimisées pour la carte
+  getMapData: () => api.get('/api/shops/map'),
+  
+  // Détails d'une boutique par ID
+  getById: (id) => api.get(`/api/shops/${id}`),
+  
+  // Détails d'une boutique par slug
+  getBySlug: (slug) => api.get(`/api/shops/slug/${slug}`),
+  
+  // Boutiques à proximité
+  getNearby: (lat, lng, radius = 50) => 
+    api.get(`/api/shops/nearby?lat=${lat}&lng=${lng}&radius=${radius}`),
+  
+  // Boutiques populaires (pour HomeView)
+  getPopular: (limit = 5) => 
+    api.get(`/api/shops/popular?limit=${limit}`),
+  
+  // Recherche de boutiques
+  search: (query) => 
+    api.get(`/api/shops/search?q=${encodeURIComponent(query)}`),
+  
+  // Statistiques des boutiques
+  getStats: () => api.get('/api/shops/stats'),
+  
+  // Liste des départements avec compteurs
+  getDepartments: () => api.get('/api/shops/departments'),
+  
+  // Méthodes avec filtres spécifiques
+  getByType: (type) => api.get(`/api/shops?type=${type}`),
+  getByDepartment: (department) => api.get(`/api/shops?department=${department}`),
+  getByGame: (gameId) => api.get(`/api/shops?game=${gameId}`),
+  getByService: (service) => api.get(`/api/shops?service=${service}`)
+}
+
 export default api

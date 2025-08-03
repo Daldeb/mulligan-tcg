@@ -1,4 +1,4 @@
-// router/index.js - Version avec routes decks améliorées
+// router/index.js - Version avec routes decks améliorées + carte boutiques
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '../stores/auth'
@@ -10,6 +10,14 @@ const routes = [
     component: HomeView,
     meta: {
       title: 'Accueil - MULLIGAN TCG'
+    }
+  },
+  {
+    path: '/carte-des-boutiques',
+    name: 'shop-map',
+    component: () => import('../views/ShopMapView.vue'),
+    meta: {
+      title: 'Carte des boutiques TCG - MULLIGAN TCG'
     }
   },
   {
@@ -39,11 +47,10 @@ const routes = [
   //     requiresAuth: true
   //   }
   // },
-  
   // Nouvelle route pour éditer un deck avec slug propre
   {
     path: '/edition/:gameSlug/:formatSlug/:deckSlug',
-    name: 'deck-editor', 
+    name: 'deck-editor',
     component: () => import('../views/DecksEditor.vue'),
     meta: {
       title: 'Éditeur de deck - MULLIGAN TCG',
@@ -55,7 +62,6 @@ const routes = [
       deckSlug: route.params.deckSlug
     })
   },
-  
   // Route alternative pour édition par ID (backward compatibility)
   {
     path: '/decks/edit/:id',
@@ -66,7 +72,6 @@ const routes = [
       requiresAuth: true
     }
   },
-  
   {
     path: '/forums',
     name: 'ForumsView',
@@ -126,7 +131,7 @@ const router = createRouter({
 // Guard async pour les routes qui nécessitent une authentification
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-
+  
   // Si la route nécessite une auth
   if (to.meta.requiresAuth) {
     // Si pas de token du tout, rediriger
@@ -134,7 +139,7 @@ router.beforeEach(async (to, from, next) => {
       next({ name: 'home' })
       return
     }
-
+    
     // Si token mais pas d'user, attendre la vérification
     if (authStore.token && !authStore.user) {
       try {
@@ -145,14 +150,14 @@ router.beforeEach(async (to, from, next) => {
         return
       }
     }
-
+    
     // Vérifier à nouveau après checkAuthStatus
     if (!authStore.isAuthenticated) {
       next({ name: 'home' })
       return
     }
   }
-
+  
   next()
 })
 
