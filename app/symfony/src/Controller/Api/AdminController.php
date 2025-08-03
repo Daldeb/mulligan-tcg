@@ -9,6 +9,8 @@ use App\Service\NotificationManager;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use App\Entity\Shop;
+use App\Entity\Address;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Doctrine\ORM\EntityManagerInterface;
@@ -377,4 +379,111 @@ class AdminController extends AbstractController
             ]
         ];
     }
+
+    #[Route('/role-requests/assign-shop', name: 'assign_shop', methods: ['POST'])]
+public function assignShop(
+    Request $request,
+    EntityManagerInterface $em,
+    RoleRequestRepository $roleRequestRepository
+): JsonResponse {
+    $data = json_decode($request->getContent(), true);
+    $requestId = $data['requestId'];
+    $mode = $data['mode']; // 'existing' ou 'new'
+    $shopId = $data['shopId'] ?? null;
+    $shopData = $data['shopData'];
+    
+    // Récupérer la demande de rôle
+    $roleRequest = $roleRequestRepository->find($requestId);
+    if (!$roleRequest) {
+        return new JsonResponse(['error' => 'Demande non trouvée'], 404);
+    }
+    
+    $user = $roleRequest->getUser();
+    
+    if ($mode === 'existing' && $shopId) {
+        // Mode: attribution d'une boutique existante
+        $shop = $em->getRepository(\App\Entity\Shop::class)->find($shopId);
+        if (!$shop) {
+            return new JsonResponse(['error' => 'Boutique non trouvée'], 404);
+        }
+        
+        // Mettre à jour les données de la boutique
+        $shop->setName($shopData['name']);
+        $shop->setSiretNumber($shopData['siretNumber']);
+        $shop->setPhone($shopData['phone']);
+        $shop->setEmail($shopData['email']);
+        $shop->setWebsite($shopData['website']);
+        $shop->setDescription($shopData['description']);
+        
+        // Mettre à jour l'adresse si fournie
+        if ($shopData['address']) {
+            $address = $shop->getAddress();
+            if (!$address) {
+                $address = new \App\Entity\Address();
+                $em->persist($address);
+            }
+            $address->setStreetAddress($shopData['address']['streetAddress']);
+            $address->setCity($shopData['address']['city']);
+            $address->setPostalCode($shopData['address']['postalCode']);
+            $address->setCountry($shopData['address']['country']);
+            $address->setLatitude($shopData['address']['latitude']);
+            $address->setLongitude($shopData['address']['longitude']);
+            $shop->setAddress($address);
+        }
+        
+    } else {
+        // Mode: création d'une nouvelle boutique
+        $shop = new \App\Entity\Shop();
+        $shop->setName($shopData['name']);
+        $shop->setSiretNumber($shopData['siretNumber']);
+        $shop->setPhone($shopData['phone']);
+        $shop->setEmail($shopData['email']);
+        $shop->setWebsite($shopData['website']);
+        $shop->setDescription($shopData['description']);
+        
+        // Créer l'adresse
+        if ($shopData['address']) {
+            $address = new \App\Entity\Address();
+            $address->setStreetAddress($shopData['address']['streetAddress']);
+            $address->setCity($shopData['address']['city']);
+            $address->setPostalCode($shopData['address']['postalCode']);
+            $address->setCountry($shopData['address']['country']);
+            $address->setLatitude($shopData['address']['latitude']);
+            $address->setLongitude($shopData['address']['longitude']);
+            $em->persist($address);
+            $shop->setAddress($address);
+        }
+        
+        $em->persist($shop);
+    }
+    
+    // Valeurs automatiques selon vos spécifications
+    $shop->setType(Shop::TYPE_VERIFIED);        
+    $shop->setStatus(Shop::STATUS_VERIFIED);    
+    $shop->setConfidenceScore(100);
+    $shop->setIsActive(true);
+
+    // Attribution ownership
+    $shop->setOwner($user);
+    $shop->setClaimedAt(new \DateTimeImmutable());
+    
+    // Mise à jour du rôle utilisateur
+    $roles = $user->getRoles();
+    if (!in_array('ROLE_SHOP', $roles)) {
+        $roles[] = 'ROLE_SHOP';
+        $user->setRoles(array_unique($roles));
+    }
+    
+    // Marquer la demande comme approuvée
+    $roleRequest->setStatus('approved');
+    $roleRequest->setReviewedAt(new \DateTimeImmutable());
+    $roleRequest->setReviewedBy($this->getUser());
+    
+    $em->flush();
+    
+    return $this->json([
+        'success' => true,
+        'message' => 'Ownership validé avec succès'
+    ]);
+}
 }

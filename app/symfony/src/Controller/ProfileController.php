@@ -4,12 +4,13 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Entity\RoleRequest;
-use App\Entity\Address;
 use App\Repository\RoleRequestRepository;
 use App\Repository\AddressRepository;
-use App\Service\FileUploadService;
 use App\Service\AddressService;
-use App\Service\ShopVerificationService; // 🆕 Import ajouté
+use App\Entity\Shop;
+use App\Entity\Address;
+use App\Service\FileUploadService;
+use App\Service\ShopVerificationService; 
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -492,6 +493,137 @@ class ProfileController extends AbstractController
             'message' => 'Jeux sélectionnés mis à jour',
             'selectedGames' => $user->getSelectedGames()
         ]);
+    }
+
+    /**
+ * Modifier sa boutique
+ */
+#[Route('/api/profile/shop', name: 'profile_update_shop', methods: ['PUT'])]
+public function updateShop(Request $request, EntityManagerInterface $em): JsonResponse
+{
+    $user = $this->getUser();
+    if (!$user || !in_array('ROLE_SHOP', $user->getRoles())) {
+        return $this->json(['error' => 'Non autorisé'], 403);
+    }
+
+    // Récupérer la boutique de l'user
+    $shop = $em->getRepository(Shop::class)->findOneBy(['owner' => $user]);
+    if (!$shop) {
+        return $this->json(['error' => 'Aucune boutique trouvée'], 404);
+    }
+
+    $data = json_decode($request->getContent(), true);
+
+    // Validation des données
+    if (empty($data['name']) || strlen($data['name']) < 2) {
+        return $this->json(['error' => 'Le nom de la boutique est requis (minimum 2 caractères)'], 400);
+    }
+
+    // Mise à jour des champs autorisés
+    $shop->setName($data['name']);
+    $shop->setDescription($data['description'] ?? null);
+    $shop->setPhone($data['phone'] ?? null);
+    $shop->setEmail($data['email'] ?? null);
+    $shop->setWebsite($data['website'] ?? null);
+    $shop->setPrimaryColor($data['primaryColor'] ?? null);
+    $shop->setServices($data['services'] ?? []);
+    $shop->setSpecializedGames($data['specializedGames'] ?? []);
+    $shop->setOpeningHours($data['openingHours'] ?? null);
+    $shop->setIsActive($data['isActive'] ?? true);
+
+    // Gestion de l'adresse
+    if (!empty($data['address'])) {
+        $address = $shop->getAddress();
+        if (!$address) {
+            $address = new Address();
+            $em->persist($address);
+        }
+        
+        $address->setStreetAddress($data['address']['streetAddress'] ?? '');
+        $address->setCity($data['address']['city'] ?? '');
+        $address->setPostalCode($data['address']['postalCode'] ?? '');
+        $address->setCountry($data['address']['country'] ?? 'France');
+        $address->setLatitude($data['address']['latitude'] ?? null);
+        $address->setLongitude($data['address']['longitude'] ?? null);
+        
+        $shop->setAddress($address);
+    }
+
+    $shop->updateTimestamp();
+    $em->flush();
+
+    return $this->json([
+        'success' => true,
+        'message' => 'Boutique mise à jour avec succès',
+        'shop' => [
+            'id' => $shop->getId(),
+            'name' => $shop->getName(),
+            'description' => $shop->getDescription(),
+            'phone' => $shop->getPhone(),
+            'email' => $shop->getEmail(),
+            'website' => $shop->getWebsite(),
+            'primaryColor' => $shop->getPrimaryColor(),
+            'services' => $shop->getServices(),
+            'specializedGames' => $shop->getSpecializedGames(),
+            'openingHours' => $shop->getOpeningHours(),
+            'isActive' => $shop->isActive(),
+            'address' => $shop->getAddress() ? [
+                'streetAddress' => $shop->getAddress()->getStreetAddress(),
+                'city' => $shop->getAddress()->getCity(),
+                'postalCode' => $shop->getAddress()->getPostalCode(),
+                'country' => $shop->getAddress()->getCountry(),
+                'latitude' => $shop->getAddress()->getLatitude(),
+                'longitude' => $shop->getAddress()->getLongitude(),
+                'fullAddress' => $shop->getAddress()->getFullAddress()
+            ] : null
+        ]
+    ]);
+}
+
+    /**
+     * Upload logo boutique
+     */
+    #[Route('/api/profile/shop/logo', name: 'profile_upload_shop_logo', methods: ['POST'])]
+    public function uploadShopLogo(Request $request, FileUploadService $fileUploadService, EntityManagerInterface $em): JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user || !in_array('ROLE_SHOP', $user->getRoles())) {
+            return $this->json(['error' => 'Non autorisé'], 403);
+        }
+
+        // Récupérer la boutique de l'user
+        $shop = $em->getRepository(Shop::class)->findOneBy(['owner' => $user]);
+        if (!$shop) {
+            return $this->json(['error' => 'Aucune boutique trouvée'], 404);
+        }
+
+        $uploadedFile = $request->files->get('logo');
+        if (!$uploadedFile) {
+            return $this->json(['error' => 'Aucun fichier fourni'], 400);
+        }
+
+        try {
+            // Supprimer l'ancien logo s'il existe
+            if ($shop->getLogo()) {
+                $fileUploadService->deleteFile($shop->getLogo());
+            }
+
+            // Upload du nouveau logo
+            $filename = $fileUploadService->uploadShopLogo($uploadedFile, $shop->getId());
+            
+            // Mise à jour de la boutique
+            $shop->setLogo($filename);
+            $shop->updateTimestamp();
+            $em->flush();
+
+            return $this->json([
+                'success' => true,
+                'message' => 'Logo mis à jour avec succès',
+                'logo' => $filename
+            ]);
+        } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], 400);
+        }
     }
 
 }

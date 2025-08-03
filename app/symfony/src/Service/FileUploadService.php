@@ -220,6 +220,39 @@ class FileUploadService
         }
     }
 
+    public function uploadShopLogo(UploadedFile $file, int $shopId): string
+    {
+        // Validation du fichier
+        $this->validateImageFile($file);
+
+        // Générer un nom de fichier unique
+        $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $safeFilename = $this->slugger->slug($originalFilename);
+        $newFilename = 'shop_logo_' . $shopId . '_' . uniqid() . '.' . $file->guessExtension();
+
+        // Créer le dossier s'il n'existe pas
+        $logoDirectory = $this->uploadsDirectory . '/shop-logos';
+        if (!is_dir($logoDirectory)) {
+            mkdir($logoDirectory, 0755, true);
+        }
+
+        try {
+            $file->move($logoDirectory, $newFilename);
+            
+            // Redimensionner le logo (optionnel)
+            $this->resizeImage($logoDirectory . '/' . $newFilename, 300, 300);
+        } catch (FileException $e) {
+            throw new \Exception('Erreur lors de l\'upload du logo: ' . $e->getMessage());
+        }
+
+        return 'shop-logos/' . $newFilename;
+    }
+
+    public function getShopLogoUrl(string $filename): string
+    {
+        return $this->publicPath . '/uploads/' . $filename;
+    }
+
     public function getPostImageUrl(string $filename): string
     {
         return $this->publicPath . '/uploads/' . $filename;

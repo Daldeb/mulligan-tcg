@@ -204,6 +204,325 @@
             </Card>
           </section>
 
+          <!-- 🆕 SECTION BOUTIQUE (seulement si ROLE_SHOP) -->
+          <section v-if="userRole === 'shop' && userShop" class="shop-section slide-in-up">
+            <Card class="gaming-card shop-card">
+              <template #header>
+                <div class="card-header-custom shop-header">
+                  <i class="pi pi-shop header-icon"></i>
+                  <h3 class="header-title">Ma Boutique</h3>
+                </div>
+              </template>
+              <template #content>
+                <div class="shop-header-content">
+                  
+                  <!-- Logo et info de base -->
+                  <div class="shop-avatar-section">
+                    <div class="shop-logo-container">
+                      <img 
+                        v-if="!shopLogoPreview && userShop.logo"
+                        :src="`${backendUrl}/uploads/${userShop.logo}`"
+                        class="shop-logo logo-image"
+                        alt="Logo boutique"
+                        @error="console.log('Logo failed to load:', `${backendUrl}/uploads/${userShop.logo}`)"
+                      />
+                      <Avatar 
+                        v-else-if="!shopLogoPreview && !userShop.logo"
+                        :label="userShop.name?.charAt(0).toUpperCase() ?? 'B'"
+                        size="xlarge"
+                        shape="circle"
+                        class="shop-logo"
+                      />
+                      <img 
+                        v-else
+                        :src="shopLogoPreview"
+                        class="shop-logo logo-preview"
+                        alt="Prévisualisation logo"
+                      />
+                      <button class="logo-edit-btn" @click="openShopLogoEditor" :disabled="isLoadingShop">
+                        <i class="pi pi-camera"></i>
+                      </button>
+                    </div>
+                    
+                    <div class="shop-basic-info">
+                      <div class="shop-name-section">
+                        <h2 class="shop-name">{{ userShop.name }}</h2>
+                        <div class="shop-badges">
+                          <span class="status-badge verified">
+                            <i class="pi pi-verified"></i>
+                            Vérifiée
+                          </span>
+                          <span v-if="userShop.isActive" class="status-badge active">
+                            <i class="pi pi-check-circle"></i>
+                            Active
+                          </span>
+                          <span v-else class="status-badge inactive">
+                            <i class="pi pi-times-circle"></i>
+                            Inactive
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div class="shop-stats">
+                        <div class="stat-item">
+                          <span class="stat-value">{{ userShop.stats?.views || 0 }}</span>
+                          <span class="stat-label">Vues</span>
+                        </div>
+                        <div class="stat-item">
+                          <span class="stat-value">{{ userShop.stats?.events_created || 0 }}</span>
+                          <span class="stat-label">Événements</span>
+                        </div>
+                        <div class="stat-item">
+                          <span class="stat-value">{{ userShop.stats?.tournaments_hosted || 0 }}</span>
+                          <span class="stat-label">Tournois</span>
+                        </div>
+                        <div class="stat-item">
+                          <span class="stat-value">{{ userShop.stats?.rating || 0 }}</span>
+                          <span class="stat-label">Note</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Actions rapides -->
+                  <div class="shop-quick-actions">
+                    <Button 
+                      icon="pi pi-pencil"
+                      label="Modifier boutique"
+                      class="emerald-outline-btn"
+                      @click="shopEditMode = !shopEditMode"
+                    />
+                  </div>
+                </div>
+              </template>
+            </Card>
+          </section>
+
+          <!-- Section d'édition boutique (si activée) -->
+          <section v-if="shopEditMode && userShop" class="shop-edit-section slide-in-up">
+            <Card class="gaming-card shop-edit-card">
+              <template #header>
+                <div class="card-header-custom shop-edit-header">
+                  <i class="pi pi-shop header-icon"></i>
+                  <h3 class="header-title">Modifier ma boutique</h3>
+                </div>
+              </template>
+              <template #content>
+                <form @submit.prevent="saveShop" class="shop-edit-form">
+                  
+                  <!-- Informations de base -->
+                  <div class="form-section">
+                    <h4 class="section-title">
+                      <i class="pi pi-info-circle"></i>
+                      Informations générales
+                    </h4>
+                    
+                    <div class="form-grid">
+                      <div class="field-group">
+                        <label for="shopName" class="field-label">Nom de la boutique</label>
+                        <InputText 
+                          id="shopName"
+                          v-model="shopEditForm.name" 
+                          class="emerald-input"
+                          :class="{ 'error': !!shopEditErrors.name }"
+                        />
+                        <small v-if="shopEditErrors.name" class="field-error">{{ shopEditErrors.name }}</small>
+                      </div>
+                      
+                      <div class="field-group">
+                        <label for="shopPhone" class="field-label">Téléphone</label>
+                        <InputText 
+                          id="shopPhone"
+                          v-model="shopEditForm.phone" 
+                          placeholder="01 23 45 67 89"
+                          class="emerald-input"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                      <div class="field-group">
+                        <label for="shopEmail" class="field-label">Email</label>
+                        <InputText 
+                          id="shopEmail"
+                          v-model="shopEditForm.email" 
+                          placeholder="contact@maboutique.com"
+                          class="emerald-input"
+                        />
+                      </div>
+                      
+                      <div class="field-group">
+                        <label for="shopWebsite" class="field-label">Site web</label>
+                        <InputText 
+                          id="shopWebsite"
+                          v-model="shopEditForm.website" 
+                          placeholder="https://www.maboutique.com"
+                          class="emerald-input"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div class="field-group">
+                      <label for="shopDescription" class="field-label">Description</label>
+                      <Textarea 
+                        id="shopDescription"
+                        v-model="shopEditForm.description" 
+                        rows="3"
+                        placeholder="Décrivez votre boutique, vos spécialités..."
+                        class="emerald-input"
+                      />
+                    </div>
+                  </div>
+                  
+                  <!-- Adresse boutique -->
+                  <div class="form-section">
+                    <h4 class="section-title">
+                      <i class="pi pi-map-marker"></i>
+                      Adresse de la boutique
+                    </h4>
+                    
+                    <AddressAutocomplete
+                      ref="shopEditAddressRef"
+                      v-model="shopEditForm.address"
+                      mode="detailed"
+                      label="Adresse complète"
+                      placeholder="Rechercher l'adresse de votre boutique..."
+                      field-id="shop-edit-address"
+                      :required="true"
+                      :allow-remove="false"
+                      @address-validated="handleShopEditAddressValidated"
+                      @validation-error="handleShopEditAddressError"
+                    />
+                  </div>
+                  
+                  <!-- Services proposés -->
+                  <div class="form-section">
+                    <h4 class="section-title">
+                      <i class="pi pi-tags"></i>
+                      Services proposés
+                    </h4>
+                    
+                    <div class="services-grid">
+                      <div 
+                        v-for="service in availableServices" 
+                        :key="service"
+                        class="service-item"
+                        :class="{ 'selected': shopEditForm.services.includes(service) }"
+                        @click="toggleService(service)"
+                      >
+                        <i class="pi pi-check service-check"></i>
+                        <span class="service-label">{{ service }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Horaires d'ouverture -->
+                  <div class="form-section">
+                    <h4 class="section-title">
+                      <i class="pi pi-clock"></i>
+                      Horaires d'ouverture
+                    </h4>
+                    
+                    <div class="opening-hours-editor">
+                      <div 
+                        v-for="(day, dayKey) in shopEditForm.openingHours" 
+                        :key="dayKey"
+                        class="day-row"
+                      >
+                        <div class="day-info">
+                          <label class="day-label">{{ getDayLabel(dayKey) }}</label>
+                          <Checkbox 
+                            v-model="day.isOpen" 
+                            :input-id="`day-${dayKey}`"
+                            class="day-checkbox"
+                            :binary="true"
+                          />
+                          <label :for="`day-${dayKey}`" class="day-checkbox-label">Ouvert</label>
+                        </div>
+                        
+                        <div v-if="day.isOpen" class="time-inputs">
+                          <InputText 
+                            v-model="day.open" 
+                            placeholder="09:00"
+                            class="time-input"
+                          />
+                          <span class="time-separator">à</span>
+                          <InputText 
+                            v-model="day.close" 
+                            placeholder="18:00"
+                            class="time-input"
+                          />
+                        </div>
+                        <div v-else class="closed-indicator">
+                          <span class="closed-text">Fermé</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Configuration -->
+                  <div class="form-section">
+                    <h4 class="section-title">
+                      <i class="pi pi-cog"></i>
+                      Configuration
+                    </h4>
+                    
+                    <div class="form-grid">
+                      <div class="field-group">
+                        <label for="shopColor" class="field-label">Couleur principale</label>
+                        <div class="color-input-container">
+                          <input 
+                            type="color" 
+                            id="shopColor"
+                            v-model="shopEditForm.primaryColor"
+                            class="color-picker"
+                          />
+                          <InputText 
+                            v-model="shopEditForm.primaryColor"
+                            placeholder="#26a69a"
+                            class="color-text-input"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div class="field-group">
+                        <div class="checkbox-field">
+                          <Checkbox 
+                            v-model="shopEditForm.isActive" 
+                            input-id="shopActive"
+                            class="shop-active-checkbox"
+                            :binary="true"
+                          />
+                          <label for="shopActive" class="checkbox-label">
+                            <strong>Boutique active</strong>
+                            <small>Visible sur le site et dans les recherches</small>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="form-actions">
+                    <Button 
+                      type="submit"
+                      label="Sauvegarder"
+                      icon="pi pi-check"
+                      class="emerald-button primary"
+                      :loading="isLoadingShop"
+                    />
+                    <Button 
+                      type="button"
+                      label="Annuler"
+                      icon="pi pi-times"
+                      class="emerald-outline-btn cancel"
+                      @click="cancelShopEdit"
+                    />
+                  </div>
+                </form>
+              </template>
+            </Card>
+          </section>
+
           <!-- Section changement de rôle -->
           <section class="role-request-section slide-in-up">
             <Card class="gaming-card role-card">
@@ -418,7 +737,7 @@
                                     label="Approuver"
                                     icon="pi pi-check"
                                     class="emerald-button primary"
-                                    @click="approveRequest(request.id)"
+                                    @click="openOwnershipModal(request)"
                                   />
                                   <Button 
                                     label="Rejeter"
@@ -914,6 +1233,238 @@
         />
       </template>
     </Dialog>
+    
+    <!-- 🆕 MODAL OWNERSHIP BOUTIQUE -->
+      <Dialog 
+        v-model:visible="showOwnershipModal"
+        modal
+        header="Attribution boutique - Validation rôle"
+        :style="{ width: '90vw', maxWidth: '1200px' }"
+        class="emerald-modal ownership-modal"
+        :closable="true"
+        @hide="resetOwnershipModal"
+      >
+      <div class="ownership-content">
+        <!-- En-tête avec info de la demande -->
+        <div class="request-summary">
+          <div class="user-info">
+            <h4>{{ selectedRequest?.user?.pseudo }}</h4>
+            <span class="user-email">{{ selectedRequest?.user?.email }}</span>
+          </div>
+          <div class="shop-data" v-if="selectedRequest?.shop_data">
+            <span class="shop-name">{{ selectedRequest.shop_data.name }}</span>
+            <span class="shop-address">{{ selectedRequest.shop_data.address?.full_address }}</span>
+          </div>
+        </div>
+        
+        <!-- Section principale avec 2 colonnes -->
+        <div class="ownership-main">
+          <!-- Colonne gauche : Liste des boutiques -->
+          <div class="shops-list-section">
+            <div class="section-header">
+              <h5>
+                <i class="pi pi-shop"></i>
+                Boutiques existantes
+              </h5>
+              <div class="search-container">
+                <InputText
+                  v-model="shopSearchQuery"
+                  placeholder="Rechercher par nom..."
+                  class="shop-search-input"
+                  @input="filterShops"
+                />
+                <i class="pi pi-search search-icon"></i>
+              </div>
+            </div>
+            
+            <div class="shops-list">
+              <div class="shops-scroll">
+                <div 
+                  v-for="shop in filteredShops" 
+                  :key="shop.id"
+                  class="shop-item"
+                  :class="{ 'selected': selectedShop?.id === shop.id }"
+                  @click="selectExistingShop(shop)"
+                >
+                  <div class="shop-item-header">
+                    <h6>{{ shop.name }}</h6>
+                    <span class="shop-type">{{ shop.type }}</span>
+                  </div>
+                  <div class="shop-item-details">
+                    <span class="shop-address">{{ shop.address?.city }}</span>
+                    <span class="shop-owner" v-if="shop.owner">
+                      Propriétaire: {{ shop.owner.pseudo }}
+                    </span>
+                    <span class="shop-available" v-else>
+                      <i class="pi pi-check-circle"></i>
+                      Disponible
+                    </span>
+                  </div>
+                </div>
+                
+                <div v-if="filteredShops.length === 0" class="no-shops">
+                  <i class="pi pi-inbox"></i>
+                  <p>Aucune boutique trouvée</p>
+                </div>
+              </div>
+              
+              <div class="create-new-section">
+                <Button
+                  label="Créer une nouvelle boutique"
+                  icon="pi pi-plus"
+                  class="emerald-outline-btn create-shop-btn"
+                  @click="createNewShop"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <!-- Colonne droite : Formulaire -->
+          <div class="shop-form-section">
+            <div class="section-header">
+              <h5>
+                <i class="pi pi-edit"></i>
+                {{ ownershipMode === 'existing' ? 'Modifier la boutique' : 'Créer la boutique' }}
+              </h5>
+              <span v-if="selectedShop" class="selected-indicator">
+                Boutique sélectionnée
+              </span>
+            </div>
+            
+<form @submit.prevent="validateOwnership" class="shop-form">
+  <div class="form-grid">
+    <div class="field-group">
+      <label class="field-label">Nom de la boutique *</label>
+      <InputText 
+        v-model="ownershipForm.name"
+        class="emerald-input"
+        :class="{ 'error': !!ownershipErrors.name }"
+        placeholder="ex: Gaming Paradise"
+      />
+      <small v-if="ownershipErrors.name" class="field-error">{{ ownershipErrors.name }}</small>
+    </div>
+    
+    <div class="field-group">
+      <label class="field-label">SIRET *</label>
+      <InputText 
+        v-model="ownershipForm.siretNumber"
+        class="emerald-input"
+        :class="{ 'error': !!ownershipErrors.siretNumber }"
+        placeholder="12345678901234"
+        maxlength="17"
+      />
+      <small v-if="ownershipErrors.siretNumber" class="field-error">{{ ownershipErrors.siretNumber }}</small>
+    </div>
+  </div>
+  
+  <div class="form-grid">
+    <div class="field-group">
+      <label class="field-label">Téléphone *</label>
+      <InputText 
+        v-model="ownershipForm.phone"
+        class="emerald-input"
+        :class="{ 'error': !!ownershipErrors.phone }"
+        placeholder="01 23 45 67 89"
+      />
+      <small v-if="ownershipErrors.phone" class="field-error">{{ ownershipErrors.phone }}</small>
+    </div>
+    
+    <div class="field-group">
+      <label class="field-label">Email boutique *</label>
+      <InputText 
+        v-model="ownershipForm.email"
+        class="emerald-input"
+        :class="{ 'error': !!ownershipErrors.email }"
+        placeholder="contact@maboutique.com"
+      />
+      <small v-if="ownershipErrors.email" class="field-error">{{ ownershipErrors.email }}</small>
+    </div>
+  </div>
+  
+  <div class="field-group">
+    <label class="field-label">Site web</label>
+    <InputText 
+      v-model="ownershipForm.website"
+      class="emerald-input"
+      placeholder="https://www.maboutique.com"
+    />
+    <small class="field-help">Optionnel</small>
+  </div>
+  
+  <div class="field-group">
+    <label class="field-label">Description</label>
+    <Textarea 
+      v-model="ownershipForm.description"
+      rows="3"
+      class="emerald-input"
+      placeholder="Décrivez votre boutique, vos spécialités TCG..."
+    />
+    <small class="field-help">Optionnel - peut être complété plus tard</small>
+  </div>
+  
+  <!-- Adresse -->
+  <div class="address-section">
+    <h6 class="subsection-title">
+      <i class="pi pi-map-marker"></i>
+      Adresse de la boutique
+    </h6>
+    
+    <AddressAutocomplete
+      ref="ownershipAddressRef"
+      v-model="ownershipForm.address"
+      mode="detailed"
+      label="Adresse complète"
+      placeholder="Rechercher l'adresse de la boutique..."
+      field-id="ownership-address"
+      :required="true"
+      :allow-remove="false"
+      @address-validated="handleOwnershipAddressValidated"
+      @validation-error="handleOwnershipAddressError"
+    />
+    
+    <small v-if="ownershipErrors.address" class="field-error">{{ ownershipErrors.address }}</small>
+  </div>
+  
+  <!-- Info automatique -->
+  <div class="auto-info-section">
+    <div class="auto-info-card">
+      <i class="pi pi-info-circle"></i>
+      <div class="auto-info-content">
+        <h6>Informations automatiques</h6>
+        <p>Une fois validée, cette boutique sera automatiquement :</p>
+        <ul>
+          <li><strong>Vérifiée</strong> - Type "verified"</li>
+          <li><strong>Fiable à 100%</strong> - Score de confiance maximum</li>
+          <li><strong>Active</strong> - Visible sur le site</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</form>
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <div class="ownership-actions">
+          <Button 
+            label="Annuler" 
+            icon="pi pi-times" 
+            class="emerald-outline-btn cancel"
+            @click="showOwnershipModal = false" 
+          />
+          <Button 
+            label="Valider les droits"
+            icon="pi pi-check"
+            class="emerald-button primary"
+            @click="validateOwnership"
+            :loading="isValidatingOwnership"
+            :disabled="!ownershipForm.name"
+          />
+        </div>
+      </template>
+    </Dialog>
+
   </div>
 </template>
 
@@ -926,6 +1477,9 @@ import api from '../services/api'
 // 🆕 Import du composant AddressAutocomplete
 import AddressAutocomplete from '../components/form/AddressAutocomplete.vue'
 import { useNotifications } from '../composables/useNotifications'
+import Dropdown from 'primevue/dropdown'
+import InputNumber from 'primevue/inputnumber'
+import Checkbox from 'primevue/checkbox'
 
 // Stores et router
 const authStore = useAuthStore()
@@ -943,6 +1497,82 @@ const isLoadingRequests = ref(false)
 const profileAddressRef = ref(null)
 const shopAddressRef = ref(null)
 const expandedRequest = ref(null)
+
+// 🆕 VARIABLES BOUTIQUE
+const userShop = ref(null)
+const shopEditMode = ref(false)
+const isLoadingShop = ref(false)
+const shopLogoFile = ref(null)
+const shopLogoPreview = ref(null)
+const shopEditAddressRef = ref(null)
+
+// 🆕 SERVICES DISPONIBLES
+const availableServices = [
+  'Vente de cartes',
+  'Tournois', 
+  'Événements',
+  'Coaching',
+  'Réparation'
+]
+
+// 🆕 FORMULAIRE ÉDITION BOUTIQUE
+const shopEditForm = reactive({
+  name: '',
+  description: '',
+  phone: '',
+  email: '',
+  website: '',
+  primaryColor: '#26a69a',
+  services: [],
+  address: null,
+  isActive: true,
+  openingHours: {
+    monday: { isOpen: true, open: '09:00', close: '18:00' },
+    tuesday: { isOpen: true, open: '09:00', close: '18:00' },
+    wednesday: { isOpen: true, open: '09:00', close: '18:00' },
+    thursday: { isOpen: true, open: '09:00', close: '18:00' },
+    friday: { isOpen: true, open: '09:00', close: '18:00' },
+    saturday: { isOpen: true, open: '10:00', close: '19:00' },
+    sunday: { isOpen: false, open: '', close: '' }
+  }
+})
+
+// 🆕 ERREURS BOUTIQUE
+const shopEditErrors = reactive({
+  name: '',
+  address: ''
+})
+
+// 🆕 Variables pour l'ownership modal
+const showOwnershipModal = ref(false)
+const selectedRequest = ref(null)
+const ownershipMode = ref(null) // 'existing' ou 'new'
+const selectedShop = ref(null)
+const isValidatingOwnership = ref(false)
+const shopSearchQuery = ref('')
+const allShops = ref([])
+const filteredShops = ref([])
+const ownershipAddressRef = ref(null)
+
+// 🆕 Formulaire ownership
+const ownershipForm = reactive({
+  name: '',
+  siretNumber: '',
+  phone: '',
+  email: '',
+  website: '',
+  description: '',
+  address: null
+})
+
+// 🆕 Erreurs ownership
+const ownershipErrors = reactive({
+  name: '',
+  siretNumber: '',
+  phone: '',
+  email: '',
+  address: ''
+})
 
 // Gestion des demandes de rôles inline
 const roleRequestMode = ref(null) // null, 'organizer', 'shop'
@@ -1322,6 +1952,208 @@ const startRoleRequest = (role) => {
   }
 }
 
+// 🆕 Méthodes pour l'ownership modal
+const openOwnershipModal = async (request) => {
+  selectedRequest.value = request
+  showOwnershipModal.value = true
+  
+  // Charger toutes les boutiques
+  await loadAllShops()
+  
+  // Pré-remplir avec les données de la demande si disponibles
+  if (request.shop_data) {
+    ownershipForm.name = request.shop_data.name || ''
+    ownershipForm.siretNumber = request.shop_data.siret || ''
+    ownershipForm.phone = request.shop_data.phone || ''
+    ownershipForm.website = request.shop_data.website || ''
+    ownershipForm.address = request.shop_data.address || null
+  }
+}
+
+const loadAllShops = async () => {
+  try {
+    const response = await api.get('/api/shops/admin/all')
+    allShops.value = response.data.shops
+    filteredShops.value = [...allShops.value]
+  } catch (error) {
+    console.error('Erreur chargement boutiques:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible de charger les boutiques',
+      life: 3000
+    })
+  }
+}
+
+const filterShops = () => {
+  const query = shopSearchQuery.value.toLowerCase().trim()
+  if (!query) {
+    filteredShops.value = [...allShops.value]
+  } else {
+    filteredShops.value = allShops.value.filter(shop => 
+      shop.name.toLowerCase().includes(query)
+    )
+  }
+}
+
+const selectExistingShop = (shop) => {
+  selectedShop.value = shop
+  ownershipMode.value = 'existing'
+  
+  // Pré-remplir le formulaire simplifié
+  ownershipForm.name = shop.name
+  ownershipForm.siretNumber = shop.siretNumber || ''
+  ownershipForm.phone = shop.phone || ''
+  ownershipForm.email = shop.email || ''
+  ownershipForm.website = shop.website || ''
+  ownershipForm.description = shop.description || ''
+  ownershipForm.address = shop.address || null
+}
+
+const createNewShop = () => {
+  selectedShop.value = null
+  ownershipMode.value = 'new'
+  
+  // Vider le formulaire (garder les données de la demande si disponibles)
+  const requestData = selectedRequest.value?.shop_data
+  ownershipForm.name = requestData?.name || ''
+  ownershipForm.siretNumber = requestData?.siret || ''
+  ownershipForm.phone = requestData?.phone || ''
+  ownershipForm.email = requestData?.email || ''
+  ownershipForm.website = requestData?.website || ''
+  ownershipForm.description = ''
+  ownershipForm.address = requestData?.address || null
+}
+
+const handleOwnershipAddressValidated = (address) => {
+  ownershipForm.address = address
+  ownershipErrors.address = ''
+}
+
+const handleOwnershipAddressError = (errors) => {
+  ownershipErrors.address = 'Veuillez saisir une adresse valide'
+}
+
+const validateOwnership = async () => {
+  // Reset erreurs
+  Object.keys(ownershipErrors).forEach(key => ownershipErrors[key] = '')
+  
+  let isValid = true
+  
+  // Validation nom
+  if (!ownershipForm.name.trim()) {
+    ownershipErrors.name = 'Le nom de la boutique est obligatoire'
+    isValid = false
+  }
+  
+  // Validation SIRET
+  if (!ownershipForm.siretNumber.trim()) {
+    ownershipErrors.siretNumber = 'Le numéro SIRET est obligatoire'
+    isValid = false
+  } else if (!/^\d{14}$/.test(ownershipForm.siretNumber.replace(/\s/g, ''))) {
+    ownershipErrors.siretNumber = 'Le SIRET doit contenir exactement 14 chiffres'
+    isValid = false
+  }
+  
+  // Validation téléphone
+  if (!ownershipForm.phone.trim()) {
+    ownershipErrors.phone = 'Le téléphone est obligatoire'
+    isValid = false
+  }
+  
+  // Validation email
+  if (!ownershipForm.email.trim()) {
+    ownershipErrors.email = 'L\'email est obligatoire'
+    isValid = false
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownershipForm.email)) {
+    ownershipErrors.email = 'Format d\'email invalide'
+    isValid = false
+  }
+  
+  // Validation adresse
+  if (!ownershipForm.address) {
+    ownershipErrors.address = 'L\'adresse est obligatoire'
+    isValid = false
+  }
+  
+  if (!isValid) return
+  
+  // Valider l'adresse si nécessaire
+  if (ownershipAddressRef.value) {
+    try {
+      const result = await ownershipAddressRef.value.validateAddress()
+      ownershipForm.address = result.address
+    } catch (error) {
+      ownershipErrors.address = 'Veuillez corriger l\'adresse'
+      return
+    }
+  }
+  
+  isValidatingOwnership.value = true
+  
+  try {
+    const payload = {
+      requestId: selectedRequest.value.id,
+      mode: ownershipMode.value,
+      shopId: selectedShop.value?.id || null,
+      shopData: {
+        name: ownershipForm.name,
+        siretNumber: ownershipForm.siretNumber.replace(/\s/g, ''),
+        phone: ownershipForm.phone,
+        email: ownershipForm.email,
+        website: ownershipForm.website,
+        description: ownershipForm.description,
+        address: ownershipForm.address
+        // Plus besoin de type, status, confidenceScore, etc.
+      }
+    }
+    
+    await api.post('/api/admin/role-requests/assign-shop', payload)
+    
+    showOwnershipModal.value = false
+    await loadAdminRequests()
+    
+    toast.add({
+      severity: 'success',
+      summary: 'Ownership validé',
+      detail: `${selectedRequest.value.user.pseudo} est maintenant propriétaire de "${ownershipForm.name}"`,
+      life: 4000
+    })
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || 'Impossible de valider l\'ownership'
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: errorMsg,
+      life: 3000
+    })
+  } finally {
+    isValidatingOwnership.value = false
+  }
+}
+
+
+const resetOwnershipModal = () => {
+  selectedRequest.value = null
+  selectedShop.value = null
+  ownershipMode.value = null
+  shopSearchQuery.value = ''
+  filteredShops.value = []
+  
+  // Reset formulaire simplifié
+  Object.keys(ownershipForm).forEach(key => {
+    if (key === 'address') {
+      ownershipForm[key] = null
+    } else {
+      ownershipForm[key] = ''
+    }
+  })
+  
+  // Reset erreurs
+  Object.keys(ownershipErrors).forEach(key => ownershipErrors[key] = '')
+}
+
 const cancelRoleRequest = () => {
   roleRequestMode.value = null
   Object.keys(roleRequestErrors).forEach(key => roleRequestErrors[key] = '')
@@ -1495,23 +2327,238 @@ const openGoogleMaps = (shopName, address) => {
   window.open(url, '_blank')
 }
 
-const approveRequest = async (requestId) => {
+
+// 🆕 MÉTHODES BOUTIQUE
+
+// Charger les données de la boutique
+const loadUserShop = async () => {
+  if (userRole.value !== 'shop') return
+  
   try {
-    await api.post(`/api/admin/role-requests/${requestId}/approve`)
+    const response = await api.get('/api/shops/my-shop')
+    userShop.value = response.data.shop
+
+        console.log('🔍 Shop data loaded:', response.data.shop)
+    
+    // Initialiser le formulaire d'édition avec les données actuelles
+    initializeShopEditForm()
+  } catch (error) {
+    console.error('Erreur lors du chargement de la boutique:', error)
+    if (error.response?.status !== 404) {
+      toast.add({
+        severity: 'error',
+        summary: 'Erreur',
+        detail: 'Impossible de charger les données de la boutique',
+        life: 3000
+      })
+    }
+  }
+}
+
+// Initialiser le formulaire d'édition avec les données boutique
+const initializeShopEditForm = () => {
+  if (!userShop.value) return
+  
+  const shop = userShop.value
+  
+  shopEditForm.name = shop.name || ''
+  shopEditForm.description = shop.description || ''
+  shopEditForm.phone = shop.phone || ''
+  shopEditForm.email = shop.email || ''
+  shopEditForm.website = shop.website || ''
+  shopEditForm.primaryColor = shop.primaryColor || '#26a69a'
+  shopEditForm.services = shop.services || []
+if (shop.address) {
+  shopEditForm.address = {
+    streetAddress: shop.address.street,        // street → streetAddress
+    city: shop.address.city,
+    postalCode: shop.address.postalCode,
+    country: shop.address.country,
+    latitude: shop.address.coordinates?.lat || null,   // coordinates.lat → latitude
+    longitude: shop.address.coordinates?.lng || null,  // coordinates.lng → longitude
+    fullAddress: shop.address.full             // full → fullAddress
+  }
+} else {
+  shopEditForm.address = null
+}  shopEditForm.isActive = shop.isActive !== undefined ? shop.isActive : true
+  
+  // Initialiser les horaires d'ouverture
+  if (shop.openingHours) {
+    Object.keys(shopEditForm.openingHours).forEach(day => {
+      if (shop.openingHours[day]) {
+        shopEditForm.openingHours[day] = {
+          isOpen: shop.openingHours[day].isOpen || false,
+          open: shop.openingHours[day].open || '09:00',
+          close: shop.openingHours[day].close || '18:00'
+        }
+      }
+    })
+  }
+}
+
+// Ouvrir l'éditeur de logo boutique
+const openShopLogoEditor = () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      shopLogoFile.value = file
+      // Prévisualisation
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        shopLogoPreview.value = e.target.result
+      }
+      reader.readAsDataURL(file)
+      // Upload immédiat
+      uploadShopLogo()
+    }
+  }
+  input.click()
+}
+
+// Upload logo boutique
+const uploadShopLogo = async () => {
+  if (!shopLogoFile.value) return
+  
+  const formData = new FormData()
+  formData.append('logo', shopLogoFile.value)
+  
+  isLoadingShop.value = true
+  try {
+    const response = await api.post('/api/profile/shop/logo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    // Mettre à jour les données boutique
+    userShop.value.logo = response.data.logo
+    shopLogoPreview.value = null
+    shopLogoFile.value = null
+    
     toast.add({
       severity: 'success',
-      summary: 'Demande approuvée',
-      detail: 'La demande de rôle a été approuvée avec succès',
+      summary: 'Logo mis à jour',
+      detail: 'Le logo de votre boutique a été mis à jour',
       life: 3000
     })
-    await loadAdminRequests() // Recharger les demandes
   } catch (error) {
+    console.error('Erreur upload logo boutique:', error)
     toast.add({
       severity: 'error',
       summary: 'Erreur',
-      detail: 'Impossible d\'approuver la demande',
+      detail: 'Impossible de mettre à jour le logo',
       life: 3000
     })
+  } finally {
+    isLoadingShop.value = false
+  }
+}
+
+// Basculer un service
+const toggleService = (service) => {
+  const index = shopEditForm.services.indexOf(service)
+  if (index > -1) {
+    shopEditForm.services.splice(index, 1)
+  } else {
+    shopEditForm.services.push(service)
+  }
+}
+
+// Obtenir le label d'un jour
+const getDayLabel = (dayKey) => {
+  const labels = {
+    monday: 'Lundi',
+    tuesday: 'Mardi',
+    wednesday: 'Mercredi',
+    thursday: 'Jeudi',
+    friday: 'Vendredi',
+    saturday: 'Samedi',
+    sunday: 'Dimanche'
+  }
+  return labels[dayKey] || dayKey
+}
+
+// Handlers pour l'adresse boutique
+const handleShopEditAddressValidated = (address) => {
+  shopEditForm.address = address
+  shopEditErrors.address = ''
+}
+
+const handleShopEditAddressError = (errors) => {
+  shopEditErrors.address = 'Veuillez saisir une adresse valide'
+}
+
+// Annuler l'édition boutique
+const cancelShopEdit = () => {
+  shopEditMode.value = false
+  // Reset du formulaire avec les données actuelles
+  initializeShopEditForm()
+  // Clear errors
+  Object.keys(shopEditErrors).forEach(key => shopEditErrors[key] = '')
+}
+
+// Sauvegarder la boutique
+const saveShop = async () => {
+  // Validation
+  Object.keys(shopEditErrors).forEach(key => shopEditErrors[key] = '')
+  
+  if (!shopEditForm.name || shopEditForm.name.length < 2) {
+    shopEditErrors.name = 'Le nom de la boutique doit contenir au moins 2 caractères'
+    return
+  }
+  
+  isLoadingShop.value = true
+  
+  try {
+    if (!shopEditForm.address || !shopEditForm.address.streetAddress) {
+      toast.add({
+        severity: 'error',
+        summary: 'Erreur adresse',
+        detail: 'L\'adresse de la boutique est obligatoire',
+        life: 3000
+      })
+      isLoadingShop.value = false
+      return
+    }
+    
+    const payload = {
+      name: shopEditForm.name,
+      description: shopEditForm.description,
+      phone: shopEditForm.phone,
+      email: shopEditForm.email,
+      website: shopEditForm.website,
+      primaryColor: shopEditForm.primaryColor,
+      services: shopEditForm.services,
+      address: shopEditForm.address,
+      isActive: shopEditForm.isActive,
+      openingHours: shopEditForm.openingHours
+    }
+    
+    const response = await api.put('/api/profile/shop', payload)
+    
+    // Mise à jour des données boutique
+    userShop.value = response.data.shop
+    
+    shopEditMode.value = false
+    toast.add({
+      severity: 'success',
+      summary: 'Boutique mise à jour',
+      detail: 'Les informations de votre boutique ont été sauvegardées',
+      life: 3000
+    })
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || 'Impossible de sauvegarder la boutique'
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: errorMsg,
+      life: 3000
+    })
+  } finally {
+    isLoadingShop.value = false
   }
 }
 
@@ -1561,9 +2608,10 @@ onMounted(async () => {
     await loadAdminRequests()
   }
 
-  // Charger les données du profil
+  // Charger les données du profil et de son shop
   await loadUserProfile()
-  
+  await loadUserShop()
+
     try {
     await loadRecentNotifications(1, true) // Page 1, reset
   } catch (error) {
@@ -1583,7 +2631,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* === PROFILE PAGE EMERALD GAMING === */
+/* === PROFILE PAGE EMERALD GAMING + SHOP SECTION === */
 
 .profile-page {
   min-height: calc(100vh - 140px);
@@ -1797,6 +2845,342 @@ onMounted(async () => {
   align-items: flex-start;
 }
 
+/* === 🆕 SECTION BOUTIQUE === */
+
+/* Shop header card */
+.shop-card {
+  background: linear-gradient(135deg, rgba(255, 87, 34, 0.05), rgba(255, 87, 34, 0.02));
+  border: 2px solid rgba(255, 87, 34, 0.1);
+}
+
+.shop-header {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+}
+
+.shop-header-content {
+  padding: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+.shop-avatar-section {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  flex: 1;
+}
+
+.shop-logo-container {
+  position: relative;
+}
+
+.shop-logo {
+  width: 120px !important;
+  height: 120px !important;
+  font-size: 3rem !important;
+  background: var(--accent-gradient) !important;
+  color: white !important;
+  border: 4px solid white !important;
+  box-shadow: var(--shadow-medium) !important;
+  border-radius: 12px !important; /* Logo boutique carré avec coins arrondis */
+}
+
+.logo-image {
+  width: 120px !important;
+  height: 120px !important;
+  border-radius: 12px !important;
+  object-fit: cover !important;
+  border: 4px solid white !important;
+  box-shadow: var(--shadow-medium) !important;
+}
+
+.logo-preview {
+  width: 120px !important;
+  height: 120px !important;
+  border-radius: 12px !important;
+  object-fit: cover !important;
+  border: 4px solid white !important;
+  box-shadow: var(--shadow-medium) !important;
+}
+
+.logo-edit-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  border: 2px solid white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-small);
+}
+
+.logo-edit-btn:hover {
+  background: var(--accent-dark);
+  transform: scale(1.1);
+}
+
+.shop-basic-info {
+  flex: 1;
+}
+
+.shop-name-section {
+  margin-bottom: 1.5rem;
+}
+
+.shop-name {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem 0;
+}
+
+.shop-badges {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.verified {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.status-badge.active {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.status-badge.inactive {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.shop-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.shop-quick-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+/* Shop edit section */
+.shop-edit-header {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+}
+
+.shop-edit-form {
+  padding: 2rem;
+}
+
+.form-section {
+  margin-bottom: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--surface-200);
+}
+
+.form-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem 0;
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--primary);
+}
+
+/* Services grid */
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.service-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 2px solid var(--surface-200);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.service-item:hover {
+  border-color: var(--primary);
+  background: rgba(38, 166, 154, 0.05);
+}
+
+.service-item.selected {
+  border-color: var(--primary);
+  background: rgba(38, 166, 154, 0.1);
+}
+
+.service-check {
+  color: var(--primary);
+  font-size: 1.2rem;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.service-item.selected .service-check {
+  opacity: 1;
+}
+
+.service-label {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Opening hours editor */
+.opening-hours-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.day-row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 2rem;
+  align-items: center;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--surface-200);
+  border-radius: var(--border-radius);
+}
+
+.day-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.day-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 80px;
+}
+
+.day-checkbox-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.time-inputs {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.time-input {
+  width: 80px !important;
+  text-align: center;
+}
+
+.time-separator {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.closed-indicator {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.closed-text {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Color picker */
+.color-input-container {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.color-picker {
+  width: 60px;
+  height: 40px;
+  border: 2px solid var(--surface-300);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  background: none;
+}
+
+.color-text-input {
+  flex: 1;
+  max-width: 150px;
+}
+
+/* Checkbox field */
+.checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(38, 166, 154, 0.05);
+  border: 1px solid rgba(38, 166, 154, 0.1);
+  border-radius: var(--border-radius);
+}
+
+.checkbox-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  cursor: pointer;
+}
+
+.checkbox-label strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.checkbox-label small {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
 /* Edit section */
 .edit-header {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
@@ -1827,23 +3211,13 @@ onMounted(async () => {
   letter-spacing: 0.5px;
 }
 
-/* 🆕 Section adresse */
+/* Section adresse */
 .address-section {
   background: rgba(38, 166, 154, 0.05);
   border: 1px solid rgba(38, 166, 154, 0.1);
   border-radius: var(--border-radius-large);
   padding: 2rem;
   margin-bottom: 2rem;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 1rem 0;
-  color: var(--text-primary);
-  font-size: 1.1rem;
-  font-weight: 600;
 }
 
 .section-description {
@@ -1853,7 +3227,7 @@ onMounted(async () => {
   line-height: 1.5;
 }
 
-/* 🆕 Pré-remplissage adresse boutique */
+/* Pré-remplissage adresse boutique */
 .address-prefill-notice {
   background: rgba(59, 130, 246, 0.1);
   border: 1px solid rgba(59, 130, 246, 0.2);
@@ -2225,12 +3599,6 @@ onMounted(async () => {
   gap: 2rem;
 }
 
-.form-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
 .section-subtitle {
   display: flex;
   align-items: center;
@@ -2293,7 +3661,7 @@ onMounted(async () => {
 /* Activity list */
 .activity-list {
   padding: 1.5rem;
-  max-height: 300px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
@@ -2302,6 +3670,74 @@ onMounted(async () => {
   gap: 1rem;
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--surface-200);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.activity-item:hover {
+  background: rgba(38, 166, 154, 0.05);
+  border-radius: var(--border-radius);
+  margin: 0 -0.5rem;
+  padding: 0.75rem 0.5rem;
+}
+
+.activity-item.activity-unread {
+  background: rgba(38, 166, 154, 0.05);
+  border-left: 3px solid var(--primary);
+  padding-left: 1rem;
+  margin-left: -1rem;
+}
+
+.activity-icon.unread-icon {
+  background: rgba(38, 166, 154, 0.15);
+  border: 2px solid var(--primary);
+  animation: pulse 2s infinite;
+}
+
+.notification-emoji {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.unread-indicator {
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 0.5rem;
+}
+
+.loading-activity {
+  text-align: center;
+  padding: 2rem 0;
+  color: var(--text-secondary);
+}
+
+.loading-activity .pi-spinner {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.load-more-section {
+  text-align: center;
+  padding: 1rem 0;
+  border-top: 1px solid var(--surface-200);
+  margin-top: 1rem;
+}
+
+:deep(.load-more-btn) {
+  color: var(--primary) !important;
+  font-weight: 500 !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: var(--border-radius) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+:deep(.load-more-btn:hover) {
+  background: rgba(38, 166, 154, 0.1) !important;
+  transform: translateY(-1px) !important;
 }
 
 .activity-item:last-child {
@@ -2529,111 +3965,6 @@ onMounted(async () => {
   font-size: 0.95rem;
 }
 
-/* Responsive */
-@media (max-width: 1024px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-  
-  .profile-sidebar {
-    position: static;
-    grid-row: 2;
-  }
-  
-  .profile-sidebar .sidebar-card {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .container {
-    padding: 0 1rem;
-  }
-  
-  .profile-page {
-    padding: 1rem 0;
-  }
-  
-  .profile-header-content {
-    flex-direction: column;
-    gap: 1.5rem;
-    padding: 1.5rem;
-  }
-  
-  .avatar-section {
-    flex-direction: column;
-    text-align: center;
-    gap: 1.5rem;
-  }
-  
-  .profile-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .quick-actions {
-    justify-content: center;
-  }
-  
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .role-option-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-  
-  .admin-request-item {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .admin-actions {
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 640px) {
-  :deep(.profile-avatar) {
-    width: 80px !important;
-    height: 80px !important;
-    font-size: 2rem !important;
-  }
-  
-  .username {
-    font-size: 1.5rem;
-  }
-  
-  .profile-stats {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .role-badges {
-    justify-content: center;
-  }
-  
-  .form-actions {
-    flex-direction: column-reverse;
-  }
-  
-  .event-actions {
-    gap: 0.5rem;
-  }
-  
-  .notice-content {
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .address-section {
-    padding: 1.5rem;
-  }
-}
-
 /* Admin requests enhanced */
 .admin-request-card {
   background: white;
@@ -2675,20 +4006,10 @@ onMounted(async () => {
   font-size: 1rem;
 }
 
-.user-email {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
 .request-summary {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.request-date {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
 }
 
 .confidence-score {
@@ -2749,319 +4070,235 @@ onMounted(async () => {
   transform: rotate(180deg);
 }
 
-/* Détails expandables */
-.request-details-expanded {
-  border-top: 1px solid var(--surface-200);
-  padding: 2rem;
-  background: rgba(248, 250, 252, 0.5);
-  animation: slideDown 0.3s ease-out;
+/* Ownership modal */
+.ownership-modal {
+  z-index: 1050;
 }
 
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    max-height: 1000px;
-  }
+.ownership-modal :deep(.p-dialog) {
+  max-height: 95vh !important;
+  height: auto !important;
+  overflow: hidden;
 }
 
-.request-details-expanded h6 {
+.ownership-content {
   display: flex;
+  flex-direction: column;
+  height: calc(95vh - 120px) !important;
+  overflow: hidden;
+}
+
+.request-summary {
+  background: var(--surface-100);
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--surface-200);
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 1rem 0;
+}
+
+.user-info h4 {
+  margin: 0 0 0.5rem 0;
   color: var(--text-primary);
   font-weight: 600;
-  font-size: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--surface-300);
 }
 
-.basic-details {
-  margin-bottom: 2rem;
-}
-
-.request-message {
-  background: white;
-  padding: 1rem;
-  border-radius: var(--border-radius);
-  border-left: 4px solid var(--primary);
-  margin: 0;
-  line-height: 1.5;
-  font-style: italic;
-}
-
-/* Shop details */
-.shop-details {
-  margin-bottom: 2rem;
-}
-
-.shop-info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.info-item {
+.shop-data {
+  text-align: right;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
-.info-item.full-width {
-  grid-column: 1 / -1;
+.shop-name {
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.info-item label {
-  font-size: 0.8rem;
-  font-weight: 600;
+.shop-address {
+  font-size: 0.875rem;
   color: var(--text-secondary);
+}
+
+.ownership-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shops-list-section {
+  border-right: 1px solid var(--surface-200);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shop-form-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.section-header {
+  padding: 1.5rem 2rem 1rem 2rem;
+  border-bottom: 1px solid var(--surface-200);
+  background: white;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-header h5 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.selected-indicator {
+  background: var(--primary);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.info-item span {
+.search-container {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+}
+
+.shop-search-input {
+  width: 100% !important;
+  padding-right: 2.5rem !important;
+}
+
+.search-icon {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.shops-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.shops-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.shop-item {
+  background: white;
+  border: 2px solid var(--surface-200);
+  border-radius: var(--border-radius-large);
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.shop-item:hover {
+  border-color: var(--primary);
+  background: rgba(38, 166, 154, 0.02);
+}
+
+.shop-item.selected {
+  border-color: var(--primary);
+  background: rgba(38, 166, 154, 0.1);
+  box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.2);
+}
+
+.shop-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.shop-item-header h6 {
+  margin: 0;
   color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.shop-type {
+  background: var(--surface-200);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.shop-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.shop-owner {
+  font-size: 0.8rem;
+  color: var(--accent);
   font-weight: 500;
 }
 
-.siret-number {
-  font-family: 'Courier New', monospace;
-  background: rgba(38, 166, 154, 0.1);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  display: inline-block;
-}
-
-.website-link {
+.shop-available {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8rem;
   color: var(--primary);
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: color var(--transition-fast);
+  font-weight: 500;
 }
 
-.website-link:hover {
-  color: var(--primary-dark);
-  text-decoration: underline;
+.shop-available .pi {
+  font-size: 0.7rem;
 }
 
-/* Verification details */
-.verification-details {
-  margin-bottom: 2rem;
-}
-
-.verification-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2rem;
-  margin-bottom: 1.5rem;
-}
-
-.verification-score-detail {
-  display: flex;
-  justify-content: center;
-}
-
-.score-display {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.score-circle {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  border: 4px solid;
-}
-
-.score-circle.score-high {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
-}
-
-.score-circle.score-medium {
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-}
-
-.score-circle.score-low {
-  border-color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.score-circle.score-very-low {
-  border-color: #991b1b;
-  background: rgba(153, 27, 27, 0.1);
-}
-
-.score-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.score-max {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  line-height: 1;
-}
-
-.score-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.confidence-text {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.verification-date {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-.verification-statuses {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.status-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: white;
-  border-radius: var(--border-radius);
-  border: 1px solid var(--surface-200);
-}
-
-.status-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.status-badge.status-success {
-  background: rgba(34, 197, 94, 0.1);
-  color: #16a34a;
-  border: 1px solid rgba(34, 197, 94, 0.2);
-}
-
-.status-badge.status-warning {
-  background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
-  border: 1px solid rgba(245, 158, 11, 0.2);
-}
-
-.status-badge.status-error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-/* Recommendations */
-.recommendations {
-  margin-bottom: 1.5rem;
-}
-
-.recommendation-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.recommendation-list li {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: rgba(59, 130, 246, 0.05);
-  border-left: 3px solid #3b82f6;
-  border-radius: var(--border-radius);
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
-
-.recommendation-list li .pi {
-  color: #3b82f6;
-  margin-top: 0.1rem;
-  flex-shrink: 0;
-}
-
-/* Google Maps */
-.google-places-embed {
-  margin-bottom: 1.5rem;
-}
-
-.maps-embed-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  align-items: flex-start;
-}
-
-.maps-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.maps-note {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  font-family: 'Courier New', monospace;
-}
-
-/* Actions admin expandues */
-.admin-actions-expanded {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--surface-300);
-}
-
-.action-group {
+.ownership-actions {
   display: flex;
   gap: 1rem;
-}
-
-.action-secondary {
-  display: flex;
-  gap: 0.5rem;
+  justify-content: flex-end;
 }
 
 /* Responsive */
 @media (max-width: 1024px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .profile-sidebar {
+    position: static;
+    grid-row: 2;
+  }
+  
+  .profile-sidebar .sidebar-card {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  
   .request-header {
     grid-template-columns: 1fr;
     gap: 1rem;
@@ -3071,122 +4308,156 @@ onMounted(async () => {
     justify-content: flex-start;
   }
   
-  .verification-grid {
+  .ownership-main {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    grid-template-rows: 1fr 1fr;
   }
   
-  .shop-info-grid {
-    grid-template-columns: 1fr;
+  .shops-list-section {
+    border-right: none;
+    border-bottom: 1px solid var(--surface-200);
   }
 }
 
 @media (max-width: 768px) {
-  .request-details-expanded {
-    padding: 1rem;
+  .container {
+    padding: 0 1rem;
   }
   
-  .admin-actions-expanded {
+  .profile-page {
+    padding: 1rem 0;
+  }
+  
+  .profile-header-content,
+  .shop-header-content {
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.5rem;
+  }
+  
+  .avatar-section,
+  .shop-avatar-section {
+    flex-direction: column;
+    text-align: center;
+    gap: 1.5rem;
+  }
+  
+  .profile-stats,
+  .shop-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .quick-actions,
+  .shop-quick-actions {
+    justify-content: center;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .services-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .day-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .time-inputs {
+    justify-content: center;
+  }
+  
+  .ownership-content {
+    height: 60vh;
+  }
+  
+  .request-summary {
     flex-direction: column;
     gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .shop-data {
+    text-align: left;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .search-container {
+    max-width: none;
+  }
+  
+  .ownership-actions {
+    flex-direction: column-reverse;
+  }
+}
+
+@media (max-width: 640px) {
+  :deep(.profile-avatar),
+  .shop-logo {
+    width: 80px !important;
+    height: 80px !important;
+    font-size: 2rem !important;
+  }
+  
+  .username,
+  .shop-name {
+    font-size: 1.5rem;
+  }
+  
+  .profile-stats,
+  .shop-stats {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .role-badges,
+  .shop-badges {
+    justify-content: center;
+  }
+  
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+  
+  .event-actions {
+    gap: 0.5rem;
+  }
+  
+  .notice-content {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .address-section {
+    padding: 1.5rem;
+  }
+  
+  .color-input-container {
+    flex-direction: column;
     align-items: stretch;
   }
   
-  .action-group {
-    width: 100%;
-  }
-  
-  .action-group .emerald-btn,
-  .action-group .p-button {
-    flex: 1;
+  .color-text-input {
+    max-width: none;
   }
 }
 
-/* Activity list - MISE À JOUR */
-.activity-list {
-  padding: 1.5rem;
-  max-height: 400px; /* Augmenté pour plus d'éléments */
-  overflow-y: auto;
-}
-
-.activity-item {
-  display: flex;
-  gap: 1rem;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--surface-200);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
-}
-
-.activity-item:hover {
-  background: rgba(38, 166, 154, 0.05);
-  border-radius: var(--border-radius);
-  margin: 0 -0.5rem;
-  padding: 0.75rem 0.5rem;
-}
-
-/* 🆕 Notification non lue */
-.activity-item.activity-unread {
-  background: rgba(38, 166, 154, 0.05);
-  border-left: 3px solid var(--primary);
-  padding-left: 1rem;
-  margin-left: -1rem;
-}
-
-/* 🆕 Icône pour notification non lue */
-.activity-icon.unread-icon {
-  background: rgba(38, 166, 154, 0.15);
-  border: 2px solid var(--primary);
-  animation: pulse 2s infinite;
-}
-
-/* 🆕 Emoji des notifications */
-.notification-emoji {
-  font-size: 1.2rem;
-  line-height: 1;
-}
-
-/* 🆕 Indicateur non lu */
-.unread-indicator {
-  width: 8px;
-  height: 8px;
-  background: var(--primary);
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 0.5rem;
-}
-
-/* 🆕 État de chargement */
-.loading-activity {
-  text-align: center;
-  padding: 2rem 0;
-  color: var(--text-secondary);
-}
-
-.loading-activity .pi-spinner {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-}
-
-/* 🆕 Section charger plus */
-.load-more-section {
-  text-align: center;
-  padding: 1rem 0;
-  border-top: 1px solid var(--surface-200);
-  margin-top: 1rem;
-}
-
-:deep(.load-more-btn) {
-  color: var(--primary) !important;
-  font-weight: 500 !important;
-  padding: 0.75rem 1.5rem !important;
-  border-radius: var(--border-radius) !important;
-  transition: all var(--transition-fast) !important;
-}
-
-:deep(.load-more-btn:hover) {
-  background: rgba(38, 166, 154, 0.1) !important;
-  transform: translateY(-1px) !important;
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(38, 166, 154, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(38, 166, 154, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(38, 166, 154, 0);
+  }
 }
 </style>

@@ -308,4 +308,60 @@ class ShopController extends AbstractController
 
         return $data;
     }
+
+    /**
+     * Liste de toutes les boutiques pour les admins
+     */
+    #[Route('/admin/all', name: 'admin_list', methods: ['GET'])]
+    public function getShopsForAdmin(): JsonResponse
+    {
+        // Vérifier que l'utilisateur est admin
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
+        
+        $shops = $this->shopRepository->findAll();
+        
+        $shopsData = [];
+        foreach ($shops as $shop) {
+            $shopsData[] = [
+                'id' => $shop->getId(),
+                'name' => $shop->getName(),
+                'type' => $shop->getType(),
+                'status' => $shop->getStatus(),
+                'address' => $shop->getAddress() ? [
+                    'city' => $shop->getAddress()->getCity(),
+                    'streetAddress' => $shop->getAddress()->getStreetAddress(),
+                    'fullAddress' => $shop->getAddress()->getStreetAddress() . ', ' . $shop->getAddress()->getCity()
+                ] : null,
+                'owner' => $shop->getOwner() ? [
+                    'id' => $shop->getOwner()->getId(),
+                    'pseudo' => $shop->getOwner()->getPseudo()
+                ] : null,
+                'siretNumber' => $shop->getSiretNumber(),
+                'phone' => $shop->getPhone(),
+                'website' => $shop->getWebsite(),
+                'description' => $shop->getDescription(),
+                'confidenceScore' => $shop->getConfidenceScore(),
+                'isActive' => $shop->isActive(),
+                'isFeatured' => $shop->isFeatured()
+            ];
+        }
+        
+        return new JsonResponse(['shops' => $shopsData]);
+    }
+
+    #[Route('/my-shop', name: 'my_shop', methods: ['GET'])]
+    public function getMyShop(): JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user || !in_array('ROLE_SHOP', $user->getRoles())) {
+            return $this->json(['error' => 'Non autorisé'], 403);
+        }
+        
+        $shop = $this->shopRepository->findOneBy(['owner' => $user]); 
+        if (!$shop) {
+            return $this->json(['error' => 'Aucune boutique trouvée'], 404);
+        }
+        
+        return $this->json(['shop' => $this->formatShopForApi($shop, true)]);
+    }
 }

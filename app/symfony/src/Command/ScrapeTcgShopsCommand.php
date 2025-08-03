@@ -15,10 +15,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Component\String\Slugger\SluggerInterface;
 
 #[AsCommand(
     name: 'app:scrape-tcg-shops',
-    description: 'Scrape des boutiques TCG depuis OpenStreetMap (100% gratuit)'
+    description: 'Scrape des boutiques TCG depuis OpenStreetMap et insertion en BDD'
 )]
 class ScrapeTcgShopsCommand extends Command
 {
@@ -28,12 +29,12 @@ class ScrapeTcgShopsCommand extends Command
         'tcg'
     ];
 
-    // Tags OSM précis pour boutiques de jeux/cartes (sans les supermarchés)
+    // Tags OSM précis pour boutiques de jeux/cartes
     private const OSM_SHOP_TAGS = [
-        'games',        // Magasins de jeux
-        'toys',         // Magasins de jouets (filtrage intelligent après)
-        'hobby',        // Magasins de loisirs créatifs
-        'collector'     // Boutiques de collection
+        'games',
+        'toys',
+        'hobby',
+        'collector'
     ];
 
     private const CITIES_FRANCE = [
@@ -59,7 +60,6 @@ class ScrapeTcgShopsCommand extends Command
         ['name' => 'Clermont-Ferrand', 'lat' => 45.7797, 'lon' => 3.0863]
     ];
 
-    // Services ultra-simples
     private const SERVICES_MAPPING = [
         'tournament' => ['tournoi'],
         'deck_building' => ['deck'],
@@ -70,7 +70,8 @@ class ScrapeTcgShopsCommand extends Command
         private readonly EntityManagerInterface $entityManager,
         private readonly HttpClientInterface $httpClient,
         private readonly ShopRepository $shopRepository,
-        private readonly AddressRepository $addressRepository
+        private readonly AddressRepository $addressRepository,
+        private readonly SluggerInterface $slugger
     ) {
         parent::__construct();
     }
@@ -82,10 +83,8 @@ class ScrapeTcgShopsCommand extends Command
             ->addOption('limit', 'l', InputOption::VALUE_OPTIONAL, 'Limite du nombre de résultats par ville', 50)
             ->addOption('city', 'c', InputOption::VALUE_OPTIONAL, 'Ville spécifique à scrapper')
             ->addOption('radius', 'r', InputOption::VALUE_OPTIONAL, 'Rayon de recherche en km', 15)
-            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Simulation sans sauvegarde')
-            ->addOption('export-file', null, InputOption::VALUE_OPTIONAL, 'Fichier d\'export détaillé')
             ->addOption('update-existing', null, InputOption::VALUE_NONE, 'Met à jour les boutiques existantes')
-            ->setHelp('Cette commande scrape les boutiques TCG depuis OpenStreetMap et génère un rapport détaillé.');
+            ->setHelp('Cette commande scrape les boutiques TCG depuis OpenStreetMap et les insère en base de données.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -96,21 +95,9 @@ class ScrapeTcgShopsCommand extends Command
         $limit = (int) $input->getOption('limit');
         $cityFilter = $input->getOption('city');
         $radius = (float) $input->getOption('radius');
-        $dryRun = $input->getOption('dry-run');
-        $exportFile = $input->getOption('export-file');
         $updateExisting = $input->getOption('update-existing');
 
-        // Générer nom de fichier si pas spécifié
-        if (!$exportFile) {
-            $date = (new \DateTime())->format('Ymd_His');
-            $exportFile = "var/scraping_report_{$date}.txt";
-        }
-
-        $io->title('🎯 Scrapping des boutiques TCG - Ultra-Précis');
-        
-        if ($dryRun || $exportFile) {
-            $io->info("Génération du rapport détaillé : {$exportFile}");
-        }
+        $io->title('🎯 Import des boutiques TCG en base de données');
 
         $cities = $cityFilter ? 
             array_filter(self::CITIES_FRANCE, fn($c) => stripos($c['name'], $cityFilter) !== false) : 
@@ -120,7 +107,6 @@ class ScrapeTcgShopsCommand extends Command
         $totalShopsCreated = 0;
         $totalShopsUpdated = 0;
         $errors = [];
-        $allShopsData = [];
 
         $progressBar = new ProgressBar($output, count($cities));
         $progressBar->start();
@@ -131,13 +117,10 @@ class ScrapeTcgShopsCommand extends Command
                 
                 foreach ($cityResults as $shopData) {
                     $totalShopsFound++;
-                    $allShopsData[] = $shopData;
                     
-                    if (!$dryRun && !$exportFile) {
-                        $result = $this->processShopData($shopData, $updateExisting, $io);
-                        if ($result['created']) $totalShopsCreated++;
-                        if ($result['updated']) $totalShopsUpdated++;
-                    }
+                    $result = $this->processShopData($shopData, $updateExisting, $io);
+                    if ($result['created']) $totalShopsCreated++;
+                    if ($result['updated']) $totalShopsUpdated++;
                 }
                 
             } catch (\Exception $e) {
@@ -152,24 +135,14 @@ class ScrapeTcgShopsCommand extends Command
         $progressBar->finish();
         $io->newLine(2);
 
-        // Générer le rapport détaillé
-        if ($exportFile || $dryRun) {
-            $this->generateDetailedReport($allShopsData, $exportFile, $io);
-        }
-
-        // Résumé final
-        $io->success('✅ Scrapping terminé !');
+        $io->success('✅ Import terminé !');
         $io->table(['Métrique', 'Valeur'], [
             ['Villes scannées', count($cities)],
             ['Boutiques trouvées', $totalShopsFound],
-            ['Boutiques créées', $dryRun ? 'N/A (dry-run)' : $totalShopsCreated],
-            ['Boutiques mises à jour', $dryRun ? 'N/A (dry-run)' : $totalShopsUpdated],
+            ['Boutiques créées', $totalShopsCreated],
+            ['Boutiques mises à jour', $totalShopsUpdated],
             ['Erreurs', count($errors)]
         ]);
-
-        if ($exportFile || $dryRun) {
-            $io->success("📄 Rapport détaillé généré : {$exportFile}");
-        }
 
         return Command::SUCCESS;
     }
@@ -206,17 +179,14 @@ class ScrapeTcgShopsCommand extends Command
             $north = $city['lat'] + $radiusDeg;
             $east = $city['lon'] + $radiusDeg;
 
-            // Requête HYBRIDE : par nom ET par tags OSM
             $tcgKeywords = implode('|', self::TCG_KEYWORDS);
             $shopTags = implode('|', self::OSM_SHOP_TAGS);
             
             $query = "[out:json][timeout:25];
                 (
-                  // Recherche par nom (comme avant)
                   node[\"name\"~\"{$tcgKeywords}\",i]({$south},{$west},{$north},{$east});
                   way[\"name\"~\"{$tcgKeywords}\",i]({$south},{$west},{$north},{$east});
                   
-                  // Recherche par tags shop=games/toys/hobby/collector
                   node[\"shop\"~\"^({$shopTags})$\"]({$south},{$west},{$north},{$east});
                   way[\"shop\"~\"^({$shopTags})$\"]({$south},{$west},{$north},{$east});
                 );
@@ -251,7 +221,6 @@ class ScrapeTcgShopsCommand extends Command
         $results = [];
         $io->text("    🔍 Nominatim API...");
 
-        // UNIQUEMENT ces 2 recherches
         $searches = ['magasin de jeux de cartes', 'tcg'];
 
         foreach ($searches as $keyword) {
@@ -281,7 +250,7 @@ class ScrapeTcgShopsCommand extends Command
                     }
                 }
 
-                sleep(1); // Rate limiting Nominatim
+                sleep(1);
                 
             } catch (\Exception $e) {
                 $io->warning("    ⚠️ Erreur Nominatim pour '{$keyword}': " . $e->getMessage());
@@ -301,17 +270,42 @@ class ScrapeTcgShopsCommand extends Command
         $lat = $element['lat'] ?? $element['center']['lat'] ?? null;
         $lon = $element['lon'] ?? $element['center']['lon'] ?? null;
 
+        // Extraire l'adresse des tags OSM
+        $addressData = $this->buildAddressFromTags($element['tags']);
+
+        // Si l'adresse est incomplète et qu'on a les coordonnées, utiliser le géocodage inverse
+        if (!$addressData['has_complete_address'] && $lat && $lon) {
+            $reversedAddress = $this->reverseGeocode($lat, $lon);
+            if ($reversedAddress) {
+                // Fusionner les données : priorité aux tags OSM, compléter avec géocodage inverse
+                $addressData['full_address'] = $addressData['full_address'] ?: $reversedAddress['full_address'];
+                $addressData['postal_code'] = $addressData['postal_code'] ?: $reversedAddress['postal_code'];
+                $addressData['city_from_tags'] = $addressData['city_from_tags'] ?: $reversedAddress['city'];
+                $addressData['geocoding_source'] = $reversedAddress['source'];
+            }
+            
+            // Petit délai pour respecter les limites de Nominatim
+            usleep(100000); // 100ms
+        }
+
+        // Valeurs par défaut si toujours vide
+        $finalAddress = $addressData['full_address'] ?: 'Adresse non spécifiée';
+        $finalPostalCode = $addressData['postal_code'] ?: '00000';
+
         return [
             'name' => $element['tags']['name'],
             'latitude' => $lat,
             'longitude' => $lon,
             'shop_type' => $element['tags']['shop'] ?? null,
-            'website' => $element['tags']['website'] ?? null,
-            'phone' => $element['tags']['phone'] ?? null,
+            'website' => $element['tags']['website'] ?? $element['tags']['contact:website'] ?? null,
+            'phone' => $element['tags']['phone'] ?? $element['tags']['contact:phone'] ?? null,
             'opening_hours' => $element['tags']['opening_hours'] ?? null,
-            'address' => $this->buildAddressFromTags($element['tags']),
+            'address' => $finalAddress,
+            'postal_code' => $finalPostalCode,
+            'city_from_tags' => $addressData['city_from_tags'],
             'city' => $cityName,
             'source' => 'overpass_api',
+            'geocoding_used' => isset($addressData['geocoding_source']),
             'osm_id' => $element['id'] ?? null,
             'osm_type' => $element['type'] ?? null,
             'tags' => $element['tags'] ?? []
@@ -341,16 +335,70 @@ class ScrapeTcgShopsCommand extends Command
         ];
     }
 
-    private function buildAddressFromTags(array $tags): string
+    private function buildAddressFromTags(array $tags): array
     {
-        $parts = [];
+        // Essayer d'abord les tags contact: puis addr:
+        $houseNumber = $tags['contact:housenumber'] ?? $tags['addr:housenumber'] ?? null;
+        $street = $tags['contact:street'] ?? $tags['addr:street'] ?? null;
+        $postalCode = $tags['contact:postcode'] ?? $tags['addr:postcode'] ?? null;
+        $city = $tags['contact:city'] ?? $tags['addr:city'] ?? null;
         
-        if (isset($tags['addr:housenumber'])) $parts[] = $tags['addr:housenumber'];
-        if (isset($tags['addr:street'])) $parts[] = $tags['addr:street'];
-        if (isset($tags['addr:postcode'])) $parts[] = $tags['addr:postcode'];
-        if (isset($tags['addr:city'])) $parts[] = $tags['addr:city'];
+        // Construire l'adresse complète
+        $addressParts = [];
+        if ($houseNumber) $addressParts[] = $houseNumber;
+        if ($street) $addressParts[] = $street;
         
-        return implode(', ', array_filter($parts)) ?: 'Adresse non spécifiée';
+        $fullAddress = implode(', ', array_filter($addressParts)) ?: null;
+        
+        return [
+            'full_address' => $fullAddress,
+            'postal_code' => $postalCode,
+            'city_from_tags' => $city,
+            'has_complete_address' => ($fullAddress && $postalCode)
+        ];
+    }
+
+    private function reverseGeocode(float $lat, float $lon): ?array
+    {
+        try {
+            $response = $this->httpClient->request('GET', 'https://nominatim.openstreetmap.org/reverse', [
+                'query' => [
+                    'format' => 'json',
+                    'lat' => $lat,
+                    'lon' => $lon,
+                    'zoom' => 18,
+                    'addressdetails' => 1
+                ],
+                'headers' => [
+                    'User-Agent' => 'MULLIGAN-TCG-Scraper/1.0 (contact@mulligantcg.fr)'
+                ]
+            ]);
+
+            $data = $response->toArray();
+            
+            if (!isset($data['address'])) {
+                return null;
+            }
+
+            $address = $data['address'];
+            
+            // Construire l'adresse depuis le géocodage inverse
+            $addressParts = [];
+            if (isset($address['house_number'])) $addressParts[] = $address['house_number'];
+            if (isset($address['road'])) $addressParts[] = $address['road'];
+            
+            $fullAddress = implode(', ', array_filter($addressParts));
+            
+            return [
+                'full_address' => $fullAddress ?: null,
+                'postal_code' => $address['postcode'] ?? null,
+                'city' => $address['city'] ?? $address['town'] ?? $address['village'] ?? null,
+                'source' => 'reverse_geocoding'
+            ];
+            
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     private function isRelevantTcgShop(array $shopData): bool
@@ -359,48 +407,36 @@ class ScrapeTcgShopsCommand extends Command
         $address = strtolower($shopData['address'] ?? '');
         $shopType = strtolower($shopData['shop_type'] ?? '');
         
-        // Mots-clés positifs TCG spécifiques
         $tcgKeywords = [
             'tcg', 'magic', 'pokemon', 'cartes', 'card', 'jeux de cartes',
             'trading card', 'magasin de jeux', 'games', 'jeu', 'carte à jouer',
             'collection', 'collector', 'hobby'
         ];
 
-        // Blacklist étendue - EXCLUSIONS STRICTES
         $negativeKeywords = [
-            // Grandes enseignes
             'micromania', 'fnac', 'cultura', 'auchan', 'carrefour', 'leclerc', 'intermarché',
             'casino', 'monoprix', 'franprix', 'lidl', 'aldi', 'super u', 'système u',
-            
-            // Types de commerces non-TCG
             'supermarché', 'hypermarché', 'pharmacie', 'banque', 'restaurant', 'café', 
             'bar', 'hotel', 'station', 'service', 'coiffeur', 'boulangerie', 'librairie',
             'tabac', 'presse', 'kiosque', 'bureau', 'école', 'collège', 'lycée',
-            
-            // Jeux vidéo pure (sans cartes)
             'playstation', 'xbox', 'nintendo', 'gaming center', 'cyber',
             'jeux video', 'console', 'retrogaming'
         ];
 
-        // EXCLUSION STRICTE - Si contient un mot négatif = éliminé
         foreach ($negativeKeywords as $negative) {
             if (str_contains($name, $negative) || str_contains($address, $negative)) {
                 return false;
             }
         }
 
-        // INCLUSION PAR NOM - Si contient mots-clés TCG
         foreach ($tcgKeywords as $keyword) {
             if (str_contains($name, $keyword) || str_contains($address, $keyword)) {
                 return true;
             }
         }
 
-        // INCLUSION PAR TAG OSM - Si tag shop pertinent
         if (in_array($shopType, self::OSM_SHOP_TAGS)) {
-            // Pour les tags génériques, vérifier qu'il y a un indice TCG
             if (in_array($shopType, ['games', 'toys', 'hobby', 'collector'])) {
-                // Recherche d'indices TCG dans le nom ou tags additionnels
                 $allText = $name . ' ' . $address;
                 if (isset($shopData['tags'])) {
                     $allText .= ' ' . strtolower(implode(' ', array_values($shopData['tags'])));
@@ -463,17 +499,20 @@ class ScrapeTcgShopsCommand extends Command
 
     private function findExistingShop(array $shopData): ?Shop
     {
+        // Recherche par nom exact
         $byName = $this->shopRepository->findOneBy(['name' => $shopData['name']]);
         if ($byName) return $byName;
 
+        // Recherche par proximité géographique en utilisant la méthode du repository
         if (isset($shopData['latitude'], $shopData['longitude'])) {
-            $nearby = $this->shopRepository->findNearby(
+            $nearbyShops = $this->shopRepository->findNearby(
                 $shopData['latitude'], 
                 $shopData['longitude'], 
-                0.1
+                0.1 // 100m de rayon
             );
             
-            foreach ($nearby as $shop) {
+            foreach ($nearbyShops as $nearbyData) {
+                $shop = $nearbyData['shop'];
                 $similarity = 0;
                 similar_text(strtolower($shop->getName()), strtolower($shopData['name']), $similarity);
                 if ($similarity > 70) {
@@ -485,22 +524,55 @@ class ScrapeTcgShopsCommand extends Command
         return null;
     }
 
+    private function calculateDistance(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $earthRadius = 6371; // km
+        
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        
+        $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon/2) * sin($dLon/2);
+        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+        
+        return $earthRadius * $c;
+    }
+
     private function createNewShop(array $shopData): void
     {
+        // Créer l'adresse avec les vraies données des tags OSM
         $address = new Address();
-        $address->setFullAddress($shopData['address']);
-        $address->setCity($shopData['city']);
+        $address->setStreetAddress($shopData['address']);
+        
+        // Utiliser la ville des tags OSM si disponible, sinon celle de la recherche
+        $cityToUse = $shopData['city_from_tags'] ?? $shopData['city'];
+        $address->setCity($cityToUse);
+        
+        // Utiliser le vrai code postal extrait des tags OSM
+        $address->setPostalCode($shopData['postal_code']);
         $address->setCountry('France');
         
         if (isset($shopData['latitude'], $shopData['longitude'])) {
-            $address->setLatitude($shopData['latitude']);
-            $address->setLongitude($shopData['longitude']);
+            $address->setLatitude((string) $shopData['latitude']);
+            $address->setLongitude((string) $shopData['longitude']);
         }
 
         $this->entityManager->persist($address);
 
+        // Créer la boutique avec les bonnes constantes
         $shop = new Shop();
         $shop->setName($shopData['name']);
+        
+        // Générer un slug unique
+        $baseSlug = $this->slugger->slug($shopData['name'])->lower();
+        $slug = $baseSlug;
+        $counter = 1;
+        
+        while ($this->shopRepository->findOneBy(['slug' => $slug])) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+        $shop->setSlug($slug);
+        
         $shop->setType(Shop::TYPE_SCRAPED);
         $shop->setStatus(Shop::STATUS_PENDING);
         $shop->setAddress($address);
@@ -523,6 +595,7 @@ class ScrapeTcgShopsCommand extends Command
             'osm_id' => $shopData['osm_id'] ?? null,
             'osm_type' => $shopData['osm_type'] ?? null,
             'shop_type' => $shopData['shop_type'] ?? null,
+            'geocoding_used' => $shopData['geocoding_used'] ?? false,
             'tags' => $shopData['tags'] ?? []
         ];
         $shop->setScrapingData($scrapingData);
@@ -549,8 +622,8 @@ class ScrapeTcgShopsCommand extends Command
 
         $address = $shop->getAddress();
         if ($address && !$address->getLatitude() && isset($shopData['latitude'])) {
-            $address->setLatitude($shopData['latitude']);
-            $address->setLongitude($shopData['longitude']);
+            $address->setLatitude((string) $shopData['latitude']);
+            $address->setLongitude((string) $shopData['longitude']);
         }
 
         $existingServices = $shop->getServices() ?? [];
@@ -558,13 +631,15 @@ class ScrapeTcgShopsCommand extends Command
         $mergedServices = array_unique(array_merge($existingServices, $newServices));
         $shop->setServices($mergedServices);
 
+        // Utilisation de la méthode existante de l'entité
         $shop->updateTimestamp();
+
         $this->entityManager->flush();
     }
 
     private function calculateConfidenceScore(array $shopData): int
     {
-        $score = 50; // Score de base plus élevé car recherche ultra-précise
+        $score = 50;
 
         if (isset($shopData['latitude'], $shopData['longitude'])) {
             $score += 25;
@@ -601,135 +676,5 @@ class ScrapeTcgShopsCommand extends Command
         }
 
         return array_unique($services);
-    }
-
-    private function generateDetailedReport(array $allShopsData, string $filename, SymfonyStyle $io): void
-    {
-        $io->text("📝 Génération du rapport détaillé...");
-        
-        $dir = dirname($filename);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-        
-        $content = $this->buildReportContent($allShopsData);
-        file_put_contents($filename, $content);
-        
-        $io->success("✅ Rapport généré : {$filename}");
-    }
-
-    private function buildReportContent(array $allShopsData): string
-    {
-        $report = [];
-        
-        $report[] = "==================================================================================";
-        $report[] = "                     RAPPORT BOUTIQUES TCG - VERSION ULTRA-PRÉCISE";
-        $report[] = "                         Recherche: 'magasin de jeux de cartes' + 'tcg'";
-        $report[] = "                         " . date('Y-m-d H:i:s');
-        $report[] = "==================================================================================";
-        $report[] = "";
-        $report[] = "📊 STATISTIQUES GLOBALES :";
-        $report[] = "   • Total boutiques trouvées : " . count($allShopsData);
-        $report[] = "   • Recherche HYBRIDE : noms TCG + tags OSM (games/toys/hobby/collector)";
-        $report[] = "   • Filtrage intelligent : exclusion Micromania, grandes enseignes, etc.";
-        $report[] = "";
-        
-        // Grouper par ville
-        $byCity = [];
-        foreach ($allShopsData as $shop) {
-            $city = $shop['city'];
-            if (!isset($byCity[$city])) {
-                $byCity[$city] = [];
-            }
-            $byCity[$city][] = $shop;
-        }
-        
-        $report[] = "🏙️ RÉPARTITION PAR VILLE :";
-        foreach ($byCity as $city => $shops) {
-            $report[] = "   • {$city} : " . count($shops) . " boutique(s)";
-        }
-        $report[] = "";
-        $report[] = "==================================================================================";
-        $report[] = "";
-        
-        // Détail par ville
-        foreach ($byCity as $city => $shops) {
-            $report[] = "🏙️ VILLE : " . strtoupper($city);
-            $report[] = str_repeat("-", 80);
-            $report[] = "";
-            
-            foreach ($shops as $index => $shop) {
-                $shopNumber = $index + 1;
-                $report[] = "📍 BOUTIQUE #{$shopNumber} - " . strtoupper($shop['name']);
-                $report[] = str_repeat("·", 50);
-                
-                $report[] = "🏪 Nom : " . $shop['name'];
-                $report[] = "📍 Adresse : " . $shop['address'];
-                $report[] = "🏙️ Ville : " . $shop['city'];
-                
-                if (isset($shop['latitude'], $shop['longitude'])) {
-                    $report[] = "🌍 GPS : {$shop['latitude']}, {$shop['longitude']}";
-                    $report[] = "🗺️ Maps : https://www.openstreetmap.org/?mlat={$shop['latitude']}&mlon={$shop['longitude']}&zoom=18";
-                } else {
-                    $report[] = "🌍 GPS : Non disponible";
-                }
-                
-                if ($shop['phone'] ?? null) {
-                    $report[] = "📞 Téléphone : " . $shop['phone'];
-                } else {
-                    $report[] = "📞 Téléphone : Non renseigné";
-                }
-                
-                if ($shop['website'] ?? null) {
-                    $report[] = "🌐 Site web : " . $shop['website'];
-                } else {
-                    $report[] = "🌐 Site web : Non renseigné";
-                }
-                
-                if ($shop['opening_hours'] ?? null) {
-                    $report[] = "🕒 Horaires : " . $shop['opening_hours'];
-                } else {
-                    $report[] = "🕒 Horaires : Non renseignés";
-                }
-                
-                $report[] = "🔍 Source : " . ucfirst(str_replace('_api', '', $shop['source']));
-                
-                $confidenceScore = $this->calculateConfidenceScore($shop);
-                $confidenceEmoji = $confidenceScore >= 80 ? '🟢' : ($confidenceScore >= 60 ? '🟡' : '🟠');
-                $report[] = "⭐ Score confiance : {$confidenceEmoji} {$confidenceScore}/100";
-                
-                // Analyse de pertinence enrichie
-                $name = strtolower($shop['name']);
-                $shopType = $shop['shop_type'] ?? '';
-                
-                if (str_contains($name, 'tcg')) {
-                    $report[] = "✅ Pertinence : Contient 'tcg' dans le nom";
-                } elseif (str_contains($name, 'cartes') || str_contains($name, 'card')) {
-                    $report[] = "✅ Pertinence : Mention de cartes dans le nom";
-                } elseif (str_contains($name, 'jeux') || str_contains($name, 'games')) {
-                    $report[] = "✅ Pertinence : Magasin de jeux détecté";
-                } elseif ($shopType) {
-                    $report[] = "✅ Pertinence : Tag OSM shop={$shopType}";
-                } else {
-                    $report[] = "✅ Pertinence : Détection automatique";
-                }
-                
-                if ($shop['osm_id'] ?? null) {
-                    $osmType = $shop['osm_type'] ?? 'node';
-                    $report[] = "🔗 OSM Link : https://www.openstreetmap.org/{$osmType}/{$shop['osm_id']}";
-                }
-                
-                $report[] = "";
-            }
-            
-            $report[] = "";
-        }
-        
-        $report[] = "==================================================================================";
-        $report[] = "Rapport généré le " . date('Y-m-d H:i:s') . " - RECHERCHE HYBRIDE INTELLIGENTE";
-        $report[] = "Stratégie : Noms TCG + Tags OSM + Filtrage anti-grandes enseignes";
-        $report[] = "==================================================================================";
-        
-        return implode("\n", $report);
     }
 }
