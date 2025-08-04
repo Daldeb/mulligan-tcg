@@ -4,6 +4,7 @@ namespace App\Entity;
 
 use App\Entity\Hearthstone\HearthstoneCard;
 use App\Entity\Pokemon\PokemonCard;
+use App\Entity\Magic\MagicCard;
 use App\Repository\DeckCardRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -48,6 +49,13 @@ class DeckCard
     #[ORM\ManyToOne(targetEntity: PokemonCard::class)]
     #[ORM\JoinColumn(name: 'pokemon_card_id', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
     private ?PokemonCard $pokemonCard = null;
+
+        /**
+     * Carte Magic (si le deck est Pokemon)
+     */
+    #[ORM\ManyToOne(targetEntity: MagicCard::class)]
+    #[ORM\JoinColumn(name: 'magic_card_id', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
+    private ?PokemonCard $magicCard = null;
 
     /**
      * Carte Magic (quand l'entité sera créée)
@@ -113,6 +121,17 @@ class DeckCard
         return $this;
     }
 
+        public function getMagicCard(): ?MagicCard
+    {
+        return $this->magicCard;
+    }
+
+    public function setMagicCard(?MagicCard $magicCard): static
+    {
+        $this->magicCard = $magicCard;
+        return $this;
+    }
+
     public function getCreatedAt(): ?\DateTimeImmutable
     {
         return $this->createdAt;
@@ -123,9 +142,9 @@ class DeckCard
     /**
      * Obtient la carte associée quel que soit le jeu
      */
-    public function getCard(): HearthstoneCard|PokemonCard|null
+    public function getCard(): HearthstoneCard|PokemonCard|MagicCard|null
     {
-        return $this->hearthstoneCard ?? $this->pokemonCard ?? null;
+        return $this->hearthstoneCard ?? $this->pokemonCard ?? $this->magicCard ?? null;
     }
 
     /**

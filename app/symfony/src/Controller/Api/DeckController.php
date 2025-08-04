@@ -270,16 +270,18 @@ public function update(int $id, Request $request): JsonResponse
                     $quantity = $cardData['quantity'];
                     
                     // Récupérer la carte selon le jeu
+                    // Récupérer la carte selon le jeu
                     $gameSlug = $deck->getGame()->getSlug();
                     $card = null;
-                    
+
                     if ($gameSlug === 'hearthstone') {
                         $card = $this->entityManager->getRepository('App\Entity\Hearthstone\HearthstoneCard')->find($cardId);
                     } elseif ($gameSlug === 'pokemon') {
                         $card = $this->entityManager->getRepository('App\Entity\Pokemon\PokemonCard')->find($cardId);
+                    } elseif ($gameSlug === 'magic') {
+                        $card = $this->entityManager->getRepository('App\Entity\Magic\MagicCard')->find($cardId);
                     }
-                    // TODO: Ajouter Magic quand implémenté
-                    
+
                     if ($card) {
                         $deckCard = new \App\Entity\DeckCard();
                         $deckCard->setDeck($deck);
@@ -290,6 +292,8 @@ public function update(int $id, Request $request): JsonResponse
                             $deckCard->setHearthstoneCard($card);
                         } elseif ($gameSlug === 'pokemon') {
                             $deckCard->setPokemonCard($card);
+                        } elseif ($gameSlug === 'magic') {
+                            $deckCard->setMagicCard($card);
                         }
                         
                         $deck->addDeckCard($deckCard);
@@ -407,8 +411,30 @@ public function update(int $id, Request $request): JsonResponse
      */
     private function serializeDeck(Deck $deck): array
     {
+        $serializedCards = [];
+        
+        // Sérialiser les cartes du deck avec leurs détails
+        foreach ($deck->getDeckCards() as $deckCard) {
+            $card = $deckCard->getCard(); // Méthode qui retourne HearthstoneCard ou PokemonCard
+            
+            if ($card) {
+                $serializedCards[] = [
+                    'quantity' => $deckCard->getQuantity(),
+                    'card' => [
+                        'id' => $card->getId(),
+                        'name' => $card->getName(),
+                        'cost' => method_exists($card, 'getCost') ? $card->getCost() : null,
+                        'rarity' => method_exists($card, 'getRarity') ? $card->getRarity() : null,
+                        'imageUrl' => $card->getImageUrl(),
+                        'cardType' => method_exists($card, 'getCardType') ? $card->getCardType() : null
+                    ]
+                ];
+            }
+        }
+
         return [
             'id' => $deck->getId(),
+            'slug' => $deck->getSlug(),
             'title' => $deck->getTitle(),
             'description' => $deck->getDescription(),
             'archetype' => $deck->getArchetype(),
@@ -430,7 +456,7 @@ public function update(int $id, Request $request): JsonResponse
             'createdAt' => $deck->getCreatedAt()?->format('Y-m-d H:i:s'),
             'updatedAt' => $deck->getUpdatedAt()?->format('Y-m-d H:i:s'),
             'hearthstoneClass' => $deck->getHearthstoneClass(),
-            'cards' => [],
+            'cards' => $serializedCards, // ✅ CORRECTION : Vraies cartes
         ];
     }
 }

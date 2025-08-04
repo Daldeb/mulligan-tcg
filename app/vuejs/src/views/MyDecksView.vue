@@ -101,58 +101,14 @@
           </div>
           
           <div class="decks-grid">
-            <Card 
+            <HearthstoneCompactDeck 
               v-for="deck in getGameDecks('hearthstone')" 
               :key="`my-hs-${deck.id}`"
-              class="deck-card gaming-card hover-lift"
-            >
-              <template #content>
-                <div class="deck-content">
-                  <div class="deck-header-info">
-                    <h3 class="deck-name">{{ deck.name }}</h3>
-                    <div class="deck-status">
-                      <i :class="deck.isPublic ? 'pi pi-globe' : 'pi pi-lock'" 
-                         :style="{ color: deck.isPublic ? 'var(--primary)' : 'var(--text-secondary)' }"
-                         :title="deck.isPublic ? 'Public' : 'Privé'"></i>
-                    </div>
-                  </div>
-                  <div class="deck-meta">
-                    <span class="format-badge">{{ deck.format }}</span>
-                    <span class="class-badge" v-if="deck.hearthstoneClass">
-                      {{ getClassDisplayName(deck.hearthstoneClass) }}
-                    </span>
-                  </div>
-                  <div class="deck-stats-info">
-                    <span class="likes">{{ deck.likes || 0 }} ❤️</span>
-                    <span class="views">{{ deck.views || 0 }} 👁️</span>
-                    <span class="cards">{{ deck.cardCount || 0 }}/30 cartes</span>
-                  </div>
-                  <div class="deck-actions">
-                    <Button 
-                      icon="pi pi-pencil"
-                      class="edit-btn"
-                      @click="editDeck(deck)"
-                      v-tooltip="'Éditer'"
-                      size="small"
-                    />
-                    <Button 
-                      icon="pi pi-copy"
-                      class="copy-btn"
-                      @click="duplicateDeck(deck)"
-                      v-tooltip="'Dupliquer'"
-                      size="small"
-                    />
-                    <Button 
-                      icon="pi pi-trash"
-                      class="delete-btn"
-                      @click="deleteDeck(deck)"
-                      v-tooltip="'Supprimer'"
-                      size="small"
-                    />
-                  </div>
-                </div>
-              </template>
-            </Card>
+              :deck="deck"
+              @edit="editDeck"
+              @delete="deleteDeck"
+              @copyDeckcode="copyDeckcode"
+            />
           </div>
         </div>
 
@@ -510,6 +466,7 @@ import api from '../services/api'
 import Dialog from 'primevue/dialog'
 import Dropdown from 'primevue/dropdown' 
 import Textarea from 'primevue/textarea'
+import HearthstoneCompactDeck from '../components/decks/HearthstoneCompactDeck.vue'
 
 // Stores et composables
 const router = useRouter()
@@ -636,68 +593,32 @@ const loadUserDecks = async () => {
     isLoading.value = true
     const response = await api.get('/api/decks/my-decks')
     
-    // 🔧 CORRECTION : S'assurer que c'est toujours un tableau
-    if (Array.isArray(response.data)) {
-      userDecks.value = response.data
-    } else if (response.data && Array.isArray(response.data.data)) {
+    console.log('🔍 Réponse API complète:', response.data)
+    
+    // Gérer les différents formats de réponse
+    if (response.data.success && Array.isArray(response.data.data)) {
       userDecks.value = response.data.data
+      console.log('✅ Decks chargés depuis response.data.data:', userDecks.value.length)
+    } else if (Array.isArray(response.data)) {
+      userDecks.value = response.data
+      console.log('✅ Decks chargés depuis response.data:', userDecks.value.length)
     } else {
-      console.warn('Réponse API inattendue:', response.data)
+      console.warn('❌ Format réponse inattendu:', response.data)
       userDecks.value = []
     }
     
   } catch (error) {
-    console.error('Erreur chargement decks utilisateur:', error)
+    console.error('💥 Erreur chargement decks:', error)
     toast.add({
       severity: 'error',
       summary: 'Erreur',
       detail: 'Impossible de charger vos decks',
       life: 3000
     })
-    // Charger des données de test en cas d'erreur
-    loadMockUserDecks()
+    userDecks.value = []
   } finally {
     isLoading.value = false
   }
-}
-
-const loadMockUserDecks = () => {
-  userDecks.value = [
-    {
-      id: 1,
-      name: 'Mon Aggro Mage',
-      description: 'Deck rapide pour grimper les rangs',
-      game: 'hearthstone',
-      gameSlug: 'hearthstone',
-      format: 'standard',
-      formatSlug: 'standard',
-      slug: 'mon-aggro-mage-abc123',
-      hearthstoneClass: 'mage',
-      isPublic: true,
-      cardCount: 30,
-      likes: 15,
-      views: 156,
-      createdAt: '2024-07-28T10:30:00Z',
-      updatedAt: '2024-07-30T15:45:00Z'
-    },
-    {
-      id: 2,
-      name: 'Control Warrior Test',
-      description: 'Deck en cours de développement',
-      game: 'hearthstone',
-      gameSlug: 'hearthstone',
-      format: 'wild',
-      formatSlug: 'wild',
-      slug: 'control-warrior-test-def456',
-      hearthstoneClass: 'warrior',
-      isPublic: false,
-      cardCount: 28,
-      likes: 3,
-      views: 23,
-      createdAt: '2024-07-25T14:20:00Z',
-      updatedAt: '2024-07-29T09:15:00Z'
-    }
-  ]
 }
 
 const loadGames = async () => {
@@ -729,16 +650,20 @@ const loadFormatsForGame = async (gameId) => {
 }
 
 const getGameDecks = (game) => {
-  return filteredDecks.value.filter(deck => deck.game === game)
+  return filteredDecks.value.filter(deck => {
+    // Gérer les deux formats : deck.game.slug ou deck.game directement
+    const gameSlug = typeof deck.game === 'object' ? deck.game.slug : deck.game
+    return gameSlug === game
+  })
 }
 
 const getClassDisplayName = (classValue) => {
-  return hearthstoneClasses[classValue] || classValue
+  const classObj = hearthstoneClasses.value.find(c => c.value === classValue)
+  return classObj ? classObj.name : classValue
 }
 
 const editDeck = (deck) => {
-  // Rediriger vers l'éditeur avec l'URL propre
-  router.push(`/edition/${deck.gameSlug}/${deck.formatSlug}/${deck.slug}`)
+  router.push(`/edition/${deck.game.slug}/${deck.format.slug}/${deck.slug}`)
 }
 
 const duplicateDeck = async (deck) => {
@@ -861,6 +786,15 @@ const validateForm = () => {
   }
 
   return isValid
+}
+
+const copyDeckcode = (deck) => {
+  toast.add({
+    severity: 'info',
+    summary: 'Deckcode',
+    detail: 'Fonctionnalité bientôt disponible...',
+    life: 2000
+  })
 }
 
 const createDeck = async () => {

@@ -35,14 +35,34 @@
                 v-tooltip="'Copier le deckcode'"
                 :disabled="deckCards.length === 0"
               />
-              <Button 
-                label="Publier"
-                icon="pi pi-upload"
-                class="deck-action-btn publish-btn"
-                @click="publishDeck"
-                :loading="isPublishing"
-                :disabled="!canPublish"
-              />
+              <div class="visibility-toggle">
+                <label class="toggle-label"></label>
+                <div class="toggle-container" :class="{ 'disabled': !isDeckValid }">
+                  <button 
+                    class="toggle-btn"
+                    :class="{ 
+                      'public': currentDeck.isPublic, 
+                      'disabled': !isDeckValid,
+                      'success': justToggled 
+                    }"
+                    @click="toggleVisibility"
+                    :disabled="!isDeckValid"
+                    :title="!isDeckValid ? 'Le deck doit être valide pour être rendu public' : ''"
+                  >
+                    <div class="toggle-slider">
+                      <div class="toggle-indicator"></div>
+                    </div>
+                    <div class="toggle-labels">
+                      <span class="label-private" :class="{ 'active': !currentDeck.isPublic }">
+                        <i class="pi pi-lock"></i> Privé
+                      </span>
+                      <span class="label-public" :class="{ 'active': currentDeck.isPublic }">
+                        <i class="pi pi-globe"></i> Public
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
               <Button 
                 label="Sauvegarder"
                 icon="pi pi-save"
@@ -374,6 +394,78 @@
       </template>
     </Dialog>
 
+    <!-- Ajoutez cette modale dans le template -->
+    <Dialog 
+      v-model:visible="showSaveConfirmation"
+      modal
+      header="Confirmer la sauvegarde"
+      class="emerald-modal save-confirmation-modal"
+      :style="{ width: '100%', maxWidth: '500px' }"
+    >
+      <div class="save-confirmation-content">
+        
+        <!-- Statut du deck -->
+        <div class="deck-status-section">
+          <div class="status-header">
+            <i :class="isDeckValid ? 'pi pi-check-circle' : 'pi pi-exclamation-triangle'"
+              :style="{ color: isDeckValid ? 'var(--primary)' : 'var(--accent)' }">
+            </i>
+            <h3 class="status-title">
+              {{ isDeckValid ? 'Deck valide' : 'Deck invalide' }}
+            </h3>
+          </div>
+          
+          <div v-if="!isDeckValid" class="validation-errors">
+            <ul class="error-list">
+              <li v-for="error in getValidationErrors()" :key="error" class="error-item">
+                {{ error }}
+              </li>
+            </ul>
+          </div>
+          
+          <div v-else class="validation-success">
+            <p>Votre deck respecte toutes les règles de construction Hearthstone.</p>
+          </div>
+        </div>
+
+        <!-- Statut de visibilité -->
+        <div class="visibility-status-section">
+          <div class="visibility-info">
+            <i :class="currentDeck.isPublic ? 'pi pi-globe' : 'pi pi-lock'"
+              :style="{ color: currentDeck.isPublic ? 'var(--primary)' : 'var(--text-secondary)' }">
+            </i>
+            <span class="visibility-text">
+              {{ currentDeck.isPublic ? 'Deck public' : 'Deck privé' }}
+            </span>
+          </div>
+          <p class="visibility-description">
+            {{ currentDeck.isPublic 
+              ? 'Ce deck sera visible par tous les utilisateurs de la communauté.' 
+              : 'Ce deck ne sera visible que par vous dans votre collection personnelle.' 
+            }}
+          </p>
+        </div>
+
+      </div>
+
+      <template #footer>
+        <div class="modal-actions">
+          <Button
+            label="Annuler"
+            icon="pi pi-times"
+            class="emerald-outline-btn cancel"
+            @click="showSaveConfirmation = false"
+          />
+          <Button
+            label="Confirmer la sauvegarde"
+            icon="pi pi-check"
+            class="emerald-button primary"
+            @click="confirmSave"
+            :loading="isSaving"
+          />
+        </div>
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -830,51 +922,9 @@ const loadMockCards = () => {
   }
 }
 
-const saveDeck = async () => {
+const saveDeck = () => {
   if (!validateDeck()) return
-
-  try {
-    isSaving.value = true
-    
-    const deckData = {
-      title: currentDeck.value.name.trim(),
-      description: currentDeck.value.description?.trim(),
-      hearthstoneClass: currentDeck.value.hearthstoneClass,
-      cards: deckCards.value.map(entry => ({
-        cardId: entry.card.id,
-        quantity: entry.quantity
-      }))
-    }
-
-    if (currentDeck.value.id) {
-      await api.put(`/api/decks/${currentDeck.value.id}`, deckData)
-      toast.add({
-        severity: 'success',
-        summary: 'Deck sauvegardé',
-        detail: 'Votre deck a été mis à jour avec succès',
-        life: 3000
-      })
-    } else {
-      console.error('❌ Aucun ID de deck - impossible de sauvegarder')
-      toast.add({
-        severity: 'error',
-        summary: 'Erreur',
-        detail: 'Impossible de sauvegarder : deck non initialisé',
-        life: 3000
-      })
-    }
-
-  } catch (error) {
-    console.error('Erreur sauvegarde:', error)
-    toast.add({
-      severity: 'error',
-      summary: 'Erreur',
-      detail: error.response?.data?.message || 'Erreur lors de la sauvegarde',
-      life: 3000
-    })
-  } finally {
-    isSaving.value = false
-  }
+  showSaveConfirmation.value = true
 }
 
 const validateDeck = () => {
@@ -899,6 +949,86 @@ const validateDeck = () => {
   }
   
   return Object.keys(errors.value).length === 0
+}
+
+const isDeckValid = computed(() => {
+  if (deckCards.value.length === 0) return false
+  if (totalCardsInDeck.value !== 30) return false
+  
+  // Vérifier les limites par carte
+  for (const entry of deckCards.value) {
+    const card = entry.card
+    const quantity = entry.quantity
+    
+    if (card.rarity?.toLowerCase() === 'legendary' && quantity > 1) {
+      return false
+    }
+    if (card.rarity?.toLowerCase() !== 'legendary' && quantity > 2) {
+      return false
+    }
+    
+    // Vérifier format
+    if (currentDeck.value.format === 'standard' && !card.isStandardLegal) {
+      return false
+    }
+  }
+  
+  return true
+})
+
+const justToggled = ref(false)
+
+const toggleVisibility = () => {
+  if (!isDeckValid.value) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Deck invalide',
+      detail: 'Ce deck ne peut pas être rendu public car il ne respecte pas les règles de construction',
+      life: 4000
+    })
+    return
+  }
+  
+  currentDeck.value.isPublic = !currentDeck.value.isPublic
+  
+  // Animation de succès
+  justToggled.value = true
+  setTimeout(() => {
+    justToggled.value = false
+  }, 600)
+  
+  toast.add({
+    severity: 'success',
+    summary: currentDeck.value.isPublic ? 'Deck rendu public' : 'Deck rendu privé',
+    detail: currentDeck.value.isPublic ? 'Visible par la communauté' : 'Visible uniquement par vous',
+    life: 2000
+  })
+}
+
+const getValidationErrors = () => {
+  const errors = []
+  
+  if (totalCardsInDeck.value !== 30) {
+    errors.push(`Nombre de cartes incorrect: ${totalCardsInDeck.value}/30`)
+  }
+  
+  for (const entry of deckCards.value) {
+    const card = entry.card
+    const quantity = entry.quantity
+    
+    if (card.rarity?.toLowerCase() === 'legendary' && quantity > 1) {
+      errors.push(`Trop d'exemplaires d'une carte légendaire: ${card.name}`)
+    }
+    if (card.rarity?.toLowerCase() !== 'legendary' && quantity > 2) {
+      errors.push(`Trop d'exemplaires d'une carte: ${card.name} (max 2)`)
+    }
+    
+    if (currentDeck.value.format === 'standard' && !card.isStandardLegal) {
+      errors.push(`Carte non légale en Standard: ${card.name}`)
+    }
+  }
+  
+  return errors
 }
 
 const onClassChange = () => {
@@ -1085,6 +1215,63 @@ onMounted(async () => {
   
   await loadCards()
 })
+
+const showSaveConfirmation = ref(false)
+
+const confirmSave = async () => {
+  if (!validateDeck()) return
+
+  try {
+    isSaving.value = true
+    
+    const deckData = {
+      title: currentDeck.value.name.trim(),
+      description: currentDeck.value.description?.trim(),
+      hearthstoneClass: currentDeck.value.hearthstoneClass,
+      isPublic: currentDeck.value.isPublic, // ✅ AJOUT : Sauvegarder le statut public
+      cards: deckCards.value.map(entry => ({
+        cardId: entry.card.id,
+        quantity: entry.quantity
+      }))
+    }
+
+    if (currentDeck.value.id) {
+      await api.put(`/api/decks/${currentDeck.value.id}`, deckData)
+      
+      showSaveConfirmation.value = false
+      
+      toast.add({
+        severity: 'success',
+        summary: 'Deck sauvegardé',
+        detail: `"${currentDeck.value.name}" a été mis à jour avec succès`,
+        life: 3000
+      })
+      
+      // ✅ REDIRECTION vers Mes Decks
+      router.push('/mes-decks')
+      
+    } else {
+      console.error('❌ Aucun ID de deck - impossible de sauvegarder')
+      toast.add({
+        severity: 'error',
+        summary: 'Erreur',
+        detail: 'Impossible de sauvegarder : deck non initialisé',
+        life: 3000
+      })
+    }
+
+  } catch (error) {
+    console.error('Erreur sauvegarde:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: error.response?.data?.message || 'Erreur lors de la sauvegarde',
+      life: 3000
+    })
+  } finally {
+    isSaving.value = false
+  }
+}
 
 const loadExistingDeck = async (deckId) => {
   try {
@@ -1906,5 +2093,159 @@ watch(() => currentDeck.value.game, (newGame) => {
 
 :deep(.class-selector-panel .p-dropdown:hover) {
   border-color: #68d391 !important;
+}
+
+/* === SAVE CONFIRMATION MODAL === */
+
+:deep(.save-confirmation-modal .p-dialog) {
+  border-radius: var(--border-radius-large) !important;
+  overflow: hidden !important;
+}
+
+:deep(.save-confirmation-modal .p-dialog-header) {
+  background: var(--emerald-gradient) !important;
+  color: white !important;
+  padding: 1.5rem !important;
+  border-bottom: none !important;
+}
+
+:deep(.save-confirmation-modal .p-dialog-content) {
+  padding: 0 !important;
+}
+
+.save-confirmation-content {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.deck-status-section {
+  background: var(--surface-50);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  border-left: 4px solid var(--primary);
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.status-header i {
+  font-size: 1.5rem;
+}
+
+.status-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.validation-errors {
+  margin-top: 1rem;
+}
+
+.error-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.error-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.error-item::before {
+  content: '•';
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.validation-success {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.validation-success p {
+  margin: 0;
+}
+
+.visibility-status-section {
+  background: var(--surface-100);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  border-left: 4px solid var(--secondary);
+}
+
+.visibility-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.visibility-info i {
+  font-size: 1.25rem;
+}
+
+.visibility-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.visibility-description {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Actions de la modale */
+:deep(.save-confirmation-modal .p-dialog-footer) {
+  background: var(--surface-50) !important;
+  padding: 1.5rem !important;
+  border-top: 1px solid var(--surface-200) !important;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  width: 100%;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .save-confirmation-content {
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+  
+  .deck-status-section,
+  .visibility-status-section {
+    padding: 1rem;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  :deep(.modal-actions .p-button) {
+    width: 100% !important;
+  }
 }
 </style>

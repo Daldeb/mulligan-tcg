@@ -6,13 +6,12 @@
     :deckSlug="deckSlug"
   />
   
-  <div v-else-if="gameSlug === 'magic'" class="coming-soon">
-    <div class="container">
-      <h2>Magic Deck Editor</h2>
-      <p>Bientôt disponible...</p>
-      <Button label="Retour" icon="pi pi-arrow-left" @click="$router.push('/decks')" />
-    </div>
-  </div>
+  <MagicDeckEditor 
+    v-else-if="gameSlug === 'magic'"
+    :gameSlug="gameSlug"
+    :formatSlug="formatSlug" 
+    :deckSlug="deckSlug"
+  />
   
   <div v-else-if="gameSlug === 'pokemon'" class="coming-soon">
     <div class="container">
@@ -33,6 +32,7 @@
 
 <script setup>
 import HearthstoneDeckEditor from './HearthstoneDeckEditor.vue'
+import MagicDeckEditor from './MagicDeckEditor.vue'
 
 const props = defineProps({
   gameSlug: String,
