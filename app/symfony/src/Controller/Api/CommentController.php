@@ -177,6 +177,38 @@ class CommentController extends AbstractController
         ]);
     }
 
+    #[Route('/comments/{id}', name: 'api_comment_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function delete(int $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        $comment = $this->commentRepo->find($id);
+        if (!$comment) {
+            return $this->json(['error' => 'Comment not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        if ($comment->isDeleted()) {
+            return $this->json(['error' => 'Comment already deleted'], Response::HTTP_GONE);
+        }
+
+        if (!$comment->canBeDeletedBy($user)) {
+            return $this->json(['error' => 'Access denied'], Response::HTTP_FORBIDDEN);
+        }
+
+        // Marquer le commentaire comme supprimé (garde les réponses intactes)
+        $comment->markAsDeleted($user);
+        $comment->updateTimestamp();
+        
+        $this->em->flush();
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Comment deleted successfully'
+        ]);
+    }
+
     private function updateCommentScore(Comment $comment): void
     {
         $upvotes = $this->commentVoteRepo->countVotesForComment($comment->getId(), CommentVote::TYPE_UP);

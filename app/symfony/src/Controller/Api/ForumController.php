@@ -107,7 +107,7 @@ class ForumController extends AbstractController
         }
 
         $posts = $this->em->getRepository(Post::class)->findBy(
-            ['forum' => $forum],
+            ['forum' => $forum, 'isDeleted' => false], 
             ['createdAt' => 'DESC'],
             20
         );
@@ -127,8 +127,11 @@ class ForumController extends AbstractController
 
             // Vérifier si le post est sauvegardé par l'utilisateur connecté
             $isSaved = false;
+            $canDelete = false; 
+            
             if ($this->getUser()) {
                 $isSaved = $this->postSaveRepo->isPostSavedByUser($this->getUser(), $post);
+                $canDelete = $post->canBeDeletedBy($this->getUser()); 
             }
 
             return [
@@ -140,7 +143,8 @@ class ForumController extends AbstractController
                 'score' => $post->getScore(),
                 'commentsCount' => (int) $commentsCount,
                 'isSaved' => $isSaved,
-                'content' => $post->getContent(), // Ajouter le contenu pour les previews
+                'canDelete' => $canDelete,
+                'content' => $post->getContent(),
                 'postType' => $post->getPostType(),
                 'linkUrl' => $post->getLinkUrl(),
                 'tags' => $post->getTags(),

@@ -187,6 +187,16 @@
             <i :class="post.isSaved ? 'pi pi-bookmark-fill' : 'pi pi-bookmark'"></i>
             {{ post.isSaved ? 'Sauvegardé' : 'Sauvegarder' }}
           </button>
+          <!-- NOUVEAU : Bouton de suppression du post -->
+          <button 
+            v-if="post.canDelete"
+            @click="deletePost"
+            class="action-btn delete"
+            title="Supprimer le post"
+          >
+            <i class="pi pi-trash"></i>
+            Supprimer
+          </button>
         </footer>
       </article>
 
@@ -318,6 +328,7 @@
             @update-reply-content="updateReplyContent"
             @comment-upvote="handleCommentUpvote"
             @comment-downvote="handleCommentDownvote"
+            @delete-comment="handleCommentDelete"
           />
         </div>
       </section>
@@ -334,7 +345,7 @@
 
 <script setup>
 import { ref, computed, onMounted, provide, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 import CommentThread from '@/components/forum/CommentThread.vue'
@@ -342,6 +353,7 @@ import CommentThread from '@/components/forum/CommentThread.vue'
 const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const postId = route.params.id
 const forumSlug = route.params.forumSlug
@@ -641,6 +653,70 @@ const savePost = async (post) => {
   } catch (error) {
     console.error('Erreur sauvegarde:', error)
     showToastMessage('Erreur lors de la sauvegarde ❌')
+  }
+}
+
+// Fonction de suppression du post
+const deletePost = async () => {
+  // Confirmation de suppression
+  const confirmDelete = confirm(
+    'Êtes-vous sûr de vouloir supprimer ce post ?\n\n' +
+    'Cette action supprimera également tous les commentaires associés et ne peut pas être annulée.'
+  )
+  
+  if (!confirmDelete) return
+  
+  try {
+    await api.delete(`/api/posts/${post.value.id}`)
+    
+    showToastMessage('Post supprimé avec succès 🗑️')
+    
+    // Rediriger vers le forum après 1.5 secondes
+    setTimeout(() => {
+      router.push(`/forums/${forumSlug}`)
+    }, 1500)
+    
+  } catch (error) {
+    console.error('Erreur suppression post:', error)
+    
+    if (error.response?.status === 403) {
+      showToastMessage('Vous n\'avez pas les permissions pour supprimer ce post ❌')
+    } else if (error.response?.status === 410) {
+      showToastMessage('Ce post a déjà été supprimé ❌')
+    } else {
+      showToastMessage('Erreur lors de la suppression ❌')
+    }
+  }
+}
+
+
+// Fonction de suppression d'un commentaire
+const handleCommentDelete = async (comment) => {
+  const confirmDelete = confirm(
+    `Êtes-vous sûr de vouloir supprimer ce commentaire de ${comment.author} ?\n\n` +
+    'Les réponses à ce commentaire seront conservées.'
+  )
+  
+  if (!confirmDelete) return
+  
+  try {
+    await api.delete(`/api/comments/${comment.id}`)
+    
+    // Recharger les commentaires pour mettre à jour l'affichage
+    await fetchPost()
+    
+    showToastMessage('Commentaire supprimé 🗑️')
+    
+  } catch (error) {
+    console.error('Erreur suppression commentaire:', error)
+    
+    if (error.response?.status === 403) {
+      showToastMessage('Vous n\'avez pas les permissions pour supprimer ce commentaire ❌')
+    } else if (error.response?.status === 410) {
+      showToastMessage('Ce commentaire a déjà été supprimé ❌') 
+    } else {
+      showToastMessage('Erreur lors de la suppression ❌')
+    }
   }
 }
 
@@ -1731,5 +1807,14 @@ onMounted(fetchPost)
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+}
+
+.action-btn.delete {
+  color: #ef4444;
+}
+
+.action-btn.delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
 }
 </style>

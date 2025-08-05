@@ -787,12 +787,12 @@ allCreatures.forEach(entry => {
  // Mettre à jour l'identité de couleur du deck
  updateDeckColorIdentity()
 
- toast.add({
-   severity: 'success',
-   summary: 'Carte ajoutée',
-   detail: `${card.name} ajoutée au deck`,
-   life: 2000
- })
+//  toast.add({
+//    severity: 'success',
+//    summary: 'Carte ajoutée',
+//    detail: `${card.name} ajoutée au deck`,
+//    life: 2000
+//  })
 }
 
 const removeCardFromDeck = (cardOrEntry) => {
@@ -811,12 +811,12 @@ const removeCardFromDeck = (cardOrEntry) => {
     // Mettre à jour l'identité de couleur du deck
     updateDeckColorIdentity()
 
-    toast.add({
-      severity: 'info',
-      summary: 'Carte retirée',
-      detail: `${entry.card.name} retirée du deck`,
-      life: 2000
-    })
+    // toast.add({
+    //   severity: 'info',
+    //   summary: 'Carte retirée',
+    //   detail: `${entry.card.name} retirée du deck`,
+    //   life: 2000
+    // })
   }
 }
 

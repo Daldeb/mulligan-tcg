@@ -798,12 +798,12 @@ const addCardToDeck = (card) => {
     })
   }
 
-  toast.add({
-    severity: 'success',
-    summary: 'Carte ajoutée',
-    detail: `${card.name} ajoutée au deck`,
-    life: 2000
-  })
+  // toast.add({
+  //   severity: 'success',
+  //   summary: 'Carte ajoutée',
+  //   detail: `${card.name} ajoutée au deck`,
+  //   life: 2000
+  // })
 }
 
 const removeCardFromDeck = (cardOrEntry) => {
@@ -819,12 +819,12 @@ const removeCardFromDeck = (cardOrEntry) => {
       deckCards.value.splice(entryIndex, 1)
     }
 
-    toast.add({
-      severity: 'info',
-      summary: 'Carte retirée',
-      detail: `${entry.card.name} retirée du deck`,
-      life: 2000
-    })
+    // toast.add({
+    //   severity: 'info',
+    //   summary: 'Carte retirée',
+    //   detail: `${entry.card.name} retirée du deck`,
+    //   life: 2000
+    // })
   }
 }
 

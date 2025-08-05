@@ -45,6 +45,13 @@ class Post
     #[ORM\Column(type: 'boolean')]
     private bool $isDeleted = false;
 
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $deletedBy = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $deletedAt = null;
+
     #[ORM\Column(type: 'boolean')]
     private bool $isPinned = false;
 
@@ -257,6 +264,47 @@ class Post
         $this->postType = $postType;
         return $this;
     }
+
+    public function getDeletedBy(): ?User
+    {
+        return $this->deletedBy;
+    }
+
+    public function setDeletedBy(?User $deletedBy): static
+    {
+        $this->deletedBy = $deletedBy;
+        return $this;
+    }
+
+    public function getDeletedAt(): ?\DateTimeImmutable
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(?\DateTimeImmutable $deletedAt): static
+    {
+        $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+/**
+ * Marque le post comme supprimé avec les métadonnées
+ */
+public function markAsDeleted(User $deletedBy): void
+{
+    $this->isDeleted = true;
+    $this->deletedBy = $deletedBy;
+    $this->deletedAt = new \DateTimeImmutable();
+}
+
+/**
+ * Vérifie si l'utilisateur peut supprimer ce post
+ */
+public function canBeDeletedBy(User $user): bool
+{
+    // Propriétaire du post ou admin
+    return $this->author === $user || in_array('ROLE_ADMIN', $user->getRoles(), true);
+}
 
     // Méthodes utilitaires
 

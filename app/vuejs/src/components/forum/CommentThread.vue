@@ -83,6 +83,15 @@
                 <i class="pi pi-share-alt"></i>
                 Partager
               </button>
+              <button 
+                v-if="comment.canDelete"
+                @click="$emit('delete-comment', comment)"
+                class="comment-action delete"
+                :title="'Supprimer le commentaire'"
+              >
+                <i class="pi pi-trash"></i>
+                Supprimer
+              </button>
             </footer>
             
             <!-- Formulaire de réponse -->
@@ -136,20 +145,21 @@
 
     <!-- Commentaires enfants (récursif) - AVEC INJECTION -->
     <div v-if="!isCollapsed && comment.children?.length > 0" class="comment-children">
-      <CommentThread
-        v-for="child in comment.children"
-        :key="child.id"
-        :comment="child"
-        :is-collapsed="isCommentCollapsed(child.id)"
-        :is-reply-form-open="isReplyFormOpenInjected(child.id)"
-        :reply-content="getReplyContent(child.id)"
-        @toggle-collapse="$emit('toggle-collapse', $event)"
-        @toggle-reply="$emit('toggle-reply', $event)"
-        @submit-reply="$emit('submit-reply', $event)"
-        @update-reply-content="(commentId, content) => $emit('update-reply-content', commentId, content)"
-        @comment-upvote="$emit('comment-upvote', $event)"
-        @comment-downvote="$emit('comment-downvote', $event)"
-      />
+    <CommentThread
+      v-for="child in comment.children"
+      :key="child.id"
+      :comment="child"
+      :is-collapsed="isCommentCollapsed(child.id)"
+      :is-reply-form-open="isReplyFormOpenInjected(child.id)"
+      :reply-content="getReplyContent(child.id)"
+      @toggle-collapse="$emit('toggle-collapse', $event)"
+      @toggle-reply="$emit('toggle-reply', $event)"
+      @submit-reply="$emit('submit-reply', $event)"
+      @update-reply-content="(commentId, content) => $emit('update-reply-content', commentId, content)"
+      @comment-upvote="$emit('comment-upvote', $event)"
+      @comment-downvote="$emit('comment-downvote', $event)"
+      @delete-comment="$emit('delete-comment', $event)"
+    />
     </div>
   </div>
 </template>
@@ -191,7 +201,8 @@ const emit = defineEmits([
   'submit-reply',
   'update-reply-content',
   'comment-upvote',
-  'comment-downvote'
+  'comment-downvote',
+  'delete-comment'
 ])
 
 // État local pour le contenu de la réponse
@@ -639,5 +650,23 @@ const renderMarkdown = (content) => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+}
+
+/* Bouton de suppression commentaire */
+.comment-action.delete {
+  color: var(--text-secondary);
+}
+
+.comment-action.delete:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .comment-action.delete {
+    color: #ef4444;
+    opacity: 0.8;
+  }
 }
 </style>

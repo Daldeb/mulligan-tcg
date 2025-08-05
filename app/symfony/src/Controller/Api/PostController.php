@@ -153,6 +153,8 @@ class PostController extends AbstractController
         // Récupérer le vote de l'utilisateur actuel (si connecté)
         $userVote = null;
         $isSaved = false;
+        $canDelete = false;
+
         if ($this->getUser()) {
             $vote = $this->postVoteRepo->findOneBy([
                 'user' => $this->getUser(),
@@ -162,6 +164,8 @@ class PostController extends AbstractController
             
             // Vérifier si le post est sauvegardé par l'utilisateur
             $isSaved = $this->postSaveRepo->isPostSavedByUser($this->getUser(), $post);
+            
+            $canDelete = $post->canBeDeletedBy($this->getUser());
         }
 
         // On récupère tous les commentaires plats pour l'instant
@@ -175,12 +179,15 @@ class PostController extends AbstractController
             
             // Récupérer le vote de l'utilisateur pour ce commentaire (si connecté)
             $userCommentVote = null;
+            $canDeleteComment = false;
+            
             if ($this->getUser()) {
                 $vote = $this->commentVoteRepo->findOneBy([
                     'user' => $this->getUser(),
                     'comment' => $comment
                 ]);
                 $userCommentVote = $vote ? $vote->getType() : null;
+                $canDeleteComment = $comment->canBeDeletedBy($this->getUser());
             }
             
             return [
@@ -192,8 +199,11 @@ class PostController extends AbstractController
                 'upvotes' => $upvotes,
                 'downvotes' => $downvotes,
                 'userVote' => $userCommentVote,
+                'canDelete' => $canDeleteComment,
                 'parentId' => $comment->getParent()?->getId(),
                 'createdAt' => $comment->getCreatedAt()->format('Y-m-d H:i:s'),
+                'deletedBy' => $comment->getDeletedBy()?->getPseudo(),
+                'deletedAt' => $comment->getDeletedAt()?->format('Y-m-d H:i:s'),
             ];
         }, $comments);
 
@@ -206,6 +216,7 @@ class PostController extends AbstractController
             'score' => $post->getScore(),
             'userVote' => $userVote,
             'isSaved' => $isSaved,
+            'canDelete' => $canDelete,
             'postType' => $post->getPostType(),
             'linkUrl' => $post->getLinkUrl(),
             'linkPreview' => $post->getLinkPreview(),
@@ -308,32 +319,6 @@ class PostController extends AbstractController
         ]);
     }
 
-    private function updatePostScore(Post $post): void
-    {
-        $upvotes = $this->postVoteRepo->countVotesForPost($post->getId(), PostVote::TYPE_UP);
-        $downvotes = $this->postVoteRepo->countVotesForPost($post->getId(), PostVote::TYPE_DOWN);
-        
-        $score = $upvotes - $downvotes;
-        $post->setScore($score);
-        
-        $this->em->flush();
-    }
-
-    private function generateSlug(string $title): string
-    {
-        $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $title)));
-        $baseSlug = $slug;
-        $counter = 1;
-
-        // Assurer l'unicité du slug
-        while ($this->postRepo->findOneBy(['slug' => $slug])) {
-            $slug = $baseSlug . '-' . $counter;
-            $counter++;
-        }
-
-        return $slug;
-    }
-
     #[Route('/{id}/save', name: 'api_post_save', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function savePost(int $id): JsonResponse
@@ -403,5 +388,72 @@ class PostController extends AbstractController
             'isSaved' => false,
             'message' => 'Post retiré des sauvegardes'
         ]);
+    }
+
+    #[Route('/{id}', name: 'api_post_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function delete(int $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        
+        $post = $this->postRepo->find($id);
+        if (!$post) {
+            return $this->json(['error' => 'Post not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        if ($post->isDeleted()) {
+            return $this->json(['error' => 'Post already deleted'], Response::HTTP_GONE);
+        }
+
+        if (!$post->canBeDeletedBy($user)) {
+            return $this->json(['error' => 'Access denied'], Response::HTTP_FORBIDDEN);
+        }
+
+        // Marquer le post comme supprimé
+        $post->markAsDeleted($user);
+        
+        // Supprimer tous les commentaires du post
+        $comments = $this->em->getRepository(\App\Entity\Comment::class)
+            ->findBy(['post' => $post]);
+        
+        foreach ($comments as $comment) {
+            if (!$comment->isDeleted()) {
+                $comment->markAsDeleted($user);
+            }
+        }
+
+        $this->em->flush();
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Post deleted successfully'
+        ]);
+    }
+
+    private function updatePostScore(Post $post): void
+    {
+        $upvotes = $this->postVoteRepo->countVotesForPost($post->getId(), PostVote::TYPE_UP);
+        $downvotes = $this->postVoteRepo->countVotesForPost($post->getId(), PostVote::TYPE_DOWN);
+        
+        $score = $upvotes - $downvotes;
+        $post->setScore($score);
+        
+        $this->em->flush();
+    }
+
+    private function generateSlug(string $title): string
+    {
+        $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $title)));
+        $baseSlug = $slug;
+        $counter = 1;
+
+        // Assurer l'unicité du slug
+        while ($this->postRepo->findOneBy(['slug' => $slug])) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+
+        return $slug;
     }
 }
