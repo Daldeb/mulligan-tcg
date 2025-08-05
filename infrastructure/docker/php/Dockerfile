@@ -10,13 +10,13 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY docker/php/wait-for-mysql.sh /usr/local/bin/wait-for-mysql.sh
 RUN chmod +x /usr/local/bin/wait-for-mysql.sh
 
-# --- AJOUT : copier tout le code Symfony (backend) dans le container
+# --- COPIER LE CODE AVANT LE WORKDIR ---
 COPY ./app/symfony /var/www/backend
 
-WORKDIR /var/www/backend
+# --- INSTALLER LES DEPENDANCES NODE (puppeteer) ---
+RUN cd /var/www/backend && npm install --production
 
-# --- AJOUT : installer puppeteer et dépendances JS
-RUN npm install --production
+WORKDIR /var/www/backend
 
 RUN chown -R dev:dev /var/www/backend/config/jwt \
  && chmod 600 /var/www/backend/config/jwt/private.pem \
