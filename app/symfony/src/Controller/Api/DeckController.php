@@ -236,6 +236,9 @@ public function update(int $id, Request $request): JsonResponse
         $deck->setTitle(trim($data['title']));
         $deck->setDescription($data['description'] ?? null);
         $deck->setHearthstoneClass($data['hearthstoneClass'] ?? null);
+        if (isset($data['isPublic'])) {
+            $deck->setIsPublic((bool)$data['isPublic']);
+        }
 
         // Gérer les cartes du deck
         if (isset($data['cards']) && is_array($data['cards'])) {

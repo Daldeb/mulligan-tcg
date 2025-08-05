@@ -1031,6 +1031,8 @@ const confirmSave = async () => {
     })
 
     if (currentDeck.value.id) {
+      console.log('🔍 DIAGNOSTIC - isPublic envoyé:', deckData.isPublic)
+      console.log('🔍 DIAGNOSTIC - currentDeck.isPublic:', currentDeck.value.isPublic)
       const response = await api.put(`/api/decks/${currentDeck.value.id}`, deckData)
       
       console.log('✅ Réponse API sauvegarde Magic:', response.data)

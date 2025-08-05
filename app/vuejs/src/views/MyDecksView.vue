@@ -127,55 +127,14 @@
           </div>
           
           <div class="decks-grid">
-            <Card 
+            <MagicCompactDeck 
               v-for="deck in getGameDecks('magic')" 
-              :key="`my-mtg-${deck.id}`"
-              class="deck-card gaming-card hover-lift"
-            >
-              <template #content>
-                <div class="deck-content">
-                  <div class="deck-header-info">
-                    <h3 class="deck-name">{{ deck.name }}</h3>
-                    <div class="deck-status">
-                      <i :class="deck.isPublic ? 'pi pi-globe' : 'pi pi-lock'" 
-                         :style="{ color: deck.isPublic ? 'var(--primary)' : 'var(--text-secondary)' }"
-                         :title="deck.isPublic ? 'Public' : 'Privé'"></i>
-                    </div>
-                  </div>
-                  <div class="deck-meta">
-                    <span class="format-badge magic">{{ deck.format }}</span>
-                  </div>
-                  <div class="deck-stats-info">
-                    <span class="likes">{{ deck.likes || 0 }} ❤️</span>
-                    <span class="views">{{ deck.views || 0 }} 👁️</span>
-                    <span class="cards">{{ deck.cardCount || 0 }}/60 cartes</span>
-                  </div>
-                  <div class="deck-actions">
-                    <Button 
-                      icon="pi pi-pencil"
-                      class="edit-btn"
-                      @click="editDeck(deck)"
-                      v-tooltip="'Éditer'"
-                      size="small"
-                    />
-                    <Button 
-                      icon="pi pi-copy"
-                      class="copy-btn"
-                      @click="duplicateDeck(deck)"
-                      v-tooltip="'Dupliquer'"
-                      size="small"
-                    />
-                    <Button 
-                      icon="pi pi-trash"
-                      class="delete-btn"
-                      @click="deleteDeck(deck)"
-                      v-tooltip="'Supprimer'"
-                      size="small"
-                    />
-                  </div>
-                </div>
-              </template>
-            </Card>
+              :key="`my-magic-${deck.id}`"
+              :deck="deck"
+              @edit="editDeck"
+              @delete="deleteDeck"
+              @copyDeckcode="copyDeckcode"
+            />
           </div>
         </div>
 
@@ -467,6 +426,7 @@ import Dialog from 'primevue/dialog'
 import Dropdown from 'primevue/dropdown' 
 import Textarea from 'primevue/textarea'
 import HearthstoneCompactDeck from '../components/decks/HearthstoneCompactDeck.vue'
+import MagicCompactDeck from '../components/decks/MagicCompactDeck.vue'
 
 // Stores et composables
 const router = useRouter()
