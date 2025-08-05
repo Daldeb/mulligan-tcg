@@ -55,7 +55,7 @@ class DeckCard
      */
     #[ORM\ManyToOne(targetEntity: MagicCard::class)]
     #[ORM\JoinColumn(name: 'magic_card_id', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
-    private ?PokemonCard $magicCard = null;
+    private ?MagicCard $magicCard = null;
 
     /**
      * Carte Magic (quand l'entité sera créée)

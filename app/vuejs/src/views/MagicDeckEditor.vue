@@ -463,70 +463,50 @@ const commanderCard = computed(() => {
 
 // Filtrage des cartes Magic
 const filteredCards = computed(() => {
-  let cards = availableCards.value
+  let result = availableCards.value
 
-  // Filtrage par couleurs d'identité du deck
-  if (currentDeck.value.colorIdentity.length > 0) {
-    cards = cards.filter(card => {
-      if (!card.colorIdentity || card.colorIdentity.length === 0) return true // Cartes incolores OK
-      return card.colorIdentity.every(color => 
-        currentDeck.value.colorIdentity.includes(color)
-      )
-    })
-  }
-
-  // Filtre par recherche
-  if (cardSearch.value) {
-    const query = cardSearch.value.toLowerCase()
-    cards = cards.filter(card => 
-      card.name.toLowerCase().includes(query) ||
-      card.text?.toLowerCase().includes(query) ||
-      card.typeLine?.toLowerCase().includes(query)
+  // Filtrage par nom
+  if (cardSearch.value.trim()) {
+    const searchTerm = cardSearch.value.toLowerCase()
+    result = result.filter(card => 
+      card.name.toLowerCase().includes(searchTerm)
     )
   }
 
-  // Filtre par CMC
+  // Filtrage par CMC (Converted Mana Cost)
   if (filters.value.cmc !== null) {
     if (filters.value.cmc === '7+') {
-      cards = cards.filter(card => (card.cmc || 0) >= 7)
+      result = result.filter(card => (card.cmc || 0) >= 7)
     } else {
-      cards = cards.filter(card => (card.cmc || 0) === filters.value.cmc)
+      result = result.filter(card => (card.cmc || 0) === filters.value.cmc)
     }
   }
 
-  // Filtre par rareté
+  // Filtrage par rareté
   if (filters.value.rarity) {
-    cards = cards.filter(card => 
-      card.rarity?.toLowerCase() === filters.value.rarity
+    result = result.filter(card => 
+      card.rarity?.toLowerCase() === filters.value.rarity.toLowerCase()
     )
   }
 
-  // Filtre par type
+  // Filtrage par type de carte
   if (filters.value.cardType) {
-    cards = cards.filter(card => 
-      card.cardType?.toLowerCase() === filters.value.cardType
+    result = result.filter(card => 
+      card.cardType?.toLowerCase() === filters.value.cardType.toLowerCase()
     )
   }
 
-  // Filtre par couleurs
-  if (filters.value.colors) {
-    if (filters.value.colors === 'colorless') {
-      cards = cards.filter(card => !card.colors || card.colors.length === 0)
-    } else {
-      cards = cards.filter(card => 
-        card.colors && card.colors.includes(filters.value.colors)
-      )
-    }
-  }
+  // ❌ SUPPRIMÉ: Filtrage par couleur car Magic n'a pas de restriction de couleurs
+  // Les joueurs peuvent ajouter n'importe quelle couleur à leur deck
 
-  // Filtre par format (Standard/Commander)
+  // Filtrage par format (légalité)
   if (currentDeck.value.format === 'standard') {
-    cards = cards.filter(card => card.isStandardLegal)
+    result = result.filter(card => card.isStandardLegal)
   } else if (currentDeck.value.format === 'commander') {
-    cards = cards.filter(card => card.isCommanderLegal)
+    result = result.filter(card => card.isCommanderLegal)
   }
 
-  return cards
+  return result
 })
 
 const paginatedCards = computed(() => {
@@ -679,6 +659,12 @@ const justToggled = ref(false)
 
 // Méthodes utilitaires
 const getCardsByType = (type) => {
+    console.log(`🔍 DIAGNOSTIC - Recherche type "${type}" dans:`, deckCards.value.map(entry => ({
+    name: entry.card.name,
+    cardType: entry.card.cardType,
+    typeLine: entry.card.typeLine
+  })))
+  
   if (currentDeck.value.format === 'commander') {
     // En Commander : exclure le commandant des sections normales
     return deckCards.value.filter(entry => 
@@ -728,112 +714,57 @@ const canAddCard = (card) => {
 }
 
 const addCardToDeck = (card) => {
- console.log('🎯 addCardToDeck appelée avec:', card.name)
- 
- if (!canAddCard(card)) {
-   console.log('❌ Impossible d\'ajouter la carte')
-   return
- }
- 
- console.log('✅ Ajout de la carte au deck')
- 
- const existingEntry = deckCards.value.find(entry => entry.card.id === card.id)
- 
- if (existingEntry) {
-   existingEntry.quantity++
-   console.log('📈 Quantité augmentée:', existingEntry.quantity)
- } else {
-   deckCards.value.push({
-     card: card,
-     quantity: 1
-   })
-   console.log('➕ Nouvelle carte ajoutée')
- }
- 
- console.log('🔢 Total cartes dans le deck:', deckCards.value.length)
- 
- // 🔍 DEBUG AJOUTÉ
- console.log('🔍 Carte ajoutée:', {
-   name: card.name,
-   cardType: card.cardType,
-   typeLine: card.typeLine
- })
-
- console.log('🔍 Debug après ajout:')
- deckCards.value.forEach((entry, index) => {
-   console.log(`Carte ${index + 1}: ${entry.card.name} - cardType: "${entry.card.cardType}"`)
- })
-
-console.log('🔍 Test getCardsByType pour chaque section:')
-console.log('Creatures:', getCardsByType('creature').length)
-console.log('Planeswalkers:', getCardsByType('planeswalker').length)  
-console.log('Instants:', getCardsByType('instant').length)
-console.log('Sorceries:', getCardsByType('sorcery').length)
-console.log('Enchantments:', getCardsByType('enchantment').length)
-console.log('Artifacts:', getCardsByType('artifact').length)
-console.log('Lands:', getCardsByType('land').length)
-
-console.log('🔍 Debug spécial Aatchik:')
-console.log('Aatchik canBeCommander:', deckCards.value[0]?.card.canBeCommander)
-console.log('Aatchik isLegendary:', deckCards.value[0]?.card.isLegendary)
-
-console.log('🔍 Toutes les créatures (sans filtre commander):')
-const allCreatures = deckCards.value.filter(entry => entry.card.cardType === 'creature')
-console.log('Toutes créatures:', allCreatures.length)
-allCreatures.forEach(entry => {
-  console.log(`- ${entry.card.name} (canBeCommander: ${entry.card.canBeCommander})`)
-})
- 
- // Mettre à jour l'identité de couleur du deck
- updateDeckColorIdentity()
-
-//  toast.add({
-//    severity: 'success',
-//    summary: 'Carte ajoutée',
-//    detail: `${card.name} ajoutée au deck`,
-//    life: 2000
-//  })
+  const existingEntry = deckCards.value.find(entry => entry.card.id === card.id)
+  const maxQuantity = getMaxQuantity(card)
+  
+  if (existingEntry) {
+    if (existingEntry.quantity < maxQuantity) {
+      existingEntry.quantity++
+      updateDeckColorIdentity() 
+    } else {
+      toast.add({
+        severity: 'warn',
+        summary: 'Limite atteinte',
+        detail: `Maximum ${maxQuantity} exemplaires de ${card.name}`,
+        life: 2000
+      })
+      return
+    }
+  } else {
+    deckCards.value.push({
+      card: card,
+      quantity: 1
+    })
+    updateDeckColorIdentity()
+  }
 }
 
-const removeCardFromDeck = (cardOrEntry) => {
-  const cardId = cardOrEntry.card?.id || cardOrEntry.id
-  const entryIndex = deckCards.value.findIndex(entry => entry.card.id === cardId)
-  
-  if (entryIndex !== -1) {
-    const entry = deckCards.value[entryIndex]
-    
-    if (entry.quantity > 1 && currentDeck.value.format !== 'commander') {
-      entry.quantity--
-    } else {
-      deckCards.value.splice(entryIndex, 1)
+const removeCardFromDeck = (entry) => {
+  if (entry.quantity > 1) {
+    entry.quantity--
+  } else {
+    const index = deckCards.value.findIndex(e => e.card.id === entry.card.id)
+    if (index > -1) {
+      deckCards.value.splice(index, 1)
     }
-
-    // Mettre à jour l'identité de couleur du deck
-    updateDeckColorIdentity()
-
-    // toast.add({
-    //   severity: 'info',
-    //   summary: 'Carte retirée',
-    //   detail: `${entry.card.name} retirée du deck`,
-    //   life: 2000
-    // })
   }
+  
+  updateDeckColorIdentity() 
 }
 
 const updateDeckColorIdentity = () => {
   const allColors = new Set()
   
   deckCards.value.forEach(entry => {
-    if (entry.card.colorIdentity) {
+    if (entry.card.colorIdentity && Array.isArray(entry.card.colorIdentity)) {
       entry.card.colorIdentity.forEach(color => allColors.add(color))
     }
   })
   
-  currentDeck.value.colorIdentity = Array.from(allColors).sort()
-}
-
-const isColorSelected = (color) => {
-  return currentDeck.value.colorIdentity.includes(color)
+  const colorOrder = ['W', 'U', 'B', 'R', 'G']
+  currentDeck.value.colorIdentity = colorOrder.filter(color => allColors.has(color))
+  
+  console.log('🎨 Couleurs deck mises à jour:', currentDeck.value.colorIdentity)
 }
 
 const toggleColor = (color) => {
@@ -854,6 +785,10 @@ const getColorsDisplayName = (colorIdentity) => {
   return colorIdentity.join('')
 }
 
+const isColorSelected = (color) => {
+  return currentDeck.value.colorIdentity.includes(color)
+}
+
 // Chargement et sauvegarde
 const loadDeckBySlug = async (gameSlug, formatSlug, deckSlug) => {
   try {
@@ -867,18 +802,24 @@ const loadDeckBySlug = async (gameSlug, formatSlug, deckSlug) => {
       
       currentDeck.value = {
         id: deck.id,
-        name: deck.title,
+        name: deck.title, 
         description: deck.description,
         game: deck.game.slug,
         format: deck.format.slug,
         visibility: deck.isPublic ? 'public' : 'private',
-        colorIdentity: deck.colorIdentity || []
+        isPublic: deck.isPublic, 
+        colorIdentity: deck.colorIdentity || [] 
       }
       
-      // Charger les cartes du deck si présentes
-      deckCards.value = deck.cards || []
-      
+      deckCards.value = deck.cards ? deck.cards.map(cardEntry => ({
+        card: cardEntry.card,
+        quantity: cardEntry.quantity
+      })) : []
+      console.log('🔍 DIAGNOSTIC - Cartes deck rechargées:', deckCards.value)
+      console.log('🔍 DIAGNOSTIC - Structure première carte deck:', deckCards.value[0]?.card)
+      console.log('🔍 DIAGNOSTIC - CardType première carte deck:', deckCards.value[0]?.card?.cardType)
       console.log('✅ Deck Magic chargé avec ID:', currentDeck.value.id)
+      console.log('🃏 Cartes chargées:', deckCards.value.length)
     }
   } catch (error) {
     console.error('💥 Erreur chargement deck Magic:', error)
@@ -905,6 +846,10 @@ const loadCards = async () => {
     
     const response = await api.get(`/api/cards/${gameSlug}?format=${format}&limit=10000`)
     availableCards.value = response.data
+
+    console.log('🔍 DIAGNOSTIC - Structure carte API:', availableCards.value[0])
+    console.log('🔍 DIAGNOSTIC - CardType première carte:', availableCards.value[0]?.cardType)
+    console.log('🔍 DIAGNOSTIC - TypeLine première carte:', availableCards.value[0]?.typeLine)
     
     console.log(`✅ ${availableCards.value.length} cartes Magic chargées`)
   } catch (error) {
@@ -1069,6 +1014,7 @@ const confirmSave = async () => {
     const deckData = {
       title: currentDeck.value.name.trim(),
       description: currentDeck.value.description?.trim(),
+      // ✅ CORRECTION: Envoyer colorIdentity au lieu de hearthstoneClass
       colorIdentity: currentDeck.value.colorIdentity,
       isPublic: currentDeck.value.isPublic,
       cards: deckCards.value.map(entry => ({
@@ -1077,8 +1023,7 @@ const confirmSave = async () => {
       }))
     }
 
-    // 🔍 DEBUG AJOUTÉ
-    console.log('🔍 Données envoyées à l\'API:', {
+    console.log('🔍 Données Magic envoyées à l\'API:', {
       deckData,
       deckCards: deckCards.value,
       totalCards: deckCards.value.length,
@@ -1088,8 +1033,7 @@ const confirmSave = async () => {
     if (currentDeck.value.id) {
       const response = await api.put(`/api/decks/${currentDeck.value.id}`, deckData)
       
-      // 🔍 DEBUG AJOUTÉ
-      console.log('✅ Réponse API sauvegarde:', response.data)
+      console.log('✅ Réponse API sauvegarde Magic:', response.data)
       
       showSaveConfirmation.value = false
       
@@ -1113,7 +1057,7 @@ const confirmSave = async () => {
     }
 
   } catch (error) {
-    console.error('Erreur sauvegarde:', error)
+    console.error('Erreur sauvegarde Magic:', error)
     toast.add({
       severity: 'error',
       summary: 'Erreur',

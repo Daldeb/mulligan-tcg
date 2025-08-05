@@ -159,24 +159,6 @@ class DeckController extends AbstractController
         ]);
     }
 
-    #[Route('/api/decks/my-decks', name: 'api_user_decks', methods: ['GET'])]
-    public function getUserDecks(): JsonResponse
-    {
-        $user = $this->getUser();
-        if (!$user) {
-            return $this->json(['error' => 'Non authentifié'], 401);
-        }
-
-        $decks = $this->deckRepository->findBy(['user' => $user], ['updatedAt' => 'DESC']);
-        
-        $serializedDecks = [];
-        foreach ($decks as $deck) {
-            $serializedDecks[] = $this->serializeDeck($deck);
-        }
-
-        return $this->json($serializedDecks);
-    }
-
     /**
      * Mettre à jour les métadonnées d'un deck
      */
@@ -406,6 +388,23 @@ public function update(int $id, Request $request): JsonResponse
         return $slug;
     }
 
+    private function extractMainCardType(string $typeLine): string
+    {
+        $typeLine = strtolower($typeLine);
+        
+        // Gestion des termes français ET anglais
+        if (strpos($typeLine, 'creature') !== false || strpos($typeLine, 'créature') !== false) return 'creature';
+        if (strpos($typeLine, 'planeswalker') !== false) return 'planeswalker';
+        if (strpos($typeLine, 'land') !== false || strpos($typeLine, 'terrain') !== false) return 'land';
+        if (strpos($typeLine, 'artifact') !== false || strpos($typeLine, 'artefact') !== false) return 'artifact';
+        if (strpos($typeLine, 'enchantment') !== false || strpos($typeLine, 'enchantement') !== false) return 'enchantment';
+        if (strpos($typeLine, 'instant') !== false || strpos($typeLine, 'éphémère') !== false) return 'instant';
+        if (strpos($typeLine, 'sorcery') !== false || strpos($typeLine, 'rituel') !== false) return 'sorcery';
+        if (strpos($typeLine, 'battle') !== false || strpos($typeLine, 'bataille') !== false) return 'battle';
+        
+        return 'other';
+    }
+
     /**
      * Sérialise un deck pour l'API
      */
@@ -415,24 +414,76 @@ public function update(int $id, Request $request): JsonResponse
         
         // Sérialiser les cartes du deck avec leurs détails
         foreach ($deck->getDeckCards() as $deckCard) {
-            $card = $deckCard->getCard(); // Méthode qui retourne HearthstoneCard ou PokemonCard
+            $card = $deckCard->getCard(); // Méthode qui retourne HearthstoneCard, PokemonCard ou MagicCard
             
             if ($card) {
-                $serializedCards[] = [
+                $cardData = [
                     'quantity' => $deckCard->getQuantity(),
                     'card' => [
                         'id' => $card->getId(),
-                        'name' => $card->getName(),
-                        'cost' => method_exists($card, 'getCost') ? $card->getCost() : null,
-                        'rarity' => method_exists($card, 'getRarity') ? $card->getRarity() : null,
+                        'name' => method_exists($card, 'getDisplayName') ? $card->getDisplayName() : $card->getName(),
                         'imageUrl' => $card->getImageUrl(),
-                        'cardType' => method_exists($card, 'getCardType') ? $card->getCardType() : null
                     ]
                 ];
+
+                // ✅ CORRECTION: Sérialisation spécifique selon le type de jeu
+                $gameSlug = $deck->getGame()->getSlug();
+                
+                if ($gameSlug === 'hearthstone') {
+                    // Propriétés Hearthstone
+                    $cardData['card']['cost'] = method_exists($card, 'getCost') ? $card->getCost() : null;
+                    $cardData['card']['rarity'] = method_exists($card, 'getRarity') ? $card->getRarity() : null;
+                    $cardData['card']['cardType'] = method_exists($card, 'getCardType') ? $card->getCardType() : null;
+                    $cardData['card']['cardClass'] = method_exists($card, 'getCardClass') ? $card->getCardClass() : null;
+                    $cardData['card']['isStandardLegal'] = method_exists($card, 'isStandardLegal') ? $card->isStandardLegal() : false;
+                    $cardData['card']['isWildLegal'] = method_exists($card, 'isWildLegal') ? $card->isWildLegal() : false;
+                    
+                } elseif ($gameSlug === 'magic') {
+                    // ✅ PROPRIÉTÉS MAGIC COMPLÈTES
+                    $cardData['card']['manaCost'] = method_exists($card, 'getManaCost') ? $card->getManaCost() : null;
+                    $cardData['card']['cmc'] = method_exists($card, 'getCmc') ? $card->getCmc() : null;
+                    $cardData['card']['power'] = method_exists($card, 'getPower') ? $card->getPower() : null;
+                    $cardData['card']['toughness'] = method_exists($card, 'getToughness') ? $card->getToughness() : null;
+                    $cardData['card']['rarity'] = method_exists($card, 'getRarity') ? $card->getRarity() : null;
+                    $cardData['card']['typeLine'] = method_exists($card, 'getDisplayTypeLine') ? $card->getDisplayTypeLine() : null;
+                    $cardData['card']['colors'] = method_exists($card, 'getColors') ? $card->getColors() : [];
+                    $cardData['card']['colorIdentity'] = method_exists($card, 'getColorIdentity') ? $card->getColorIdentity() : [];
+                    $cardData['card']['text'] = method_exists($card, 'getDisplayText') ? $card->getDisplayText() : null;
+                    $cardData['card']['isStandardLegal'] = method_exists($card, 'isStandardLegal') ? $card->isStandardLegal() : false;
+                    $cardData['card']['isCommanderLegal'] = method_exists($card, 'isCommanderLegal') ? $card->isCommanderLegal() : false;
+                    $cardData['card']['isCreature'] = method_exists($card, 'isCreature') ? $card->isCreature() : false;
+                    $cardData['card']['isLand'] = method_exists($card, 'isLand') ? $card->isLand() : false;
+                    $cardData['card']['isLegendary'] = method_exists($card, 'isLegendary') ? $card->isLegendary() : false;
+                    $cardData['card']['canBeCommander'] = method_exists($card, 'canBeCommander') ? $card->canBeCommander() : false;
+                    
+                    // ✅ CALCULER LE CARDTYPE AVEC LA MÊME LOGIQUE QUE L'API
+                    $cardData['card']['cardType'] = $this->extractMainCardType($cardData['card']['typeLine'] ?? '');
+                    
+                } elseif ($gameSlug === 'pokemon') {
+                    // Propriétés Pokemon (à implémenter si nécessaire)
+                    $cardData['card']['rarity'] = method_exists($card, 'getRarity') ? $card->getRarity() : null;
+                    // TODO: Ajouter autres propriétés Pokemon
+                }
+
+                $serializedCards[] = $cardData;
             }
         }
 
-        return [
+        // ✅ CORRECTION: Ajouter colorIdentity pour Magic
+        $additionalData = [];
+        if ($deck->getGame()->getSlug() === 'magic') {
+            // Calculer l'identité de couleur à partir des cartes
+            $allColors = [];
+            foreach ($serializedCards as $cardEntry) {
+                if (!empty($cardEntry['card']['colorIdentity'])) {
+                    $allColors = array_merge($allColors, $cardEntry['card']['colorIdentity']);
+                }
+            }
+            $colorOrder = ['W', 'U', 'B', 'R', 'G'];
+            $additionalData['colorIdentity'] = array_values(array_intersect($colorOrder, array_unique($allColors)));
+        }
+
+        return array_merge([
             'id' => $deck->getId(),
             'slug' => $deck->getSlug(),
             'title' => $deck->getTitle(),
@@ -456,7 +507,7 @@ public function update(int $id, Request $request): JsonResponse
             'createdAt' => $deck->getCreatedAt()?->format('Y-m-d H:i:s'),
             'updatedAt' => $deck->getUpdatedAt()?->format('Y-m-d H:i:s'),
             'hearthstoneClass' => $deck->getHearthstoneClass(),
-            'cards' => $serializedCards, // ✅ CORRECTION : Vraies cartes
-        ];
+            'cards' => $serializedCards,
+        ], $additionalData);
     }
 }
