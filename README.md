@@ -237,3 +237,10 @@ Le projet est maintenant :
 * ✅ **Architecture scalable** prête pour les fonctionnalités avancées
 
 **Ready to build amazing features! 🚀**
+
+
+MAILER SMTP GOOGLE : mulligan.alltcg@gmail.com
+
+
+Mot de passe d'application dans gmail : fmfh bzev mswi evww
+

@@ -313,6 +313,23 @@ public function update(int $id, Request $request): JsonResponse
     }
 }
 
+    #[Route('/community', name: 'community', methods: ['GET'])]
+    public function getCommunityDecks(): JsonResponse
+    {
+        $decks = $this->deckRepository->findBy(
+            [
+                'isPublic' => true,
+                'validDeck' => true
+            ],
+            ['updatedAt' => 'DESC']
+        );
+
+        $serialized = array_map([$this, 'serializeDeck'], $decks);
+
+        return $this->json($serialized);
+    }
+
+
     /**
      * Récupérer les decks d'un utilisateur
      */

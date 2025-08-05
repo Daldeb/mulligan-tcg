@@ -3,6 +3,7 @@
 namespace App\Controller\Api;
 
 use App\Entity\User;
+use App\Service\EmailService;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -22,7 +23,16 @@ class AuthController extends AbstractController
         JWTTokenManagerInterface $jwtManager
     ): JsonResponse {
         if (null === $user) {
-            return $this->json(['error' => 'Invalid credentials'], 401);
+            return $this->json(['error' => 'Identifiants invalides'], 401);
+        }
+
+        // ✅ Vérifier si le compte est vérifié
+        if (!$user->isVerified()) {
+            return $this->json([
+                'error' => 'Compte non vérifié',
+                'message' => 'Veuillez vérifier votre email avant de vous connecter',
+                'needsVerification' => true
+            ], 403);
         }
 
         $token = $jwtManager->create($user);
@@ -33,6 +43,7 @@ class AuthController extends AbstractController
                 'id' => $user->getId(),
                 'email' => $user->getEmail(),
                 'pseudo' => $user->getPseudo(),
+                'isVerified' => $user->isVerified()
             ]
         ]);
     }
@@ -42,7 +53,7 @@ class AuthController extends AbstractController
         Request $request,
         EntityManagerInterface $em,
         UserPasswordHasherInterface $hasher,
-        JWTTokenManagerInterface $jwtManager
+        EmailService $emailService
     ): JsonResponse {
         $data = json_decode($request->getContent(), true);
 
@@ -70,20 +81,102 @@ class AuthController extends AbstractController
         $user->setPseudo($pseudo);
         $user->setPassword($hasher->hashPassword($user, $data['password']));
         $user->setRoles(['ROLE_USER']);
+        
+        // ✅ Générer le token de vérification
+        $user->generateVerificationToken();
 
         $em->persist($user);
         $em->flush();
 
-        // Générer le token JWT
-        $token = $jwtManager->create($user);
+        // ✅ Envoyer l'email de vérification
+        try {
+            $emailService->sendVerificationEmail(
+                $user->getEmail(),
+                $user->getPseudo(),
+                $user->getVerificationToken()
+            );
+        } catch (\Exception $e) {
+            // Log l'erreur mais ne pas faire échouer l'inscription
+            error_log('Erreur envoi email: ' . $e->getMessage());
+        }
 
         return $this->json([
-            'token' => $token,
+            'success' => true,
+            'message' => 'Inscription réussie ! Vérifiez votre email pour activer votre compte.',
             'user' => [
                 'id' => $user->getId(),
                 'email' => $user->getEmail(),
                 'pseudo' => $user->getPseudo(),
+                'isVerified' => false
             ]
+        ]);
+    }
+
+    #[Route('/api/verify-email/{token}', name: 'app_verify_email', methods: ['GET'])]
+    public function verifyEmail(string $token, EntityManagerInterface $em): JsonResponse
+    {
+        $user = $em->getRepository(User::class)->findOneBy(['verificationToken' => $token]);
+
+        if (!$user) {
+            return $this->json(['error' => 'Token invalide'], 404);
+        }
+
+        if (!$user->isVerificationTokenValid()) {
+            return $this->json(['error' => 'Token expiré'], 400);
+        }
+
+        // ✅ Activer le compte
+        $user->setIsVerified(true);
+        $user->clearVerificationToken();
+
+        $em->flush();
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Email vérifié avec succès ! Vous pouvez maintenant vous connecter.'
+        ]);
+    }
+
+    #[Route('/api/resend-verification', name: 'api_resend_verification', methods: ['POST'])]
+    public function resendVerification(
+        Request $request,
+        EntityManagerInterface $em,
+        EmailService $emailService
+    ): JsonResponse {
+        $data = json_decode($request->getContent(), true);
+
+        if (!isset($data['email'])) {
+            return $this->json(['error' => 'Email requis'], 400);
+        }
+
+        $user = $em->getRepository(User::class)->findOneBy(['email' => $data['email']]);
+
+        if (!$user) {
+            return $this->json(['error' => 'Utilisateur non trouvé'], 404);
+        }
+
+        if ($user->isVerified()) {
+            return $this->json(['error' => 'Compte déjà vérifié'], 400);
+        }
+
+        // ✅ Générer un nouveau token
+        $user->generateVerificationToken();
+        $em->flush();
+
+        // ✅ Renvoyer l'email
+        try {
+            $emailService->sendVerificationEmail(
+                $user->getEmail(),
+                $user->getPseudo(),
+                $user->getVerificationToken()
+            );
+        } catch (\Exception $e) {
+            return $this->json(['error' => 'Erreur lors de l\'envoi de l\'email'], 500);
+        }
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Email de vérification renvoyé !'
         ]);
     }
 }

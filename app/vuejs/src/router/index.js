@@ -1,4 +1,4 @@
-// router/index.js - Version avec routes decks améliorées + carte boutiques
+// router/index.js - Version corrigée sans accents dans les paths
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '../stores/auth'
@@ -31,23 +31,27 @@ const routes = [
   },
   {
     path: '/decks',
-    name: 'decks',
     component: () => import('../views/DecksView.vue'),
-    meta: {
-      title: 'Decks - MULLIGAN TCG'
-    }
+    redirect: '/decks/communaute',
+    children: [
+      {
+        path: 'communaute',
+        name: 'community-decks',
+        component: () => import('../components/decks/CommunityDecksView.vue'),
+        meta: {
+          title: 'Decks Communautaires - MULLIGAN TCG'
+        }
+      },
+      {
+        path: 'metagame',
+        name: 'metagame-decks',
+        component: () => import('../components/decks/MetagameDecksView.vue'),
+        meta: {
+          title: 'Metagame - MULLIGAN TCG'
+        }
+      }
+    ]
   },
-  // Route pour créer un deck (supprimée - création direct via modale)
-  // {
-  //   path: '/decks/create',
-  //   name: 'decks-create',
-  //   component: () => import('../views/DecksEditor.vue'),
-  //   meta: {
-  //     title: 'Créer un deck - MULLIGAN TCG',
-  //     requiresAuth: true
-  //   }
-  // },
-  // Nouvelle route pour éditer un deck avec slug propre
   {
     path: '/edition/:gameSlug/:formatSlug/:deckSlug',
     name: 'deck-editor',
@@ -62,7 +66,6 @@ const routes = [
       deckSlug: route.params.deckSlug
     })
   },
-  // Route alternative pour édition par ID (backward compatibility)
   {
     path: '/decks/edit/:id',
     name: 'decks-edit',
@@ -105,11 +108,10 @@ const routes = [
       requiresAuth: true
     }
   },
-  // Route 404
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
-    component: HomeView, // Temporairement redirige vers home
+    component: HomeView,
     meta: {
       title: 'Page non trouvée - MULLIGAN TCG'
     }
@@ -131,16 +133,13 @@ const router = createRouter({
 // Guard async pour les routes qui nécessitent une authentification
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
-  // Si la route nécessite une auth
+
   if (to.meta.requiresAuth) {
-    // Si pas de token du tout, rediriger
     if (!authStore.token) {
       next({ name: 'home' })
       return
     }
-    
-    // Si token mais pas d'user, attendre la vérification
+
     if (authStore.token && !authStore.user) {
       try {
         await authStore.checkAuthStatus()
@@ -150,14 +149,13 @@ router.beforeEach(async (to, from, next) => {
         return
       }
     }
-    
-    // Vérifier à nouveau après checkAuthStatus
+
     if (!authStore.isAuthenticated) {
       next({ name: 'home' })
       return
     }
   }
-  
+
   next()
 })
 

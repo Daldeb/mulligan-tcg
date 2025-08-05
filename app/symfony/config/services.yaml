@@ -51,3 +51,13 @@ services:
     App\Service\ImageDownloadService:
         arguments:
             $uploadsDir: '%kernel.project_dir%/public/uploads'
+
+    # Configuration pour EmailService
+    App\Service\EmailService:
+        arguments:
+            $fromEmail: '%env(MAILER_FROM)%'
+
+# Listener pour vérification email
+    App\EventListener\AuthenticationListener:
+        tags:
+            - { name: kernel.event_listener, event: lexik_jwt_authentication.on_jwt_created, method: onJWTCreated }

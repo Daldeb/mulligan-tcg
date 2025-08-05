@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Confirmez votre inscription</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #26a69a 0%, #00897b 100%); color: white; padding: 30px; text-align: center; }
+        .content { padding: 30px; }
+        .btn { display: inline-block; background: #26a69a; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+        .footer { background: #f9f9f9; padding: 20px; text-align: center; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🃏 MULLIGAN TCG</h1>
+            <p>Bienvenue dans la communauté !</p>
+        </div>
+        <div class="content">
+            <h2>Salut {{ pseudo }} !</h2>
+            <p>Merci de vous être inscrit sur <strong>Mulligan TCG</strong>. Pour finaliser votre inscription, veuillez confirmer votre adresse email en cliquant sur le bouton ci-dessous :</p>
+            
+            <p style="text-align: center;">
+                <a href="{{ verificationUrl }}" class="btn">Confirmer mon email</a>
+            </p>
+            
+            <p><strong>Ce lien expire dans 24 heures.</strong></p>
+            
+            <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :</p>
+            <p style="word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 5px;">{{ verificationUrl }}</p>
+        </div>
+        <div class="footer">
+            <p>Si vous n'êtes pas à l'origine de cette inscription, ignorez simplement cet email.</p>
+            <p>&copy; 2025 Mulligan TCG - votre hub TCG ultime</p>
+        </div>
+    </div>
+</body>
+</html>
