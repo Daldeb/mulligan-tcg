@@ -11,6 +11,8 @@ services:
       - ./nginx/sites:/etc/nginx/conf.d:ro
       - ./app/symfony:/var/www/backend:ro
       - ./app/vuejs/dist:/var/www/frontend:ro
+      - ./ssl:/etc/letsencrypt  #  Bind mount certificats SSL
+      - ./ssl:/var/www/letsencrypt  # Dossier challenge Let's Encrypt
     depends_on:
       - app
     networks:
@@ -37,14 +39,14 @@ services:
       - MYSQL_PASSWORD=tcg_prod_password
       - JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem
       - MESSENGER_TRANSPORT_DSN=sync://
-      - CORS_ALLOW_ORIGIN=http://localhost,https://51.178.27.41
-      - VUE_APP_API_URL=http://51.178.27.41/api
+      - CORS_ALLOW_ORIGIN=https://mulligan-tcg.fr,https://www.mulligan-tcg.fr  # MISE À JOUR HTTPS
+      - VUE_APP_API_URL=https://mulligan-tcg.fr/api  # MISE À JOUR HTTPS
       - MAILER_DSN=smtp://localhost:25
       - DEBUG=false
       - JWT_PASSPHRASE=
       - LOG_LEVEL=info
-      - BACKEND_URL=http://51.178.27.41
-      - FRONTEND_URL=http://51.178.27.41
+      - BACKEND_URL=https://mulligan-tcg.fr  #  MISE À JOUR HTTPS
+      - FRONTEND_URL=https://mulligan-tcg.fr  # MISE À JOUR HTTPS
       - INSEE_API_BASE_URL=https://api.insee.fr/api-sirene/3.11
       - INSEE_BEARER_TOKEN=c7fcd9e2-516a-4664-bcd9-e2516ae664e0
       - INSEE_RATE_LIMIT_MS=2000

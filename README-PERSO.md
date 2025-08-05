@@ -747,3 +747,37 @@ Affichage récursif commentaires	Prévu mais pas encore codé
 Modération / suppression admin	À définir
 
 Souhaites-tu que je t’exporte ce résumé en .md propre prêt à ajouter à ton projet ou documentation ?
+
+
+
+
+
+
+
+PROBLEMES : 
+
+ANALYSE EXACTE DU PROBLÈME ✅
+Tu as absolument raison de faire le parallèle avec les clés JWT. C'est exactement le même problème architectural.
+PROBLÈME FONDAMENTAL :
+À chaque déploiement GitHub Actions, les containers sont recréés avec --force-recreate, ce qui supprime tout ce qui n'est pas persisté via des volumes.
+ANALYSE DES SOLUTIONS :
+SOLUTION 1 : VOLUMES DOCKER (ma proposition initiale)
+yamlvolumes:
+  - letsencrypt_data:/etc/letsencrypt
+✅ Avantages : Persistance automatique
+❌ Inconvénients : Volume opaque, difficile à sauvegarder/restaurer
+SOLUTION 2 : BIND MOUNT COMME JWT (recommandée)
+yamlvolumes:
+  - ./ssl:/etc/letsencrypt  # Dossier hôte → container
+✅ Avantages :
+
+Certificats visibles sur l'hôte (/opt/tcg-hub/ssl/)
+Sauvegardables facilement
+Même logique que les clés JWT
+Cohérent avec ton architecture existante
+
+SOLUTION 3 : GÉNÉRATION VIA GITHUB ACTIONS
+Modifier le deploy.yml pour régénérer les certificats automatiquement si absents.
+RECOMMANDATION :
+Solution 2 (bind mount) car elle s'aligne sur ta logique JWT existante et garde les certificats accessibles sur l'hôte.
+Quelle approche préfères-tu ? Je peux détailler la solution choisie.
