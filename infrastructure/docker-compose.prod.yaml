@@ -6,7 +6,7 @@ services:
     container_name: tcg_prod_nginx
     ports:
       - "80:80"
-      - "8443:443"
+      - "443:443"
     volumes:
       - ./nginx/sites:/etc/nginx/conf.d:ro
       - ./app/symfony:/var/www/backend:ro
