@@ -781,3 +781,70 @@ Modifier le deploy.yml pour régénérer les certificats automatiquement si abse
 RECOMMANDATION :
 Solution 2 (bind mount) car elle s'aligne sur ta logique JWT existante et garde les certificats accessibles sur l'hôte.
 Quelle approche préfères-tu ? Je peux détailler la solution choisie.
+
+
+
+VERIFICATIONS POST SSL :
+
+
+
+debian@vps-8b87b831:/opt/tcg-hub$ docker ps | grep tcg_prod_nginx
+a0d7bd4072d2   nginx:alpine         "/docker-entrypoint.…"   42 seconds ago   Up 41 seconds             0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp         tcg_prod_nginx
+debian@vps-8b87b831:/opt/tcg-hub$ docker logs tcg_prod_nginx --tail=10
+2025/08/05 13:51:19 [notice] 1#1: using the "epoll" event method
+2025/08/05 13:51:19 [notice] 1#1: nginx/1.29.0
+2025/08/05 13:51:19 [notice] 1#1: built by gcc 14.2.0 (Alpine 14.2.0) 
+2025/08/05 13:51:19 [notice] 1#1: OS: Linux 6.1.0-32-cloud-amd64
+2025/08/05 13:51:19 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+2025/08/05 13:51:19 [notice] 1#1: start worker processes
+2025/08/05 13:51:19 [notice] 1#1: start worker process 21
+2025/08/05 13:51:19 [notice] 1#1: start worker process 22
+2025/08/05 13:51:19 [notice] 1#1: start worker process 23
+2025/08/05 13:51:19 [notice] 1#1: start worker process 24
+debian@vps-8b87b831:/opt/tcg-hub$ docker port tcg_prod_nginx
+80/tcp -> 0.0.0.0:80
+80/tcp -> [::]:80
+443/tcp -> 0.0.0.0:443
+443/tcp -> [::]:443
+debian@vps-8b87b831:/opt/tcg-hub$ netstat -tlnp | grep :443
+(Not all processes could be identified, non-owned process info
+ will not be shown, you would have to be root to see it all.)
+tcp        0      0 0.0.0.0:443             0.0.0.0:*               LISTEN      -                   
+tcp6       0      0 :::443                  :::*                    LISTEN      -                   
+debian@vps-8b87b831:/opt/tcg-hub$ curl -I http://mulligan-tcg.fr 2>/dev/null | head -3
+HTTP/1.1 301 Moved Permanently
+Server: nginx/1.29.0
+Date: Tue, 05 Aug 2025 13:52:17 GMT
+debian@vps-8b87b831:/opt/tcg-hub$ curl -I https://mulligan-tcg.fr 2>/dev/null | head -1
+HTTP/2 200 
+debian@vps-8b87b831:/opt/tcg-hub$ curl -I https://www.mulligan-tcg.fr 2>/dev/null | head -1
+HTTP/2 200 
+debian@vps-8b87b831:/opt/tcg-hub$ curl -v https://mulligan-tcg.fr 2>&1 | head -10
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 51.178.27.41:443...
+* Connected to mulligan-tcg.fr (51.178.27.41) port 443 (#0)
+* ALPN: offers h2,http/1.1
+} [5 bytes data]
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+} [512 bytes data]
+*  CAfile: /etc/ssl/certs/ca-certificates.crt
+*  CApath: /etc/ssl/certs
+debian@vps-8b87b831:/opt/tcg-hub$ openssl s_client -connect mulligan-tcg.fr:443 -servername mulligan-tcg.fr 2>/dev/null | head -15
+CONNECTED(00000003)
+---
+Certificate chain
+ 0 s:CN = mulligan-tcg.fr
+   i:C = US, O = Let's Encrypt, CN = E6
+   a:PKEY: id-ecPublicKey, 256 (bit); sigalg: ecdsa-with-SHA384
+   v:NotBefore: Aug  5 12:48:08 2025 GMT; NotAfter: Nov  3 12:48:07 2025 GMT
+ 1 s:C = US, O = Let's Encrypt, CN = E6
+   i:C = US, O = Internet Security Research Group, CN = ISRG Root X1
+   a:PKEY: id-ecPublicKey, 384 (bit); sigalg: RSA-SHA256
+   v:NotBefore: Mar 13 00:00:00 2024 GMT; NotAfter: Mar 12 23:59:59 2027 GMT
+---
+Server certificate
+-----BEGIN CERTIFICATE-----
+MIIDoTCCAyegAwIBAgISBvocT+Wcn/RcU2ZZs5XEpddpMAoGCCqGSM49BAMDMDIx
+^C
+debian@vps-8b87b831:/opt/tcg-hub$ 

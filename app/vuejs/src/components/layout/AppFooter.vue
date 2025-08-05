@@ -1,7 +1,6 @@
 <template>
   <footer class="emerald-footer">
     <div class="footer-gradient"></div>
-    
     <div class="container">
       <!-- Footer info grid - structure corrigée -->
       <div class="footer-info">
@@ -13,16 +12,16 @@
           <router-link to="/equipe" class="footer-link">Équipe</router-link>
           <router-link to="/aide" class="footer-link">Aide</router-link>
         </div>
-
+        
         <!-- Brand centre -->
         <div class="footer-brand">
           <div class="brand-logo">
+            <img src="/favicon.png" alt="Mulligan TCG" class="footer-favicon" />
             <span class="logo-text">MULLIGAN TCG</span>
-            <span class="logo-crown">👑</span>
           </div>
           <p class="copyright">&copy; {{ currentYear }}</p>
         </div>
-
+        
         <!-- Status + Stats à droite -->
         <div class="footer-stats">
           <div class="status-indicator">
@@ -30,11 +29,7 @@
             <span class="status-text">En ligne</span>
           </div>
           <div class="version-info">
-            <span class="version-badge">V9000</span>
-          </div>
-          <div class="gaming-stats">
-            <span class="stat">{{ onlineUsers }} joueurs</span>
-            <span class="stat">{{ totalGames }} parties</span>
+            <span class="version-badge">V2.1</span>
           </div>
         </div>
       </div>
@@ -43,27 +38,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 
 const currentYear = computed(() => new Date().getFullYear())
-
-// Gaming stats (simulées)
-const onlineUsers = ref(1247)
-const totalGames = ref('2.8M')
-
-// Animation des stats au chargement
-onMounted(() => {
-  // Simulation de mise à jour temps réel des joueurs connectés
-  setInterval(() => {
-    onlineUsers.value = Math.floor(Math.random() * 500) + 1000
-  }, 30000) // Toutes les 30 secondes
-})
 </script>
 
 <style scoped>
 .emerald-footer {
   position: relative;
-  background: linear-gradient(135deg, var(--secondary-dark) 0%, var(--secondary) 50%, var(--surface-300) 100%);
+  background: linear-gradient(135deg, #181B66 0%, #3B4AA0 50%, #FFFFFF 100%);
   color: var(--text-inverse);
   margin-top: auto;
   overflow: hidden;
@@ -130,6 +113,18 @@ onMounted(() => {
   margin-bottom: 0.5rem;
 }
 
+.footer-favicon {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  transition: transform var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.brand-logo:hover .footer-favicon {
+  transform: scale(1.05);
+}
+
 .logo-text {
   font-size: 1.25rem;
   font-weight: 700;
@@ -192,17 +187,6 @@ onMounted(() => {
   color: white;
 }
 
-.gaming-stats {
-  display: flex;
-  gap: 1rem;
-  font-size: 0.875rem;
-}
-
-.stat {
-  color: rgba(255, 255, 255, 0.8);
-  font-weight: 500;
-}
-
 /* Animations */
 @keyframes pulse {
   0%, 100% {
@@ -234,8 +218,9 @@ onMounted(() => {
     align-items: center;
   }
   
-  .gaming-stats {
-    justify-content: center;
+  .footer-favicon {
+    width: 20px;
+    height: 20px;
   }
 }
 
@@ -248,10 +233,9 @@ onMounted(() => {
     font-size: 0.75rem;
   }
   
-  .gaming-stats {
-    flex-direction: column;
-    gap: 0.5rem;
-    text-align: center;
+  .footer-favicon {
+    width: 18px;
+    height: 18px;
   }
 }
 </style>

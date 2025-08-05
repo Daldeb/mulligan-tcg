@@ -6,6 +6,7 @@
         <!-- Logo -->
         <div class="logo-section">
           <router-link to="/" class="logo-link">
+            <img src="/favicon.png" alt="Mulligan TCG" class="logo-favicon" />
             MULLIGAN TCG
           </router-link>
           <span class="tagline">
@@ -375,6 +376,8 @@ onUnmounted(() => {
 }
 
 .logo-link {
+  display: flex;
+  align-items: center;
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -384,6 +387,19 @@ onUnmounted(() => {
 
 .logo-link:hover {
   color: var(--primary);
+}
+
+.logo-link:hover .logo-favicon {
+  transform: scale(1.05);
+}
+
+.logo-favicon {
+  width: 48px;
+  height: 48px;
+  margin-right: 0.75rem;
+  border-radius: 8px;
+  transition: transform var(--transition-fast);
+  flex-shrink: 0;
 }
 
 .tagline {
@@ -853,6 +869,12 @@ onUnmounted(() => {
     font-size: 1.5rem;
   }
   
+  .logo-favicon {
+    width: 40px;
+    height: 40px;
+    margin-right: 0.5rem;
+  }
+  
   .tagline {
     display: none;
   }
@@ -923,6 +945,12 @@ onUnmounted(() => {
     width: 280px;
     right: -100px;
   }
+  
+  .logo-favicon {
+    width: 32px;
+    height: 32px;
+    margin-right: 0.5rem;
+  }
 }
 
 .nav-content {
@@ -981,7 +1009,6 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-
 .nav-buttons {
   display: flex;
   align-items: center;
@@ -996,5 +1023,4 @@ onUnmounted(() => {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
   z-index: 5;
 }
-
 </style>
