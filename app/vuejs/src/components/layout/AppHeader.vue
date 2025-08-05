@@ -192,7 +192,7 @@
             <router-link to="/mes-decks" class="nav-item" active-class="nav-active">
               <Button label="Mes Decks" icon="pi pi-user" class="nav-button" />
             </router-link>
-            <router-link to="/Evenements" class="nav-item" active-class="nav-active">
+            <router-link to="/evenements" class="nav-item" active-class="nav-active">
               <Button label="Evenements" icon="pi pi-chart-bar" class="nav-button" />
             </router-link>
           </div>

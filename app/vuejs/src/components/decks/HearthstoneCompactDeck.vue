@@ -77,40 +77,58 @@
           </div>
         </div>
 
-        <!-- Actions du deck -->
-        <div class="deck-actions">
-          <Button 
-            :label="isExpanded ? 'Masquer' : 'Voir les cartes'"
-            :icon="isExpanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
-            class="expand-btn"
-            @click="toggleExpanded"
-            :disabled="!deck.cards || deck.cards.length === 0"
-          />
-          
-          <div class="action-buttons">
-            <Button 
-              icon="pi pi-pencil"
-              class="edit-btn"
-              @click="$emit('edit', deck)"
-              v-tooltip="'Éditer le deck'"
-              size="small"
-            />
-            <Button 
-              icon="pi pi-copy"
-              class="copy-btn"
-              @click="$emit('copyDeckcode', deck)"
-              v-tooltip="'Copier le deckcode'"
-              size="small"
-            />
-            <Button 
-              icon="pi pi-trash"
-              class="delete-btn"
-              @click="$emit('delete', deck)"
-              v-tooltip="'Supprimer le deck'"
-              size="small"
-            />
-          </div>
-        </div>
+<!-- Actions du deck -->
+<div class="deck-actions">
+  <Button 
+    :label="isExpanded ? 'Masquer' : 'Voir les cartes'"
+    :icon="isExpanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+    class="expand-btn"
+    @click="toggleExpanded"
+    :disabled="!deck.cards || deck.cards.length === 0"
+  />
+  
+  <div class="action-buttons">
+    <!-- ✅ BOUTON LIKE (seulement en mode community) -->
+    <Button 
+      v-if="showLike"
+      :icon="isLiked ? 'pi pi-heart-fill' : 'pi pi-heart'"
+      :class="['action-btn', 'like-btn', { 'liked': isLiked }]"
+      @click="toggleLike"
+      :label="likesCount.toString()"
+      v-tooltip="isLiked ? 'Ne plus aimer' : 'Aimer ce deck'"
+      size="small"
+    />
+    
+    <!-- ✅ BOUTON EDIT (seulement si propriétaire et context my-decks) -->
+    <Button 
+      v-if="canEdit"
+      icon="pi pi-pencil"
+      class="action-btn edit-btn"
+      @click="$emit('edit', deck)"
+      v-tooltip="'Éditer le deck'"
+      size="small"
+    />
+    
+    <!-- ✅ BOUTON COPY (toujours présent) -->
+    <Button 
+      icon="pi pi-copy"
+      class="action-btn copy-btn"
+      @click="$emit('copyDeckcode', deck)"
+      v-tooltip="'Copier le deckcode'"
+      size="small"
+    />
+    
+    <!-- ✅ BOUTON DELETE (seulement si propriétaire et context my-decks) -->
+    <Button 
+      v-if="canDelete"
+      icon="pi pi-trash"
+      class="action-btn delete-btn"
+      @click="$emit('delete', deck)"
+      v-tooltip="'Supprimer le deck'"
+      size="small"
+    />
+  </div>
+</div>
 
       </div>
     </template>
@@ -119,24 +137,69 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
+import api from '../../services/api'
 
 // Props
 const props = defineProps({
   deck: {
     type: Object,
     required: true
+  },
+  // ✅ NOUVELLE PROP POUR DIFFÉRENCIER LE CONTEXTE
+  context: {
+    type: String,
+    default: 'community', // 'community' ou 'my-decks'
+    validator: value => ['community', 'my-decks'].includes(value)
+  },
+  // ✅ NOUVELLE PROP POUR L'UTILISATEUR CONNECTÉ
+  currentUser: {
+    type: Object,
+    default: null
   }
 })
 
 // Events
-defineEmits(['edit', 'delete', 'copyDeckcode'])
+const emit = defineEmits(['edit', 'delete', 'copyDeckcode', 'like'])
+
+// Composables
+const toast = useToast()
 
 // State
 const isExpanded = ref(false)
+const isLiked = ref(props.deck.isLiked || false)
+const likesCount = ref(props.deck.likesCount || 0)
 
-// Computed
+// Computed pour vérifier les permissions
+// Computed pour vérifier les permissions
+const canEdit = computed(() => {
+  //  En mode my-decks, tous les decks sont éditables par définition
+  if (props.context === 'my-decks') {
+    return true
+  }
+  
+  // En mode community, vérifier la propriété user
+  return props.currentUser && 
+         props.deck.user?.id === props.currentUser.id
+})
+
+const canDelete = computed(() => {
+  //  En mode my-decks, tous les decks sont supprimables par définition
+  if (props.context === 'my-decks') {
+    return true
+  }
+  
+  // En mode community, vérifier la propriété user  
+  return props.currentUser && 
+         props.deck.user?.id === props.currentUser.id
+})
+
+const showLike = computed(() => {
+  return props.context === 'community'
+})
+
 const isComplete = computed(() => props.deck.totalCards === 30)
 
 const formatBadgeClass = computed(() => {
@@ -177,6 +240,48 @@ const sortedCards = computed(() => {
 // Methods
 const toggleExpanded = () => {
   isExpanded.value = !isExpanded.value
+}
+
+// ✅ NOUVELLE MÉTHODE POUR GÉRER LE LIKE
+const toggleLike = async () => {
+  if (!props.currentUser) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Connexion requise',
+      detail: 'Veuillez vous connecter pour aimer les decks',
+      life: 3000
+    })
+    return
+  }
+
+  try {
+    const response = await api.post(`/api/decks/${props.deck.id}/like`)
+    
+    if (response.data.success) {
+      isLiked.value = response.data.isLiked
+      likesCount.value = response.data.likesCount
+      
+      toast.add({
+        severity: 'success',
+        summary: response.data.message,
+        life: 2000
+      })
+      
+      emit('like', {
+        deck: props.deck,
+        isLiked: isLiked.value,
+        likesCount: likesCount.value
+      })
+    }
+  } catch (error) {
+    console.error('Erreur lors du like:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Impossible de modifier le like',
+      life: 3000
+    })
+  }
 }
 
 const getClassIcon = (hearthstoneClass) => {
@@ -634,5 +739,45 @@ const getRarityIcon = (rarity) => {
   .cards-list {
     max-height: 200px;
   }
+}
+
+/* ✅ STYLES POUR LE BOUTON LIKE */
+:deep(.like-btn) {
+  background: white !important;
+  border: 2px solid var(--surface-300) !important;
+  color: var(--text-secondary) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+  min-width: 50px !important;
+  justify-content: center !important;
+}
+
+:deep(.like-btn:hover) {
+  border-color: #e11d48 !important;
+  color: #e11d48 !important;
+  background: rgba(225, 29, 72, 0.1) !important;
+}
+
+:deep(.like-btn.liked) {
+  background: #e11d48 !important;
+  border-color: #e11d48 !important;
+  color: white !important;
+}
+
+:deep(.like-btn.liked:hover) {
+  background: #be185d !important;
+  border-color: #be185d !important;
+}
+
+/* Animation du cœur */
+:deep(.like-btn .pi-heart-fill) {
+  animation: heartBeat 0.3s ease-in-out;
+}
+
+@keyframes heartBeat {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
 }
 </style>

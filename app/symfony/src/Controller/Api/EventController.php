@@ -85,9 +85,10 @@ class EventController extends AbstractController
     /**
      * Créer un nouvel événement
      * POST /api/events
+     * MODIFICATION: Seuls organisateurs, boutiques et admins peuvent créer
      */
     #[Route('', name: 'create', methods: ['POST'])]
-    #[IsGranted('ROLE_USER')]
+    #[IsGranted('ROLE_ORGANIZER')]
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
@@ -99,7 +100,7 @@ class EventController extends AbstractController
         /** @var User $user */
         $user = $this->getUser();
 
-        // Vérifier permissions création
+        // Vérifier permissions création (plus restrictif maintenant)
         if (!$this->canCreateEvent($user, $data)) {
             return $this->json(['error' => 'Permissions insuffisantes'], 403);
         }
@@ -419,20 +420,11 @@ class EventController extends AbstractController
 
     private function canCreateEvent(User $user, array $data): bool
     {
-        // Types d'événements que chaque rôle peut créer
-        $eventType = $data['event_type'] ?? null;
-
-        // Les utilisateurs normaux ne peuvent créer que des rencontres/génériques
-        if (!$user->isShopOwner() && !$this->isGranted('ROLE_ORGANIZER') && !$this->isGranted('ROLE_ADMIN')) {
-            return in_array($eventType, [Event::TYPE_RENCONTRE, Event::TYPE_GENERIQUE]);
-        }
-
-        // Organisateurs et boutiques peuvent créer tous types
-        if ($this->isGranted('ROLE_ORGANIZER') || $user->canActAsShop() || $this->isGranted('ROLE_ADMIN')) {
-            return true;
-        }
-
-        return false;
+        // NOUVELLE LOGIQUE: Seuls organisateurs, boutiques et admins peuvent créer des événements
+        return $this->isGranted('ROLE_ORGANIZER') || 
+               $this->isGranted('ROLE_SHOP') || 
+               $this->isGranted('ROLE_ADMIN') || 
+               $user->canActAsShop();
     }
 
     private function canEditEvent(Event $event, User $user): bool

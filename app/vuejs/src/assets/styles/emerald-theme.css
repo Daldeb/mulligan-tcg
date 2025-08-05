@@ -1131,6 +1131,469 @@
   }
 }
 
+/* ======================================================= */
+/* === NOUVEAUX STYLES POUR LES ÉVÉNEMENTS === */
+/* ======================================================= */
+
+/* === CARTES ÉVÉNEMENTS === */
+
+/* Event card de base - hérite des gaming-card mais avec spécificités */
+.event-card {
+  position: relative;
+  background: white;
+  border-radius: var(--border-radius-large) !important;
+  box-shadow: var(--shadow-medium) !important;
+  border: 1px solid var(--surface-200) !important;
+  transition: all var(--transition-medium) !important;
+  overflow: hidden !important;
+  cursor: pointer;
+}
+
+.event-card:hover {
+  transform: translateY(-6px) scale(1.02) !important;
+  box-shadow: var(--shadow-large) !important;
+}
+
+/* Bordures colorées selon le type d'événement */
+.event-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  z-index: 1;
+}
+
+/* Tournoi - Orange/Or */
+.event-card.event-type-tournoi::before {
+  background: linear-gradient(90deg, #f59e0b, #d97706, #92400e);
+}
+
+/* Avant-première - Marron/Cuivre */
+.event-card.event-type-avant_premiere::before {
+  background: linear-gradient(90deg, #8b4513, #a0522d, #654321);
+}
+
+/* Rencontre - Bleu */
+.event-card.event-type-rencontre::before {
+  background: linear-gradient(90deg, #3b82f6, #2563eb, #1d4ed8);
+}
+
+/* Générique - Gris/Emerald */
+.event-card.event-type-generique::before {
+  background: linear-gradient(90deg, var(--primary), var(--primary-dark), #004d40);
+}
+
+/* États spéciaux */
+.event-card.event-full {
+  opacity: 0.85;
+  border-color: #ef4444 !important;
+}
+
+.event-card.event-full::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 50px 50px 0;
+  border-color: transparent #ef4444 transparent transparent;
+  z-index: 2;
+}
+
+.event-card.event-past {
+  opacity: 0.7;
+  filter: grayscale(20%);
+}
+
+.event-card.event-online {
+  border-left: 4px solid #10b981 !important;
+}
+
+/* === BADGES ÉVÉNEMENTS === */
+
+.event-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+/* Badge type d'événement */
+.event-badge.badge-tournoi {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.event-badge.badge-avant-premiere {
+  background: rgba(139, 69, 19, 0.15);
+  color: #8b4513;
+  border: 1px solid rgba(139, 69, 19, 0.3);
+}
+
+.event-badge.badge-rencontre {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.event-badge.badge-generique {
+  background: rgba(107, 114, 128, 0.15);
+  color: #4b5563;
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+/* Badges d'état */
+.event-badge.badge-online {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.event-badge.badge-full {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.event-badge.badge-past {
+  background: rgba(107, 114, 128, 0.15);
+  color: #6b7280;
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+.event-badge.badge-premium {
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  color: #92400e;
+  border: 1px solid #d97706;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+}
+
+/* === STYLES ÉVÉNEMENTS SPÉCIFIQUES === */
+
+/* Tag jeu dans les événements */
+.event-game-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--surface-200);
+  color: var(--text-primary);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--surface-300);
+  transition: all var(--transition-fast);
+}
+
+.event-game-tag:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.event-game-tag.magic {
+  background: rgba(107, 70, 193, 0.1);
+  color: #6b46c1;
+  border-color: rgba(107, 70, 193, 0.3);
+}
+
+.event-game-tag.hearthstone {
+  background: rgba(255, 99, 71, 0.1);
+  color: #ff6347;
+  border-color: rgba(255, 99, 71, 0.3);
+}
+
+.event-game-tag.pokemon {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+/* Statistiques événement */
+.event-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--surface-100);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--surface-200);
+  transition: all var(--transition-fast);
+}
+
+.event-stat-item:hover {
+  background: var(--surface-200);
+}
+
+.event-stat-icon {
+  font-size: 1.125rem;
+  color: var(--primary);
+}
+
+.event-stat-value {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.event-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* === FILTRES ÉVÉNEMENTS === */
+
+/* Override des filtres pour les événements */
+.events-filters {
+  background: white;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-medium);
+  border: 1px solid var(--surface-200);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.events-filters .filter-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.events-filters .filter-row:last-child {
+  margin-bottom: 0;
+}
+
+.events-filters .filter-search {
+  grid-column: 1 / -1;
+  max-width: 400px;
+}
+
+/* === PAGINATION ÉVÉNEMENTS === */
+
+.events-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.events-pagination .p-paginator {
+  background: white !important;
+  border: 1px solid var(--surface-200) !important;
+  border-radius: var(--border-radius-large) !important;
+  box-shadow: var(--shadow-small) !important;
+  padding: 1rem !important;
+}
+
+.events-pagination .p-paginator-page.p-highlight {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: white !important;
+}
+
+.events-pagination .p-paginator-page:not(.p-highlight):hover {
+  background: rgba(38, 166, 154, 0.1) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+/* === BOUTONS SPÉCIFIQUES ÉVÉNEMENTS === */
+
+/* Bouton inscription événement */
+.event-register-btn {
+  background: var(--primary) !important;
+  border: 2px solid var(--primary) !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border-radius: var(--border-radius) !important;
+  transition: all var(--transition-fast) !important;
+  padding: 0.75rem 1.25rem !important;
+}
+
+.event-register-btn:hover:not(:disabled) {
+  background: var(--primary-dark) !important;
+  border-color: var(--primary-dark) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(38, 166, 154, 0.4) !important;
+}
+
+.event-register-btn:disabled {
+  background: var(--surface-300) !important;
+  border-color: var(--surface-300) !important;
+  color: var(--text-secondary) !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+/* Bouton désinscription */
+.event-unregister-btn {
+  background: transparent !important;
+  border: 2px solid #ef4444 !important;
+  color: #ef4444 !important;
+  font-weight: 500 !important;
+  border-radius: var(--border-radius) !important;
+  transition: all var(--transition-fast) !important;
+  padding: 0.75rem 1.25rem !important;
+}
+
+.event-unregister-btn:hover {
+  background: #ef4444 !important;
+  color: white !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4) !important;
+}
+
+/* Bouton voir détails */
+.event-details-btn {
+  background: transparent !important;
+  border: 2px solid var(--surface-400) !important;
+  color: var(--text-secondary) !important;
+  font-weight: 500 !important;
+  border-radius: var(--border-radius) !important;
+  transition: all var(--transition-fast) !important;
+  padding: 0.75rem 1.25rem !important;
+}
+
+.event-details-btn:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* === ÉTATS DE CHARGEMENT ÉVÉNEMENTS === */
+
+.events-loading-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.event-skeleton {
+  height: 320px;
+  background: linear-gradient(90deg, var(--surface-200) 25%, var(--surface-100) 50%, var(--surface-200) 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: var(--border-radius-large);
+  border: 1px solid var(--surface-200);
+}
+
+/* === RESPONSIVE ÉVÉNEMENTS === */
+
+@media (max-width: 1024px) {
+  .events-loading-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1rem;
+  }
+  
+  .event-card {
+    margin-bottom: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .events-filters .filter-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .events-filters .filter-search {
+    grid-column: 1;
+    max-width: none;
+  }
+  
+  .events-loading-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .event-badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .event-stat-item {
+    padding: 0.375rem;
+  }
+  
+  .event-register-btn,
+  .event-unregister-btn,
+  .event-details-btn {
+    padding: 0.625rem 1rem !important;
+    font-size: 0.875rem !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .events-filters {
+    padding: 1rem;
+  }
+  
+  .event-game-tag {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+  
+  .events-pagination .p-paginator {
+    padding: 0.75rem !important;
+  }
+}
+
+/* === ANIMATIONS SPÉCIFIQUES ÉVÉNEMENTS === */
+
+@keyframes eventCardAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.event-card-appear {
+  animation: eventCardAppear 0.5s ease-out;
+}
+
+@keyframes eventBadgePulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.event-badge.pulse {
+  animation: eventBadgePulse 2s infinite;
+}
+
+/* === INTÉGRATION AVEC LES GAMING CARDS === */
+
+/* Les événements peuvent hériter des styles gaming selon le jeu */
+.event-card.gaming-hearthstone::before {
+  background: linear-gradient(90deg, #8B4513, #FF6347, #FFB347);
+}
+
+.event-card.gaming-magic::before {
+  background: linear-gradient(90deg, #2C2C2C, #6B46C1, #8B5CF6);
+}
+
+.event-card.gaming-pokemon::before {
+  background: linear-gradient(90deg, #DC2626, #F59E0B, #FCD34D);
+}
+
   /* Dark mode support (désactivé pour l'instant) */
   /*
   @media (prefers-color-scheme: dark) {

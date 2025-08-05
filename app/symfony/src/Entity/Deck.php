@@ -69,6 +69,11 @@ class Deck
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $publishedAt = null; // Date de publication publique
 
+    #[ORM\Column(type: 'integer')]
+    private int $likesCount = 0;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $lastLikedAt = null;
     /**
      * Créateur du deck (peut être null pour decks importés)
      */
@@ -224,6 +229,41 @@ class Deck
     public function setExternalSource(?string $externalSource): static
     {
         $this->externalSource = $externalSource;
+        return $this;
+    }
+
+    public function getLikesCount(): int
+    {
+        return $this->likesCount;
+    }
+
+    public function setLikesCount(int $likesCount): static
+    {
+        $this->likesCount = $likesCount;
+        return $this;
+    }
+
+    public function incrementLikes(): static
+    {
+        $this->likesCount++;
+        $this->lastLikedAt = new \DateTimeImmutable();
+        return $this;
+    }
+
+    public function decrementLikes(): static
+    {
+        $this->likesCount = max(0, $this->likesCount - 1);
+        return $this;
+    }
+
+    public function getLastLikedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastLikedAt;
+    }
+
+    public function setLastLikedAt(?\DateTimeImmutable $lastLikedAt): static
+    {
+        $this->lastLikedAt = $lastLikedAt;
         return $this;
     }
 

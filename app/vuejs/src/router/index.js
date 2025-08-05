@@ -1,4 +1,4 @@
-// router/index.js - Version corrigée sans accents dans les paths
+// router/index.js - Version nettoyée
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '../stores/auth'
@@ -108,6 +108,59 @@ const routes = [
       requiresAuth: true
     }
   },
+  
+  // ============= ROUTES ÉVÉNEMENTS SIMPLIFIÉES =============
+  {
+    path: '/evenements',
+    name: 'evenements',
+    component: () => import('../views/EventsView.vue'),
+    meta: {
+      title: 'Événements - MULLIGAN TCG'
+    }
+  },
+  {
+    path: '/evenements/creer',
+    name: 'creer-evenement',
+    component: () => import('../views/CreateEventView.vue'),
+    meta: {
+      title: 'Créer un événement - MULLIGAN TCG',
+      requiresAuth: true,
+      requiresRole: ['ROLE_ORGANIZER', 'ROLE_SHOP', 'ROLE_ADMIN']
+    }
+  },
+  {
+    path: '/evenements/creer-tournoi',
+    name: 'creer-tournoi',
+    component: () => import('../views/CreateTournamentView.vue'),
+    meta: {
+      title: 'Créer un tournoi - MULLIGAN TCG',
+      requiresAuth: true,
+      requiresRole: ['ROLE_ORGANIZER', 'ROLE_SHOP', 'ROLE_ADMIN']
+    }
+  },
+  {
+    path: '/evenements/:id',
+    name: 'evenement-detail',
+    component: () => import('../views/EventDetailView.vue'),
+    meta: {
+      title: 'Événement - MULLIGAN TCG'
+    },
+    props: route => ({
+      eventId: parseInt(route.params.id),
+      fromRoute: route.meta.from || 'evenements' // Pour les breadcrumbs
+    })
+  },
+  {
+    path: '/mes-evenements',
+    name: 'mes-evenements',
+    component: () => import('../views/MyEventsView.vue'),
+    meta: {
+      title: 'Mes événements - MULLIGAN TCG',
+      requiresAuth: true,
+      requiresRole: ['ROLE_ORGANIZER', 'ROLE_SHOP', 'ROLE_ADMIN']
+    }
+  },
+  
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
@@ -133,13 +186,18 @@ const router = createRouter({
 // Guard async pour les routes qui nécessitent une authentification
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-
+  
+  // Ajouter info de provenance pour les breadcrumbs
+  if (to.name === 'evenement-detail' && from.name) {
+    to.meta.from = from.name
+  }
+  
   if (to.meta.requiresAuth) {
     if (!authStore.token) {
       next({ name: 'home' })
       return
     }
-
+    
     if (authStore.token && !authStore.user) {
       try {
         await authStore.checkAuthStatus()
@@ -149,13 +207,31 @@ router.beforeEach(async (to, from, next) => {
         return
       }
     }
-
+    
     if (!authStore.isAuthenticated) {
       next({ name: 'home' })
       return
     }
+    
+    // Vérification des rôles
+    if (to.meta.requiresRole) {
+      const userRoles = authStore.user?.roles || []
+      const requiredRoles = to.meta.requiresRole
+      
+      const hasRequiredRole = requiredRoles.some(role => userRoles.includes(role))
+      
+      if (!hasRequiredRole) {
+        console.warn('⚠️ Accès refusé - Rôle insuffisant:', { 
+          userRoles, 
+          requiredRoles, 
+          route: to.name 
+        })
+        next({ name: 'home' })
+        return
+      }
+    }
   }
-
+  
   next()
 })
 

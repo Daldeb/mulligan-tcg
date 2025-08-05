@@ -101,14 +101,16 @@
           </div>
           
           <div class="decks-grid">
-            <HearthstoneCompactDeck 
-              v-for="deck in getGameDecks('hearthstone')" 
-              :key="`my-hs-${deck.id}`"
-              :deck="deck"
-              @edit="editDeck"
-              @delete="deleteDeck"
-              @copyDeckcode="copyDeckcode"
-            />
+          <HearthstoneCompactDeck 
+            v-for="deck in filteredDecksByGame('hearthstone')" 
+            :key="`my-hs-${deck.id}`"
+            :deck="deck"
+            context="my-decks"
+            :current-user="authStore.user"
+            @edit="editDeck"
+            @delete="deleteDeck"
+            @copyDeckcode="copyDeckcode"
+          />
           </div>
         </div>
 
@@ -127,14 +129,16 @@
           </div>
           
           <div class="decks-grid">
-            <MagicCompactDeck 
-              v-for="deck in getGameDecks('magic')" 
-              :key="`my-magic-${deck.id}`"
-              :deck="deck"
-              @edit="editDeck"
-              @delete="deleteDeck"
-              @copyDeckcode="copyDeckcode"
-            />
+          <MagicCompactDeck 
+            v-for="deck in filteredDecksByGame('magic')" 
+            :key="`my-magic-${deck.id}`"
+            :deck="deck"
+            context="my-decks"
+            :current-user="authStore.user"
+            @edit="editDeck"
+            @delete="deleteDeck"
+            @copyDeckcode="copyDeckcode"
+          />
           </div>
         </div>
 
@@ -614,6 +618,14 @@ const getGameDecks = (game) => {
     // Gérer les deux formats : deck.game.slug ou deck.game directement
     const gameSlug = typeof deck.game === 'object' ? deck.game.slug : deck.game
     return gameSlug === game
+  })
+}
+
+const filteredDecksByGame = (gameSlug) => {
+  return filteredDecks.value.filter(deck => {
+    // Gérer les deux formats : deck.game.slug ou deck.game directement
+    const deckGameSlug = typeof deck.game === 'object' ? deck.game.slug : deck.game
+    return deckGameSlug === gameSlug
   })
 }
 

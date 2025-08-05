@@ -1,7 +1,6 @@
 <template>
   <div class="decks-page">
     <div class="container">
-      
       <!-- Si utilisateur connecté : afficher les toggles normaux -->
       <div v-if="authStore.isAuthenticated" class="deck-toggle-container">
         <div class="toggle-wrapper glass-effect p-3 border-round flex gap-2 align-items-center justify-content-center">
@@ -33,7 +32,7 @@
                 Pour accéder aux decks de la communauté et du metagame, veuillez vous authentifier.
               </p>
               <div class="auth-actions">
-                <Button 
+                <Button
                   label="Se connecter"
                   icon="pi pi-sign-in"
                   class="emerald-button primary"
@@ -49,11 +48,10 @@
       <div v-if="authStore.isAuthenticated" class="mt-4">
         <RouterView />
       </div>
-      
     </div>
 
     <!-- Modale de connexion/inscription -->
-    <LoginModal 
+    <LoginModal
       v-model:visible="showLoginModal"
       @login-success="onLoginSuccess"
     />
@@ -61,18 +59,20 @@
 </template>
 
 <script setup>
+import { ref, computed, watchEffect } from 'vue' // ✅ AJOUT DE L'IMPORT ref
 import { useRoute } from 'vue-router'
-import { computed, watchEffect } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import LoginModal from '../components/auth/LoginModal.vue'
+import Card from 'primevue/card'
+import Button from 'primevue/button'
 
 const route = useRoute()
-const authStore = useAuthStore() 
+const authStore = useAuthStore()
+
 const currentRoute = computed(() => route.name)
+const showLoginModal = ref(false) // ✅ MAINTENANT ref EST DÉFINI
 
-const showLoginModal = ref(false) 
-
-const onLoginSuccess = () => { 
+const onLoginSuccess = () => {
   showLoginModal.value = false
 }
 
@@ -146,7 +146,7 @@ watchEffect(() => {
     flex-direction: column;
     gap: 0.75rem;
   }
-  
+
   .auth-actions .p-button {
     width: 100%;
   }
