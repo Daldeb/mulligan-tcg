@@ -182,9 +182,9 @@
 
           <!-- Boutons navigation -->
           <div class="nav-buttons">
-            <span class="nav-item" @click="handleDiscussionsClick">
+            <router-link to="/forums" class="nav-item" active-class="nav-active">
               <Button label="Discussions" icon="pi pi-comments" class="nav-button" />
-            </span>
+            </router-link>
             <router-link to="/decks" class="nav-item" active-class="nav-active">
               <Button label="Decks" icon="pi pi-clone" class="nav-button" />
             </router-link>
