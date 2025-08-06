@@ -25,17 +25,65 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
 (async () => {
   const browser = await puppeteer.launch({
     headless: 'new',
-    defaultViewport: null,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    defaultViewport: { width: 1920, height: 1080 },
+    args: [
+      '--no-sandbox', 
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+      '--disable-gpu'
+    ]
   });
 
   const page = await browser.newPage();
-  await page.goto(targetUrl, { waitUntil: 'networkidle2' });
+  
+  // Définir User-Agent plus réaliste
+  await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  
+  // Définir des headers supplémentaires
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+  });
+
+  console.log('🚀 Navigation vers:', targetUrl);
+  await page.goto(targetUrl, { 
+    waitUntil: 'networkidle2',
+    timeout: 60000 
+  });
   console.log('✅ Page chargée:', targetUrl);
 
-  // 🍪 Popup cookies
+  // Debug: Screenshot de la page initiale
+  await page.screenshot({ path: path.join(outputDir, 'debug_initial_page.png'), fullPage: true });
+  console.log('📸 Screenshot debug initial sauvegardé');
+
+  // Debug: Vérifier le contenu HTML de la page
+  const pageContent = await page.content();
+  console.log('📄 Longueur du HTML:', pageContent.length);
+  
+  // Vérifier si la page contient des éléments attendus
+  const hasDecks = await page.evaluate(() => {
+    return document.querySelector('.deck-card, .card-image, .deck-root') !== null;
+  });
+  console.log('🔍 Decks présents immédiatement:', hasDecks);
+
+  // Vérifier la présence d'éléments de chargement
+  const loadingElements = await page.evaluate(() => {
+    const selectors = ['.loading', '.spinner', '[class*="load"]', '[class*="spinner"]'];
+    return selectors.map(sel => ({
+      selector: sel,
+      found: document.querySelector(sel) !== null
+    }));
+  });
+  console.log('⏳ Éléments de chargement:', loadingElements);
+
+  // 🍪 Popup cookies avec timeout plus long
   try {
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, 5000));
     const popupVisible = await page.evaluate(() => {
       const popup = document.querySelector('.ncmp__banner');
       return popup && window.getComputedStyle(popup).display !== 'none';
@@ -51,8 +99,8 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
         );
         if (target) target.click();
       });
-      console.log('🍪 Bouton “Accept” cliqué');
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      console.log('🍪 Bouton "Accept" cliqué');
+      await new Promise(resolve => setTimeout(resolve, 3000));
     } else {
       console.log('ℹ️ Pas de popup détectée');
     }
@@ -60,28 +108,92 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
     console.log('⚠️ Erreur fermeture popup :', err.message);
   }
 
-  // 📜 Scroll infini
+  // Attendre plus longtemps que le contenu dynamique se charge
+  console.log('⏳ Attente du chargement dynamique...');
+  await new Promise(resolve => setTimeout(resolve, 10000));
+
+  // Vérifier à nouveau la présence de decks
+  const hasDecksAfterWait = await page.evaluate(() => {
+    return document.querySelector('.deck-card, .card-image, .deck-root') !== null;
+  });
+  console.log('🔍 Decks présents après attente:', hasDecksAfterWait);
+
+  // Debug: Screenshot après attente
+  await page.screenshot({ path: path.join(outputDir, 'debug_after_wait.png'), fullPage: true });
+  console.log('📸 Screenshot debug après attente sauvegardé');
+
+  // 📜 Scroll infini avec plus de patience
   const scrollUntilEnoughDecks = async (minCount = 40) => {
     let previousCount = 0;
-    for (let i = 0; i < 25; i++) {
+    let stableCount = 0;
+    
+    for (let i = 0; i < 30; i++) {
       const deckCount = await page.$$eval('.deck-card, .card-image, .deck-root', els => els.length);
       console.log(`➡️ Scroll ${i + 1} → ${deckCount} decks visibles`);
-      if (deckCount >= minCount || deckCount === previousCount) break;
+      
+      if (deckCount === previousCount) {
+        stableCount++;
+        if (stableCount >= 3) {
+          console.log('🛑 Nombre de decks stable, arrêt du scroll');
+          break;
+        }
+      } else {
+        stableCount = 0;
+      }
+      
+      if (deckCount >= minCount) break;
       previousCount = deckCount;
 
       await page.evaluate(() => {
         window.scrollTo(0, document.body.scrollHeight);
       });
-      await new Promise(resolve => setTimeout(resolve, 6000));
+      
+      // Attente plus longue entre les scrolls
+      await new Promise(resolve => setTimeout(resolve, 8000));
+      
+      // Screenshot de debug pour chaque scroll
       await page.screenshot({ path: path.join(outputDir, `scroll_debug_${i}.png`) });
     }
   };
 
   await scrollUntilEnoughDecks(40);
 
-  await page.waitForSelector('.deck-card, .card-image, .deck-root');
+  // Tentative avec waitForSelector avec timeout plus long
+  try {
+    await page.waitForSelector('.deck-card, .card-image, .deck-root', { timeout: 60000 });
+  } catch (error) {
+    console.log('⚠️ Timeout sur waitForSelector, continuons avec les éléments disponibles...');
+    
+    // Debug: Lister tous les sélecteurs présents sur la page
+    const availableSelectors = await page.evaluate(() => {
+      const elements = document.querySelectorAll('*');
+      const selectors = new Set();
+      
+      elements.forEach(el => {
+        if (el.className) {
+          el.className.split(' ').forEach(cls => {
+            if (cls.trim()) selectors.add(`.${cls.trim()}`);
+          });
+        }
+        if (el.id) {
+          selectors.add(`#${el.id}`);
+        }
+      });
+      
+      return Array.from(selectors).slice(0, 50); // Limiter pour éviter un output trop gros
+    });
+    
+    console.log('🔍 Sélecteurs disponibles sur la page:', availableSelectors);
+  }
+
   const deckElements = await page.$$('.deck-card, .card-image, .deck-root');
   console.log(`🔍 ${deckElements.length} decks trouvés`);
+
+  // Si aucun deck trouvé, sauvegarder le HTML pour debug
+  if (deckElements.length === 0) {
+    fs.writeFileSync(path.join(outputDir, 'debug_page_source.html'), await page.content());
+    console.log('💾 HTML source sauvegardé pour debug');
+  }
 
   const decks = [];
   let count = 0;
