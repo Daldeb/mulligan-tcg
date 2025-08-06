@@ -205,7 +205,17 @@ class EventRepository extends ServiceEntityRepository
         // Tri
         $orderBy = $filters['order_by'] ?? 'startDate';
         $orderDirection = $filters['order_direction'] ?? 'ASC';
-        $qb->orderBy('e.' . $orderBy, $orderDirection);
+
+        // Mapper les noms de champs frontend vers backend
+        $fieldMapping = [
+            'start_date' => 'startDate',
+            'created_at' => 'createdAt',
+            'current_participants' => 'currentParticipants',
+            'title' => 'title'
+        ];
+
+        $actualField = $fieldMapping[$orderBy] ?? $orderBy;
+        $qb->orderBy('e.' . $actualField, $orderDirection);
 
         // Pagination
         $qb->setFirstResult($offset)

@@ -1,6 +1,9 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
+import Ripple from 'primevue/ripple';
+import ConfirmDialog from 'primevue/confirmdialog'
+import ConfirmationService from 'primevue/confirmationservice'
 
 // ✅ Thème CSS PrimeVue
 import 'primevue/resources/themes/lara-light-indigo/theme.css'
@@ -38,6 +41,7 @@ const app = createApp(App)
 const pinia = createPinia()
 
 app.use(PrimeVue)
+app.use(ConfirmationService)
 app.use(pinia)
 app.use(router)
 app.use(ToastService)
@@ -76,8 +80,10 @@ app.component('TabView', TabView)
 app.component('TabPanel', TabPanel)
 app.component('Message', Message)
 app.component('Textarea', Textarea)
+app.component('ConfirmDialog', ConfirmDialog)
 
 // Enregistrement des directives 
 app.directive('tooltip', Tooltip)
+app.directive('ripple', Ripple)
 
 app.mount('#app')

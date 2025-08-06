@@ -9,7 +9,9 @@ use App\Repository\EventRepository;
 use App\Repository\GameRepository;
 use App\Repository\AddressRepository;
 use App\Repository\ShopRepository;
+use Psr\Log\LoggerInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Service\FileUploadService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,7 +25,8 @@ class EventController extends AbstractController
     public function __construct(
         private EntityManagerInterface $em,
         private EventRepository $eventRepository,
-        private ValidatorInterface $validator
+        private ValidatorInterface $validator,
+        private LoggerInterface $logger
     ) {}
 
     /**
@@ -58,7 +61,33 @@ class EventController extends AbstractController
             ]
         ]);
     }
+    /**
+     * Mes événements (créés par l'utilisateur connecté)
+     * GET /api/events/my-events
+     */
+    #[Route('/my-events', name: 'my_events', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function myEvents(): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
 
+        $createdEvents = $this->eventRepository->findByCreator($user);
+
+        // Si l'user a une boutique, récupérer aussi les événements de sa boutique
+        $shopEvents = [];
+        if ($user->hasShop() && $user->canActAsShop()) {
+            $shopEvents = $this->eventRepository->findByOrganizer(
+                Event::ORGANIZER_SHOP,
+                $user->getShop()->getId()
+            );
+        }
+
+        return $this->json([
+            'created_events' => array_map([$this, 'serializeEvent'], $createdEvents),
+            'shop_events' => array_map([$this, 'serializeEvent'], $shopEvents)
+        ]);
+    }
     /**
      * Détails d'un événement
      * GET /api/events/{id}
@@ -88,7 +117,8 @@ class EventController extends AbstractController
      * MODIFICATION: Seuls organisateurs, boutiques et admins peuvent créer
      */
     #[Route('', name: 'create', methods: ['POST'])]
-    #[IsGranted('ROLE_ORGANIZER')]
+    #[IsGranted('ROLE_USER')]
+
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
@@ -335,33 +365,79 @@ class EventController extends AbstractController
         ]);
     }
 
-    /**
-     * Mes événements (créés par l'utilisateur connecté)
-     * GET /api/events/my-events
-     */
-    #[Route('/my-events', name: 'my_events', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function myEvents(): JsonResponse
-    {
-        /** @var User $user */
-        $user = $this->getUser();
-
-        $createdEvents = $this->eventRepository->findByCreator($user);
-
-        // Si l'user a une boutique, récupérer aussi les événements de sa boutique
-        $shopEvents = [];
-        if ($user->hasShop() && $user->canActAsShop()) {
-            $shopEvents = $this->eventRepository->findByOrganizer(
-                Event::ORGANIZER_SHOP,
-                $user->getShop()->getId()
-            );
-        }
-
-        return $this->json([
-            'created_events' => array_map([$this, 'serializeEvent'], $createdEvents),
-            'shop_events' => array_map([$this, 'serializeEvent'], $shopEvents)
+/**
+ * Upload image pour un événement
+ * POST /api/events/{id}/image
+ */
+#[Route('/{id}/image', name: 'upload_image', methods: ['POST', 'OPTIONS'])]
+public function uploadImage(int $id, Request $request, FileUploadService $fileUploadService): JsonResponse
+{
+    // Gérer preflight OPTIONS pour CORS
+    if ($request->getMethod() === 'OPTIONS') {
+        return new JsonResponse(null, 200, [
+            'Access-Control-Allow-Origin' => '*',
+            'Access-Control-Allow-Methods' => 'POST, OPTIONS',
+            'Access-Control-Allow-Headers' => 'Content-Type, Authorization'
         ]);
     }
+
+    // Headers CORS pour toutes les réponses
+    $corsHeaders = [
+        'Access-Control-Allow-Origin' => '*',
+        'Access-Control-Allow-Methods' => 'POST, OPTIONS',
+        'Access-Control-Allow-Headers' => 'Content-Type, Authorization'
+    ];
+
+    // DEBUG COMPLET DE LA REQUÊTE
+    $this->logger->info('🔍 DEBUG - Request method: ' . $request->getMethod());
+    $this->logger->info('🔍 DEBUG - Content type: ' . $request->headers->get('Content-Type'));
+    $this->logger->info('🔍 DEBUG - All headers: ' . json_encode($request->headers->all()));
+    $this->logger->info('🔍 DEBUG - POST data keys: ' . json_encode(array_keys($request->request->all())));
+    $this->logger->info('🔍 DEBUG - Files keys: ' . json_encode($request->files->keys()));
+    $this->logger->info('🔍 DEBUG - Raw content length: ' . strlen($request->getContent()));
+
+    // Vérification authentification
+    if (!$this->isGranted('ROLE_USER')) {
+        return $this->json(['error' => 'Authentification requise'], 401, $corsHeaders);
+    }
+
+    $event = $this->eventRepository->find($id);
+    if (!$event) {
+        return $this->json(['error' => 'Événement non trouvé'], 404, $corsHeaders);
+    }
+
+    if (!$this->canEditEvent($event, $this->getUser())) {
+        return $this->json(['error' => 'Permissions insuffisantes'], 403, $corsHeaders);
+    }
+$this->logger->info('🔍 Raw Content-Type: ' . $_SERVER['CONTENT_TYPE']);
+$this->logger->info('🔍 php://input size: ' . strlen(file_get_contents('php://input')));
+    $file = $request->files->get('image');
+    
+    if (!$file) {
+        return $this->json(['error' => 'Aucun fichier fourni'], 400, $corsHeaders);
+    }
+
+    try {
+        // Supprimer ancienne image si existe
+        if ($event->getImage()) {
+            $fileUploadService->deleteFile($event->getImage());
+        }
+
+        // Upload nouvelle image
+        $filename = $fileUploadService->uploadEventImage($file, $event->getId());
+        $event->setImage($filename);
+        
+        $this->em->flush();
+
+        return $this->json([
+            'message' => 'Image uploadée avec succès',
+            'imageUrl' => $fileUploadService->getEventImageUrl($filename)
+        ], 200, $corsHeaders);
+
+    } catch (\Exception $e) {
+        return $this->json(['error' => 'Erreur upload: ' . $e->getMessage()], 500, $corsHeaders);
+    }
+}
 
     // ============= MÉTHODES PRIVÉES =============
 

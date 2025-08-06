@@ -336,6 +336,71 @@ export const useEventStore = defineStore('events', () => {
       throw new Error(errorMsg)
     }
   }
+/**
+ * Upload une image pour un événement
+ */
+const uploadEventImage = async (eventId, file) => {
+  if (!canManageEvents.value) {
+    throw new Error('Permissions insuffisantes pour modifier cet événement')
+  }
+
+  try {
+    // Créer FormData avec le fichier
+    const formData = new FormData()
+    formData.append('image', file)
+    
+    // LOGS DE DEBUG (laisse-les)
+    console.log('🔍 Upload - File:', file.name, 'Size:', file.size)
+    for (let [key, value] of formData.entries()) {
+      console.log('🔍 FormData entry:', key, value)
+    }
+    
+    // ATTENTION ICI : PAS DE HEADERS
+    const response = await api.post(`/api/events/${eventId}/image`, formData)
+    console.log('✅ Image uploadée:', response.data)
+    return response.data
+  } catch (error) {
+    console.error('❌ Erreur upload image événement:', error)
+    throw new Error(error.response?.data?.error || 'Erreur lors de l\'upload de l\'image')
+  }
+}
+
+  /**
+   * Supprime l'image d'un événement
+   */
+  const deleteEventImage = async (eventId) => {
+    if (!canManageEvents.value) {
+      throw new Error('Permissions insuffisantes pour modifier cet événement')
+    }
+    
+    try {
+      await api.delete(`/events/${eventId}/image`)
+      
+      // Mettre à jour dans les listes locales
+      const updateImage = (eventsList) => {
+        const index = eventsList.findIndex(e => e.id === eventId)
+        if (index !== -1) {
+          eventsList[index].image = null
+        }
+      }
+      
+      updateImage(events.value)
+      updateImage(myEvents.value)
+      
+      // Mettre à jour l'événement actuel si c'est le même
+      if (currentEvent.value?.id === eventId) {
+        currentEvent.value.image = null
+      }
+      
+      console.log('✅ Image supprimée pour événement:', eventId)
+      return { success: true }
+    } catch (error) {
+      console.error('❌ Erreur suppression image événement:', error)
+      
+      const errorMsg = error.response?.data?.error || 'Erreur lors de la suppression de l\'image'
+      throw new Error(errorMsg)
+    }
+  }
   
   /**
    * Soumet un événement pour validation admin
@@ -554,6 +619,7 @@ export const useEventStore = defineStore('events', () => {
       throw error
     }
   }
+  
 
   // ============= ACTIONS - UTILITAIRES =============
   
@@ -650,6 +716,8 @@ export const useEventStore = defineStore('events', () => {
     createEvent,
     updateEvent,
     deleteEvent,
+    uploadEventImage,
+    deleteEventImage,
     submitForReview,
     
     // Actions - Mes événements

@@ -39,6 +39,34 @@ class FileUploadService
         return 'avatars/' . $newFilename;
     }
 
+    public function uploadEventImage(UploadedFile $file, int $eventId): string
+    {
+        $this->validateImageFile($file);
+
+        $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $safeFilename = $this->slugger->slug($originalFilename);
+        $newFilename = 'event_' . $eventId . '_' . uniqid() . '.' . $file->guessExtension();
+
+        $eventDirectory = $this->uploadsDirectory . '/events';
+        if (!is_dir($eventDirectory)) {
+            mkdir($eventDirectory, 0755, true);
+        }
+
+        try {
+            $file->move($eventDirectory, $newFilename);
+            $this->resizeImage($eventDirectory . '/' . $newFilename, 800, 600);
+        } catch (FileException $e) {
+            throw new \Exception('Erreur lors de l\'upload: ' . $e->getMessage());
+        }
+
+        return 'events/' . $newFilename;
+    }
+
+    public function getEventImageUrl(string $filename): string
+    {
+        return $this->publicPath . '/uploads/' . $filename;
+    }
+
     public function deleteFile(string $filename): bool
     {
         $filePath = $this->uploadsDirectory . '/' . $filename;

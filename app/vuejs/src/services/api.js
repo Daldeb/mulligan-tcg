@@ -6,7 +6,6 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,  // URL de votre backend Symfony
   timeout: 10000,
   headers: {
-    'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 })

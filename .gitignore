@@ -55,3 +55,19 @@ app/symfony/public/uploads/*
 !app/symfony/public/uploads/avatars/
 app/symfony/public/uploads/avatars/*
 !app/symfony/public/uploads/avatars/.gitkeep
+
+
+# EXCEPTION: Garder les dossiers de metagame pour la prod
+!app/symfony/public/uploads/hearthstone/
+app/symfony/public/uploads/hearthstone/*
+!app/symfony/public/uploads/hearthstone/metagame/
+!app/symfony/public/uploads/hearthstone/wild_metagame/
+
+!app/symfony/public/uploads/magic/
+app/symfony/public/uploads/magic/*
+!app/symfony/public/uploads/magic/metagame/
+!app/symfony/public/uploads/magic/commander_metagame/
+
+!app/symfony/public/uploads/pokemon/
+app/symfony/public/uploads/pokemon/*
+!app/symfony/public/uploads/pokemon/metagame/

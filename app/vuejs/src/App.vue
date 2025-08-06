@@ -22,6 +22,7 @@
     
     <!-- Toast pour les notifications -->
     <Toast />
+    <ConfirmDialog />
   </div>
 </template>
 

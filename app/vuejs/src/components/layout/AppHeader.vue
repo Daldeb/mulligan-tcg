@@ -153,12 +153,7 @@
           </template>
         </div>
       </div>
-
-      <!-- Section NEWS ET ÉVÉNEMENTS -->
-      <div class="news-section">
-        <h2 class="news-title">NEWS ET EVENEMENTS</h2>
-      </div>
-
+      
       <!-- Navigation principale -->
       <nav class="main-nav">
         <div class="nav-content">
@@ -194,6 +189,9 @@
             </router-link>
             <router-link to="/evenements" class="nav-item" active-class="nav-active">
               <Button label="Evenements" icon="pi pi-chart-bar" class="nav-button" />
+            </router-link>
+            <router-link to="/mes-evenements" class="nav-item" active-class="nav-active">
+              <Button label="Mes Evenements" icon="pi pi-chart-bar" class="nav-button" />
             </router-link>
           </div>
 

@@ -232,7 +232,7 @@
                     label="Créer le premier événement"
                     icon="pi pi-plus"
                     class="emerald-button primary"
-                    @click="goToCreateEvent"
+                    @click="goToCreateEventType('GENERIQUE')"
                   />
                 </div>
               </div>
@@ -265,6 +265,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useGameFilterStore } from '@/stores/gameFilter'
 import EventCard from '@/components/events/EventCard.vue'
 import SplitButton from 'primevue/splitbutton'
+import Menu from 'primevue/menu'
+import Dropdown from 'primevue/dropdown'
+import Calendar from 'primevue/calendar'
+import Paginator from 'primevue/paginator'
+import InputText from 'primevue/inputtext'
+import Button from 'primevue/button'
+import Card from 'primevue/card'
 
 // ============= SETUP =============
 const createEventMenu = ref()

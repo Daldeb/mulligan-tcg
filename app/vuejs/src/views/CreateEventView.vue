@@ -356,6 +356,51 @@
           </template>
         </Card>
 
+        <Card class="form-section">
+        <template #title>
+          <i class="pi pi-image section-icon"></i>
+          Image de l'événement (optionnelle)
+        </template>
+        <template #content>
+          <div class="form-grid">
+            
+            <!-- Upload ou preview -->
+            <div class="form-group full-width">
+              <div v-if="!formData.imagePreview" class="image-upload-zone">
+                <FileUpload
+                  mode="basic"
+                  accept="image/*"
+                  :maxFileSize="5000000"
+                  :auto="false"
+                  chooseLabel="Choisir une image"
+                  class="image-uploader"
+                  @select="handleImageSelect"
+                />
+                <small class="form-help">
+                  Formats acceptés : JPG, PNG, GIF, WebP (max 5MB)
+                </small>
+              </div>
+              
+              <div v-else class="image-preview">
+                <img :src="formData.imagePreview" alt="Aperçu" class="preview-image" />
+                <Button
+                  icon="pi pi-times"
+                  class="remove-image-btn"
+                  outlined
+                  @click="removeImage"
+                  aria-label="Supprimer l'image"
+                />
+              </div>
+              
+              <small v-if="errors.image" class="form-error">
+                {{ errors.image }}
+              </small>
+            </div>
+            
+          </div>
+        </template>
+      </Card>
+
         <!-- Actions -->
         <div class="form-actions">
           <div class="actions-left">
@@ -401,6 +446,8 @@ import { useEventStore } from '@/stores/events'
 import { useGameFilterStore } from '@/stores/gameFilter'
 import { useAuthStore } from '@/stores/auth'
 import AddressAutocomplete from '@/components/form/AddressAutocomplete.vue'
+import FileUpload from 'primevue/fileupload'
+import Toast from 'primevue/toast'
 
 // Imports PrimeVue
 import Calendar from 'primevue/calendar'
@@ -435,6 +482,9 @@ const formData = ref({
   address: null,
   stream_url: '',
   selected_game: null,
+    image: null,        
+  imageFile: null,   
+  imagePreview: null,  
   rules: ''
 })
 
@@ -536,14 +586,25 @@ const handleGameChange = () => {
 const validateForm = () => {
   errors.value = {}
   
-  // Titre obligatoire
+  // Titre obligatoire (minimum 5 caractères)
   if (!formData.value.title?.trim()) {
     errors.value.title = 'Le titre est requis'
+  } else if (formData.value.title.trim().length < 5) {
+    errors.value.title = 'Le titre doit faire au moins 5 caractères'
+  } else if (formData.value.title.trim().length > 255) {
+    errors.value.title = 'Le titre ne peut pas dépasser 255 caractères'
   }
   
-  // Date de début obligatoire
+  // Description (optionnelle mais si présente, max 2000)
+  if (formData.value.description && formData.value.description.length > 2000) {
+    errors.value.description = 'La description ne peut pas dépasser 2000 caractères'
+  }
+  
+  // Date de début obligatoire et dans le futur
   if (!formData.value.start_date) {
     errors.value.start_date = 'La date de début est requise'
+  } else if (formData.value.start_date <= new Date()) {
+    errors.value.start_date = 'La date de début doit être dans le futur'
   }
   
   // Date de fin après date de début
@@ -553,14 +614,25 @@ const validateForm = () => {
     }
   }
   
+  // Date limite inscription avant début
+  if (formData.value.registration_deadline && formData.value.start_date) {
+    if (formData.value.registration_deadline >= formData.value.start_date) {
+      errors.value.registration_deadline = 'La date limite d\'inscription doit être avant le début'
+    }
+  }
+  
   // Adresse obligatoire si présentiel
   if (!formData.value.is_online && !formData.value.address) {
     errors.value.address = 'L\'adresse est requise pour un événement présentiel'
   }
   
   // Participants max si limité
-  if (!unlimitedParticipants.value && !formData.value.max_participants) {
-    errors.value.max_participants = 'Le nombre maximum de participants est requis'
+  if (!unlimitedParticipants.value) {
+    if (!formData.value.max_participants) {
+      errors.value.max_participants = 'Le nombre maximum de participants est requis'
+    } else if (formData.value.max_participants < 1 || formData.value.max_participants > 1000) {
+      errors.value.max_participants = 'Le nombre de participants doit être entre 1 et 1000'
+    }
   }
   
   // Jeu obligatoire pour certains types
@@ -570,7 +642,12 @@ const validateForm = () => {
   
   // URL valide si fournie
   if (formData.value.stream_url && !isValidUrl(formData.value.stream_url)) {
-    errors.value.stream_url = 'L\'URL n\'est pas valide'
+    errors.value.stream_url = 'L\'URL n\'est pas valide (ex: https://twitch.tv/...)'
+  }
+  
+  // Règles max 1000 caractères
+  if (formData.value.rules && formData.value.rules.length > 1000) {
+    errors.value.rules = 'Les règles ne peuvent pas dépasser 1000 caractères'
   }
   
   return Object.keys(errors.value).length === 0
@@ -626,22 +703,86 @@ const handleSubmit = async () => {
   try {
     const eventData = prepareEventData('PENDING_REVIEW')
     
+    let result
     if (isEditMode.value) {
-      await eventStore.updateEvent(route.query.id, eventData)
+      result = await eventStore.updateEvent(route.query.id, eventData)
     } else {
-      await eventStore.createEvent(eventData)
+      result = await eventStore.createEvent(eventData)
     }
     
-    // TODO: Toast success
+    // CORRECTION : Upload image après création pour TOUS les cas
+    if (formData.value.imageFile && result?.id) {
+      console.log('🖼️ Upload image pour événement:', result.id)
+      console.log('🔍 Fichier à uploader:', formData.value.imageFile)
+await eventStore.uploadEventImage(result.id, formData.value.imageFile)
+    }
+    
+    // Succès - redirection
     router.push({ name: 'mes-evenements' })
     
   } catch (error) {
     console.error('Erreur soumission événement:', error)
-    // TODO: Toast error
+    handleServerErrors(error)
   } finally {
     isSubmitting.value = false
   }
 }
+
+const handleServerErrors = (error) => {
+  if (error.response?.data?.errors) {
+    // Erreurs de validation Symfony
+    const serverErrors = error.response.data.errors
+    serverErrors.forEach(err => {
+      const field = mapServerFieldToClient(err.field)
+      if (field) {
+        errors.value[field] = err.message
+      }
+    })
+  } else if (error.response?.data?.error) {
+    // Erreur générale
+    errors.value.general = error.response.data.error
+  } else if (error.message) {
+    // Message d'erreur depuis le store
+    errors.value.general = error.message
+  } else {
+    errors.value.general = 'Une erreur est survenue lors de la soumission'
+  }
+}
+
+const mapServerFieldToClient = (serverField) => {
+  const mapping = {
+    'title': 'title',
+    'description': 'description', 
+    'startDate': 'start_date',
+    'endDate': 'end_date',
+    'registrationDeadline': 'registration_deadline',
+    'maxParticipants': 'max_participants',
+    'streamUrl': 'stream_url',
+    'rules': 'rules'
+  }
+  return mapping[serverField] || serverField
+}
+
+watch(formData, () => {
+  // Valider en temps réel certains champs
+  if (formData.value.title && errors.value.title) {
+    if (formData.value.title.trim().length >= 5) {
+      clearFieldError('title')
+    }
+  }
+  
+  if (formData.value.start_date && errors.value.start_date) {
+    if (formData.value.start_date > new Date()) {
+      clearFieldError('start_date')
+    }
+  }
+  
+  if (formData.value.stream_url && errors.value.stream_url) {
+    if (!formData.value.stream_url || isValidUrl(formData.value.stream_url)) {
+      clearFieldError('stream_url')
+    }
+  }
+}, { deep: true })
 
 const prepareEventData = (status) => {
   const data = {
@@ -664,17 +805,32 @@ const prepareEventData = (status) => {
     data.organizer_type = 'USER'
   }
   
-  // Adresse ou URL selon le type
+  // ✅ CORRECTION: Adresse ou URL selon le type
   if (formData.value.is_online) {
     data.stream_url = formData.value.stream_url?.trim() || null
   } else {
-    data.address_id = formData.value.address?.id || null
+    // ✅ NOUVEAU: Envoyer les données d'adresse complètes au lieu de juste l'ID
+    if (formData.value.address) {
+      data.address_data = {
+        street_address: formData.value.address.streetAddress,
+        city: formData.value.address.city,
+        postal_code: formData.value.address.postalCode,
+        country: formData.value.address.country || 'France',
+        latitude: formData.value.address.latitude || null,
+        longitude: formData.value.address.longitude || null,
+        full_address: formData.value.address.fullAddress
+      }
+    }
   }
   
   // Jeux associés
   if (requiresGame.value && formData.value.selected_game) {
     data.game_ids = [formData.value.selected_game]
   }
+  
+  // ✅ DEBUG LOGS
+  console.log('🏠 Adresse dans formData:', formData.value.address)
+  console.log('🏠 Données adresse envoyées:', data.address_data)
   
   return data
 }
@@ -683,7 +839,26 @@ const loadEventData = async () => {
   if (!isEditMode.value) return
   
   try {
-    const event = await eventStore.getEvent(route.query.id)
+    await eventStore.loadEventDetail(route.query.id)
+    const event = eventStore.currentEvent
+    
+    if (!event) {
+      throw new Error('Événement non trouvé')
+    }
+    
+    // ✅ AJOUT: Variable pour formater l'adresse correctement
+    let addressData = null
+    if (event.address) {
+      addressData = {
+        streetAddress: event.address.street_address,
+        city: event.address.city,
+        postalCode: event.address.postal_code,
+        country: event.address.country,
+        fullAddress: event.address.full_address,
+        latitude: event.address.latitude,
+        longitude: event.address.longitude
+      }
+    }
     
     // Pré-remplir le formulaire
     formData.value = {
@@ -695,18 +870,68 @@ const loadEventData = async () => {
       registration_deadline: event.registration_deadline ? new Date(event.registration_deadline) : null,
       max_participants: event.max_participants,
       is_online: event.is_online,
-      address: event.address || null,
+      address: addressData, // ✅ CORRECTION: Format correct pour AddressAutocomplete
       stream_url: event.stream_url || '',
       selected_game: event.games?.[0]?.id || null,
-      rules: event.rules || ''
+      rules: event.rules || '',
+      image: event.image || null,
+      imageFile: null,
+      imagePreview: event.image ? getImageUrl(event.image) : null
     }
     
     unlimitedParticipants.value = !event.max_participants
+    
+    console.log('🔄 Données chargées pour édition:', {
+      address: addressData,
+      is_online: event.is_online
+    })
     
   } catch (error) {
     console.error('Erreur chargement événement:', error)
     router.push({ name: 'evenements' })
   }
+}
+
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return null
+  if (imagePath.startsWith('events/')) {
+    return `http://localhost:8000/uploads/${imagePath}`
+  }
+  if (imagePath.startsWith('http')) return imagePath
+  return `http://localhost:8000/uploads/${imagePath}`
+}
+
+const handleImageSelect = (event) => {
+  const file = event.files[0]
+  if (!file) return
+  
+  // Validation fichier
+  if (!file.type.startsWith('image/')) {
+    errors.value.image = 'Veuillez sélectionner un fichier image'
+    return
+  }
+  
+  if (file.size > 5 * 1024 * 1024) { // 5MB max
+    errors.value.image = 'L\'image est trop volumineuse (maximum 5MB)'
+    return
+  }
+  
+  formData.value.imageFile = file
+  clearFieldError('image')
+  
+  // Créer preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    formData.value.imagePreview = e.target.result
+  }
+  reader.readAsDataURL(file)
+}
+
+const removeImage = () => {
+  formData.value.imageFile = null
+  formData.value.imagePreview = null
+  formData.value.image = null
+  clearFieldError('image')
 }
 
 // ============= LIFECYCLE =============
@@ -1108,6 +1333,105 @@ watch(formData, () => {
   
   .toggle-option i {
     font-size: 1.25rem;
+  }
+}
+/* === IMAGE UPLOAD === */
+.image-upload-zone {
+  border: 2px dashed var(--surface-300);
+  border-radius: var(--border-radius);
+  padding: 2rem;
+  text-align: center;
+  background: var(--surface-50);
+  transition: all var(--transition-fast);
+}
+
+.image-upload-zone:hover {
+  border-color: var(--primary);
+  background: rgba(38, 166, 154, 0.05);
+}
+
+:deep(.image-uploader .p-button) {
+  background: var(--primary) !important;
+  border: none !important;
+  color: white !important;
+  padding: 0.75rem 2rem !important;
+  border-radius: var(--border-radius) !important;
+}
+
+.image-preview {
+  position: relative;
+  display: inline-block;
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-medium);
+}
+
+.preview-image {
+  max-width: 300px;
+  max-height: 200px;
+  width: auto;
+  height: auto;
+  display: block;
+  border-radius: var(--border-radius);
+}
+
+.remove-image-btn {
+  position: absolute !important;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  padding: 0 !important;
+  background: rgba(239, 68, 68, 0.9) !important;
+  border: none !important;
+  color: white !important;
+  border-radius: 50% !important;
+}
+
+.remove-image-btn:hover {
+  background: rgba(239, 68, 68, 1) !important;
+}
+
+/* === ERROR SECTION === */
+.error-section {
+  border-left: 4px solid #ef4444 !important;
+  background: rgba(239, 68, 68, 0.05) !important;
+}
+
+.general-error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.error-icon {
+  font-size: 1.25rem;
+}
+
+/* === FORM IMPROVEMENTS === */
+:deep(.p-invalid) {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1) !important;
+}
+
+.form-error {
+  font-size: 0.75rem;
+  color: #ef4444 !important;
+  margin-top: 0.25rem;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .preview-image {
+    max-width: 100%;
+    max-height: 150px;
+  }
+  
+  .image-upload-zone {
+    padding: 1rem;
   }
 }
 </style>
