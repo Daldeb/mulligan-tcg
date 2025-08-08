@@ -62,40 +62,64 @@
       <!-- Filtres spécifiques Hearthstone -->
       <div v-if="gameSlug === 'hearthstone'" class="filters-main-row">
         
-        <!-- Slider coût poussière amélioré -->
-        <div class="dust-cost-filter-group">
-          <label class="filter-group-label">
-            Coût en poussière : 
-            <span class="dust-range-display">
-              {{ filters.dustCost.min.toLocaleString() }} - 
-              {{ filters.dustCost.max >= 10000 ? '10000+' : filters.dustCost.max.toLocaleString() }}
-            </span>
-          </label>
-          <div class="range-slider-wrapper">
-            <input
-              type="range"
-              :min="0"
-              :max="10000"
-              :step="200"
-              v-model="filters.dustCost.min"
-              class="range-slider min"
-              @input="handleDustRangeChange"
-            />
-            <input
-              type="range"
-              :min="0"
-              :max="10000"
-              :step="200"
-              v-model="filters.dustCost.max"
-              class="range-slider max"
-              @input="handleDustRangeChange"
-            />
-            <div class="range-track">
-              <div class="range-track-fill" :style="dustRangeStyle"></div>
-            </div>
-          </div>
-        </div>
-        
+<!-- Slider coût poussière REFACTORISÉ -->
+<div class="dust-cost-filter-group">
+  <label class="filter-group-label">
+    Coût en poussière : 
+    <span class="dust-range-display">
+      {{ formatDustCost(filters.dustCost.min) }} - {{ formatDustCost(filters.dustCost.max) }}
+    </span>
+  </label>
+  
+  <div class="dual-range-container">
+    <!-- Piste visuelle de fond -->
+    <div class="range-track-bg"></div>
+    
+    <!-- Piste de sélection active -->
+    <div 
+      class="range-track-active" 
+      :style="rangeTrackStyle"
+    ></div>
+    
+    <!-- Input range minimum -->
+    <input
+      type="range"
+      :min="DUST_MIN"
+      :max="DUST_MAX"
+      :step="DUST_STEP"
+      v-model.number="filters.dustCost.min"
+      class="range-input range-min"
+      @input="handleMinChange"
+    />
+    
+    <!-- Input range maximum -->
+    <input
+      type="range"
+      :min="DUST_MIN"
+      :max="DUST_MAX"
+      :step="DUST_STEP"
+      v-model.number="filters.dustCost.max"
+      class="range-input range-max"
+      @input="handleMaxChange"
+    />
+    
+    <!-- Thumbs visuels personnalisés -->
+    <div 
+      class="range-thumb range-thumb-min" 
+      :style="minThumbStyle"
+    >
+      <div class="thumb-tooltip">{{ formatDustCost(filters.dustCost.min) }}</div>
+    </div>
+    
+    <div 
+      class="range-thumb range-thumb-max" 
+      :style="maxThumbStyle"
+    >
+      <div class="thumb-tooltip">{{ formatDustCost(filters.dustCost.max) }}</div>
+    </div>
+  </div>
+</div>
+                
         <!-- Toggle Standard/Wild -->
         <div class="format-filter-group">
           <label class="filter-group-label">Format :</label>
@@ -298,6 +322,10 @@ const props = defineProps({
 
 const emit = defineEmits(['edit', 'delete', 'like', 'copy', 'copyDeckcode'])
 
+const DUST_MIN = 0
+const DUST_MAX = 10000
+const DUST_STEP = 200
+
 // Configuration par jeu
 const gameConfigs = {
   hearthstone: {
@@ -445,12 +473,12 @@ const gameStats = computed(() => {
   
   return { totalLikes, publicCount, privateCount }
 })
-
-const dustRangeStyle = computed(() => {
+// Computed pour le nouveau slider
+const rangeTrackStyle = computed(() => {
   const min = filters.value.dustCost.min
   const max = filters.value.dustCost.max
-  const minPercent = (min / 10000) * 100
-  const maxPercent = (max / 10000) * 100
+  const minPercent = ((min - DUST_MIN) / (DUST_MAX - DUST_MIN)) * 100
+  const maxPercent = ((max - DUST_MIN) / (DUST_MAX - DUST_MIN)) * 100
   
   return {
     left: `${minPercent}%`,
@@ -458,6 +486,19 @@ const dustRangeStyle = computed(() => {
   }
 })
 
+const minThumbStyle = computed(() => {
+  const percent = ((filters.value.dustCost.min - DUST_MIN) / (DUST_MAX - DUST_MIN)) * 100
+  return {
+    left: `calc(${percent}% - 12px)`
+  }
+})
+
+const maxThumbStyle = computed(() => {
+  const percent = ((filters.value.dustCost.max - DUST_MIN) / (DUST_MAX - DUST_MIN)) * 100
+  return {
+    left: `calc(${percent}% - 12px)`
+  }
+})
 // Méthodes
 const calculateDeckDustCost = (deck) => {
   if (!deck.cards || deck.cards.length === 0) return 0
@@ -533,12 +574,24 @@ const toggleMagicColor = (colorValue) => {
     colors.push(colorValue)
   }
 }
-
-const handleDustRangeChange = () => {
+// Nouvelles méthodes pour le slider
+const handleMinChange = () => {
   if (filters.value.dustCost.min > filters.value.dustCost.max) {
     filters.value.dustCost.min = filters.value.dustCost.max
   }
 }
+
+const handleMaxChange = () => {
+  if (filters.value.dustCost.max < filters.value.dustCost.min) {
+    filters.value.dustCost.max = filters.value.dustCost.min
+  }
+}
+
+const formatDustCost = (value) => {
+  if (value >= 10000) return '10000+'
+  return value.toLocaleString()
+}
+
 
 const resetFilters = () => {
   filters.value = {
@@ -872,77 +925,162 @@ const resetFilters = () => {
   flex: 1;
 }
 
-.range-slider-wrapper {
+/* === SLIDER DUAL-RANGE HEARTHSTONE REFACTORISÉ === */
+
+.dust-cost-filter-group {
+  min-width: 320px;
+  flex: 1;
+}
+
+.dual-range-container {
   position: relative;
-  height: 48px;
-  display: flex;
-  align-items: center;
+  height: 60px;
+  margin: 1rem 0;
+  padding: 1rem 0;
 }
 
-.range-slider {
+/* Piste de fond */
+.range-track-bg {
   position: absolute;
-  top: 14px;
-  height: 20px;
-  background: transparent;
-  outline: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-  width: 100%;
-}
-
-.range-slider.min { z-index: 3; }
-.range-slider.max { z-index: 2; }
-
-.range-track {
-  position: absolute;
+  top: 24px;
   left: 0;
   right: 0;
-  top: 22px;
   height: 8px;
   background: #e5e7eb;
-  border-radius: 999px;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Piste active (sélection) */
+.range-track-active {
+  position: absolute;
+  top: 24px;
+  height: 8px;
+  background: linear-gradient(90deg, #d97706, #f59e0b);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.3);
+  transition: all 0.2s ease;
   z-index: 1;
 }
 
-.range-track-fill {
+/* Inputs range invisibles */
+.range-input {
   position: absolute;
   top: 0;
-  height: 8px;
-  background: linear-gradient(90deg, #d97706, #f59e0b);
-  border-radius: 999px;
-  transition: width 0.15s ease;
-  box-shadow: 0 2px 4px rgba(217, 119, 6, 0.25);
-  z-index: 2;
-}
-
-.range-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #d97706;
-  border: 3px solid #fff;
-  box-shadow: 0 2px 10px rgba(217, 119, 6, 0.35);
-  transition: transform 0.15s ease, background 0.15s ease;
-  transform: translateY(-4px);
-}
-
-.range-slider::-webkit-slider-thumb:hover {
-  transform: translateY(-4px) scale(1.05);
-  background: #b45309;
-}
-
-.range-slider::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #d97706;
-  border: 3px solid #fff;
-  box-shadow: 0 2px 10px rgba(217, 119, 6, 0.35);
-}
-
-.range-slider::-moz-range-track {
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: transparent;
+  pointer-events: none;
+  opacity: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.range-input::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.range-min { z-index: 2; }
+.range-max { z-index: 3; }
+
+/* Thumbs visuels personnalisés */
+.range-thumb {
+  position: absolute;
+  top: 16px;
+  width: 24px;
+  height: 24px;
+  background: #d97706;
+  border: 3px solid white;
+  border-radius: 50%;
+  box-shadow: 0 3px 12px rgba(217, 119, 6, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 16px rgba(217, 119, 6, 0.5);
+}
+
+.range-thumb.range-thumb-max {
+  background: #f59e0b;
+  z-index: 5;
+}
+
+/* Tooltips des thumbs */
+.thumb-tooltip {
+  position: absolute;
+  bottom: 35px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: white;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.thumb-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #1f2937;
+}
+
+.range-thumb:hover .thumb-tooltip {
+  opacity: 1;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dust-cost-filter-group {
+    min-width: 280px;
+  }
+  
+  .dual-range-container {
+    height: 50px;
+    padding: 0.75rem 0;
+  }
+  
+  .dust-inputs-row {
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .dust-inputs-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 }
 
 .dust-range-display {

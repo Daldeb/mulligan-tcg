@@ -9,7 +9,6 @@
           <router-link to="/conditions" class="footer-link">Conditions</router-link>
           <router-link to="/rgpd" class="footer-link">RGPD</router-link>
           <router-link to="/about" class="footer-link">À propos</router-link>
-          <router-link to="/equipe" class="footer-link">Équipe</router-link>
           <router-link to="/aide" class="footer-link">Aide</router-link>
         </div>
         
