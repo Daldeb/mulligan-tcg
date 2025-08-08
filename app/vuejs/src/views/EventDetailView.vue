@@ -91,15 +91,15 @@
                     <div class="meta-item">
                       <i class="pi pi-users"></i>
                       <div>
-                        <strong>{{ event.current_participants || 0 }} / {{ event.max_participants || '∞' }}</strong>
-                        <span>participants</span>
+                        <strong>{{ event.current_participants || 0 }} / {{ event.max_participants || '∞' }} </strong>
+                        <span> participants</span>
                       </div>
                     </div>
                     
                     <div v-if="event.registration_deadline" class="meta-item">
                       <i class="pi pi-clock"></i>
                       <div>
-                        <strong>Limite d'inscription :</strong>
+                        <strong>Limite d'inscription : </strong>
                         <span>{{ formatDate(event.registration_deadline) }}</span>
                       </div>
                     </div>
@@ -307,8 +307,13 @@ const canEdit = computed(() => {
 const canDelete = computed(() => canEdit.value)
 
 const canRegister = computed(() => {
-  return authStore.isAuthenticated && 
-         !isRegistered.value && 
+  if (!authStore.isAuthenticated || !event.value) return false
+  
+  if (event.value.created_by_id === authStore.user?.id) return false
+  
+  if (canEdit.value) return false
+  
+  return !isRegistered.value && 
          event.value?.can_register &&
          event.value?.status === 'APPROVED'
 })

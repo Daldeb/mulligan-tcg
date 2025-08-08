@@ -8,6 +8,8 @@ use App\Entity\Tournament;
 use App\Repository\EventRepository;
 use App\Repository\GameRepository;
 use App\Repository\AddressRepository;
+use App\Service\AddressService;
+use App\Entity\Address;
 use App\Repository\ShopRepository;
 use Psr\Log\LoggerInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -26,7 +28,8 @@ class EventController extends AbstractController
         private EntityManagerInterface $em,
         private EventRepository $eventRepository,
         private ValidatorInterface $validator,
-        private LoggerInterface $logger
+        private LoggerInterface $logger,
+        private \App\Service\AddressService $addressService
     ) {}
 
     /**
@@ -614,7 +617,53 @@ $this->logger->info('🔍 php://input size: ' . strlen(file_get_contents('php://
             $event->setIsOnline($data['is_online']);
         }
 
-        // TODO: Gérer address_id si fourni
+                // Gestion de l'adresse
+        if (isset($data['address']) && !$data['is_online']) {
+            $addressData = $data['address'];
+            
+            // Si address_id fourni, utiliser l'adresse existante
+            if (isset($addressData['id']) && $addressData['id']) {
+                $addressRepository = $this->em->getRepository(Address::class);
+                $address = $addressRepository->find($addressData['id']);
+                if ($address) {
+                    $event->setAddress($address);
+                }
+            }
+            // Sinon, créer/trouver une adresse similaire
+            elseif (isset($addressData['streetAddress'], $addressData['city'], $addressData['postalCode'])) {
+                $addressRepository = $this->em->getRepository(Address::class);
+                
+                // Validation de l'adresse via AddressService
+                $addressService = $this->addressService ?? $this->container->get(AddressService::class);
+                $addressErrors = $addressService->validateFrenchAddress(
+                    $addressData['streetAddress'],
+                    $addressData['city'],
+                    $addressData['postalCode']
+                );
+
+                if (!empty($addressErrors)) {
+                    throw new \InvalidArgumentException('Adresse invalide: ' . implode(', ', $addressErrors));
+                }
+
+                // Rechercher ou créer l'adresse
+                $address = $addressRepository->findOrCreateSimilar(
+                    $addressData['streetAddress'],
+                    $addressData['city'],
+                    $addressData['postalCode'],
+                    $addressData['country'] ?? 'France'
+                );
+
+                // Enrichir avec coordonnées si nécessaire
+                if (!$address->hasCoordinates()) {
+                    $addressService->enrichAddressWithCoordinates($address);
+                }
+
+                $event->setAddress($address);
+            }
+        } elseif ($data['is_online'] ?? false) {
+            // Si événement en ligne, supprimer l'adresse
+            $event->setAddress(null);
+        }
 
         // Contenu
         if (isset($data['tags'])) {

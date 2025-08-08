@@ -198,9 +198,11 @@
             v-for="event in eventStore.filteredEvents"
             :key="event.id"
             :event="event"
+            :show-follow-button="true"
             @click="goToEventDetail(event.id)"
             @register="handleRegister"
             @unregister="handleUnregister"
+            @follow-changed="handleFollowChanged"
           />
         </div>
 
@@ -407,6 +409,14 @@ const goToCreateTournament = () => {
 
 const goToEventDetail = (eventId) => {
   router.push({ name: 'evenement-detail', params: { id: eventId } })
+}
+
+/**
+ * Gestion changement de suivi
+ */
+const handleFollowChanged = async (data) => {
+  console.log('Suivi modifié:', data.event.title, 'Suivi:', data.isFollowing)
+  // Optionnel: recharger les événements suivis si on a une section dédiée
 }
 
 /**

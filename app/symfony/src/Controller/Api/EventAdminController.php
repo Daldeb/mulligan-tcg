@@ -10,6 +10,7 @@ use App\Repository\TournamentRepository;
 use App\Repository\EventRegistrationRepository;
 use App\Repository\UserRepository;
 use App\Repository\ShopRepository;
+use App\Service\NotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -29,7 +30,8 @@ class EventAdminController extends AbstractController
         private EventRegistrationRepository $registrationRepository,
         private UserRepository $userRepository,
         private ShopRepository $shopRepository,
-        private ValidatorInterface $validator
+        private ValidatorInterface $validator,
+        private NotificationManager $notificationManager
     ) {}
 
     /**
@@ -44,7 +46,8 @@ class EventAdminController extends AbstractController
             'events' => $this->getEventsStats(),
             'tournaments' => $this->getTournamentsStats(),
             'registrations' => $this->getRegistrationsStats(),
-            'users' => $this->getUsersStats()
+            'users' => $this->getUsersStats(),
+            'notifications' => $this->getNotificationStats()
         ];
 
         // Événements nécessitant action
@@ -124,8 +127,8 @@ class EventAdminController extends AbstractController
             $event->approve($admin, $comment);
             $this->em->flush();
 
-            // TODO: Envoyer notification au créateur
-            $this->notifyEventCreator($event, 'approved', $comment);
+            // ✅ NOUVEAU: Envoyer notification au créateur
+            $this->notificationManager->createEventApprovedNotification($event, $admin, $comment);
 
             return $this->json([
                 'message' => 'Événement approuvé avec succès',
@@ -169,8 +172,8 @@ class EventAdminController extends AbstractController
             $event->reject($admin, $reason);
             $this->em->flush();
 
-            // TODO: Envoyer notification au créateur
-            $this->notifyEventCreator($event, 'rejected', $reason);
+            // ✅ NOUVEAU: Envoyer notification au créateur
+            $this->notificationManager->createEventRejectedNotification($event, $admin, $reason);
 
             return $this->json([
                 'message' => 'Événement rejeté',
@@ -179,6 +182,63 @@ class EventAdminController extends AbstractController
 
         } catch (\Exception $e) {
             return $this->json(['error' => 'Erreur lors du rejet: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * ✅ NOUVEAU: Supprimer définitivement un événement
+     * DELETE /api/admin/events/{id}
+     */
+    #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
+    public function deleteEvent(int $id, Request $request): JsonResponse
+    {
+        $event = $this->eventRepository->find($id);
+
+        if (!$event) {
+            return $this->json(['error' => 'Événement non trouvé'], 404);
+        }
+
+        // Vérifier que l'événement peut être supprimé (pas encore commencé)
+        if ($event->getStartDate() <= new \DateTimeImmutable() && !$event->isCancelled()) {
+            return $this->json(['error' => 'Un événement commencé ne peut pas être supprimé'], 400);
+        }
+
+        $data = json_decode($request->getContent(), true);
+
+        if (!isset($data['reason'])) {
+            return $this->json(['error' => 'Motif de suppression requis'], 400);
+        }
+
+        $reason = $data['reason'];
+        $creator = $event->getCreatedBy();
+
+        try {
+            /** @var User $admin */
+            $admin = $this->getUser();
+
+            // Compter les inscriptions actives avant suppression
+            $activeRegistrations = $this->registrationRepository->findActiveByEvent($event);
+            $participantCount = count($activeRegistrations);
+
+            // ✅ NOUVEAU: Envoyer notification AVANT suppression (car après on n'aura plus l'entité)
+            $this->notificationManager->createEventDeletedNotification($event, $admin, $reason);
+
+            // Supprimer physiquement l'événement (cascade supprimera les inscriptions)
+            $this->em->remove($event);
+            $this->em->flush();
+
+            return $this->json([
+                'message' => 'Événement supprimé définitivement',
+                'deleted_event' => [
+                    'title' => $event->getTitle(),
+                    'creator' => $creator->getPseudo()
+                ],
+                'affected_participants' => $participantCount,
+                'admin_reason' => $reason
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->json(['error' => 'Erreur lors de la suppression: ' . $e->getMessage()], 500);
         }
     }
 
@@ -217,9 +277,10 @@ class EventAdminController extends AbstractController
 
             $this->em->flush();
 
-            // Notifier le créateur si nécessaire
+            // Notifier le créateur si nécessaire (pas de notification spécifique pour visibilité pour l'instant)
             if (!empty($reason) && $reason !== 'Action administrative') {
-                $this->notifyEventCreator($event, $action, $reason);
+                // TODO: Ajouter notification visibilité si nécessaire
+                error_log("Event {$event->getId()} {$action} for user {$event->getCreatedBy()->getId()}: {$reason}");
             }
 
             return $this->json([
@@ -274,7 +335,7 @@ class EventAdminController extends AbstractController
 
             $this->em->flush();
 
-            // Notifier tous les participants
+            // ✅ NOUVEAU: Notifier tous les participants de l'annulation
             $this->notifyEventCancellation($event, $reason);
 
             return $this->json([
@@ -285,6 +346,85 @@ class EventAdminController extends AbstractController
 
         } catch (\Exception $e) {
             return $this->json(['error' => 'Erreur lors de l\'annulation: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * ✅ NOUVEAU: Déclencher manuellement les notifications automatiques
+     * POST /api/admin/events/trigger-notifications
+     */
+    #[Route('/trigger-notifications', name: 'trigger_notifications', methods: ['POST'])]
+    public function triggerNotifications(Request $request): JsonResponse
+    {
+        try {
+            $results = $this->notificationManager->processAutomaticEventNotifications();
+            
+            return $this->json([
+                'message' => 'Notifications automatiques déclenchées',
+                'results' => $results,
+                'total_sent' => array_sum($results),
+                'triggered_at' => (new \DateTimeImmutable())->format('c')
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->json(['error' => 'Erreur lors du déclenchement: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * ✅ NOUVEAU: Statistiques des notifications d'événements
+     * GET /api/admin/events/notification-stats
+     */
+    #[Route('/notification-stats', name: 'notification_stats', methods: ['GET'])]
+    public function notificationStats(Request $request): JsonResponse
+    {
+        $period = max(1, min(90, (int) $request->query->get('days', 7)));
+        $since = new \DateTimeImmutable("-{$period} days");
+
+        try {
+            $stats = [
+                'period_days' => $period,
+                'total_sent' => $this->notificationManager->getNotificationRepository()->countSince($since),
+                'by_type' => $this->notificationManager->getNotificationRepository()->countByTypeSince($since),
+                'by_category' => $this->notificationManager->getNotificationRepository()->countByCategorySince($since),
+                'unread_rate' => $this->notificationManager->getNotificationRepository()->getUnreadRateSince($since),
+                'events_with_notifications' => $this->eventRepository->countWithNotificationsSince($since)
+            ];
+
+            return $this->json([
+                'stats' => $stats,
+                'generated_at' => (new \DateTimeImmutable())->format('c')
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->json(['error' => 'Erreur lors de la génération des statistiques: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * ✅ NOUVEAU: Nettoyer les anciennes notifications
+     * POST /api/admin/events/cleanup-notifications
+     */
+    #[Route('/cleanup-notifications', name: 'cleanup_notifications', methods: ['POST'])]
+    public function cleanupNotifications(Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $daysOld = max(7, min(365, (int) ($data['days_old'] ?? 30)));
+
+        try {
+            $deletedCount = $this->notificationManager->cleanupOldNotifications($daysOld);
+            $orphanedCount = $this->notificationManager->getNotificationRepository()->cleanupOrphanNotifications();
+
+            return $this->json([
+                'message' => 'Nettoyage des notifications terminé',
+                'deleted_old' => $deletedCount,
+                'deleted_orphaned' => $orphanedCount,
+                'total_cleaned' => $deletedCount + $orphanedCount,
+                'days_threshold' => $daysOld
+            ]);
+
+        } catch (\Exception $e) {
+            return $this->json(['error' => 'Erreur lors du nettoyage: ' . $e->getMessage()], 500);
         }
     }
 
@@ -308,7 +448,8 @@ class EventAdminController extends AbstractController
                 'by_period' => $this->getRegistrationStatsByPeriod($startDate),
                 'by_event_type' => $this->getRegistrationStatsByEventType($startDate)
             ],
-            'tournaments' => $this->getTournamentDetailedStats($startDate)
+            'tournaments' => $this->getTournamentDetailedStats($startDate),
+            'notifications' => $this->getNotificationStats($startDate) // ✅ NOUVEAU
         ];
 
         return $this->json([
@@ -475,12 +616,16 @@ class EventAdminController extends AbstractController
                     case 'approve':
                         if ($event->isPendingReview()) {
                             $event->approve($admin, $reason);
+                            // ✅ NOUVEAU: Notification en lot
+                            $this->notificationManager->createEventApprovedNotification($event, $admin, $reason);
                             $results['success']++;
                         }
                         break;
                     case 'reject':
                         if ($event->isPendingReview()) {
                             $event->reject($admin, $reason);
+                            // ✅ NOUVEAU: Notification en lot
+                            $this->notificationManager->createEventRejectedNotification($event, $admin, $reason);
                             $results['success']++;
                         }
                         break;
@@ -582,6 +727,23 @@ class EventAdminController extends AbstractController
             'total' => $this->userRepository->countAll(),
             'organizers' => $this->userRepository->countEventOrganizers(),
             'shops' => $this->shopRepository->countActive()
+        ];
+    }
+
+    /**
+     * ✅ NOUVEAU: Statistiques des notifications
+     */
+    private function getNotificationStats(?\DateTimeImmutable $since = null): array
+    {
+        if (!$since) {
+            $since = new \DateTimeImmutable('-30 days');
+        }
+
+        return [
+            'total_sent' => $this->notificationManager->getNotificationRepository()->countSince($since),
+            'by_type' => $this->notificationManager->getNotificationRepository()->countByTypeSince($since),
+            'by_category' => $this->notificationManager->getNotificationRepository()->countByCategorySince($since),
+            'unread_rate' => $this->notificationManager->getNotificationRepository()->getUnreadRateSince($since)
         ];
     }
 
@@ -718,18 +880,74 @@ class EventAdminController extends AbstractController
         return $filters;
     }
 
-    private function notifyEventCreator(Event $event, string $action, ?string $message): void
-    {
-        // TODO: Implémenter système de notification
-        // Pour l'instant, juste un log
-        error_log("Event {$event->getId()} {$action} for user {$event->getCreatedBy()->getId()}: {$message}");
-    }
-
+    /**
+     * ✅ NOUVEAU: Notifie l'annulation d'événement à tous les participants
+     */
     private function notifyEventCancellation(Event $event, string $reason): void
     {
-        // TODO: Implémenter notification de masse aux participants
-        // Pour l'instant, juste un log
-        error_log("Event {$event->getId()} cancelled: {$reason}");
+        try {
+            // Récupérer toutes les inscriptions actives
+            $activeRegistrations = $this->registrationRepository->findActiveByEvent($event);
+            
+            foreach ($activeRegistrations as $registration) {
+                $participant = $registration->getUser();
+                
+                // Créer notification d'annulation pour chaque participant
+                $this->notificationManager->create(
+                    user: $participant,
+                    type: 'event_cancelled',
+                    title: 'Événement annulé',
+                    message: sprintf(
+                        'L\'événement "%s" auquel vous étiez inscrit(e) a été annulé. Motif : %s',
+                        $event->getTitle(),
+                        $reason
+                    ),
+                    data: [
+                        'event_id' => $event->getId(),
+                        'event_title' => $event->getTitle(),
+                        'cancellation_reason' => $reason,
+                        'was_registered' => true
+                    ],
+                    actionUrl: '/mes-evenements',
+                    actionLabel: 'Voir mes événements',
+                    icon: 'pi-times-circle',
+                    relatedEvent: $event,
+                    priority: 'high',
+                    category: 'events'
+                );
+            }
+            
+            // Notifier aussi l'organisateur
+            $creator = $event->getCreatedBy();
+            if ($creator) {
+                $this->notificationManager->create(
+                    user: $creator,
+                    type: 'event_cancelled',
+                    title: 'Votre événement a été annulé',
+                    message: sprintf(
+                        'Votre événement "%s" a été annulé par un administrateur. Motif : %s',
+                        $event->getTitle(),
+                        $reason
+                    ),
+                    data: [
+                        'event_id' => $event->getId(),
+                        'event_title' => $event->getTitle(),
+                        'cancellation_reason' => $reason,
+                        'is_creator' => true,
+                        'affected_participants' => count($activeRegistrations)
+                    ],
+                    actionUrl: '/mes-evenements',
+                    actionLabel: 'Voir mes événements',
+                    icon: 'pi-times-circle',
+                    relatedEvent: $event,
+                    priority: 'urgent',
+                    category: 'admin'
+                );
+            }
+            
+        } catch (\Exception $e) {
+            error_log("Erreur notification annulation événement {$event->getId()}: " . $e->getMessage());
+        }
     }
 
     private function serializeEventForAdmin(Event $event): array
@@ -807,6 +1025,7 @@ class EventAdminController extends AbstractController
         $data['actions'] = [
             'can_approve' => $event->isPendingReview(),
             'can_reject' => $event->isPendingReview(),
+            'can_delete' => $event->getStartDate() > new \DateTimeImmutable() || $event->isCancelled(), // ✅ NOUVEAU
             'can_hide' => $event->isVisible(),
             'can_show' => $event->isHidden(),
             'can_cancel' => !$event->isFinished() && !$event->isCancelled()
@@ -815,3 +1034,4 @@ class EventAdminController extends AbstractController
         return $data;
     }
 }
+    

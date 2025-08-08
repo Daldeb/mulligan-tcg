@@ -36,19 +36,6 @@ class EventRepository extends ServiceEntityRepository
     }
 
     /**
-     * Trouve les événements en attente de validation admin
-     */
-    public function findPendingReview(): array
-    {
-        return $this->createQueryBuilder('e')
-            ->where('e.status = :pending')
-            ->setParameter('pending', Event::STATUS_PENDING_REVIEW)
-            ->orderBy('e.createdAt', 'ASC')
-            ->getQuery()
-            ->getResult();
-    }
-
-    /**
      * Trouve les événements à venir (approuvés et visibles)
      */
     public function findUpcoming(int $limit = 10): array
@@ -423,4 +410,311 @@ class EventRepository extends ServiceEntityRepository
                   ->getQuery()
                   ->getResult();
     }
+
+    /**
+ * Trouve les événements dans une plage de temps pour les notifications
+ */
+public function findEventsInTimeRange(
+    \DateTimeImmutable $from, 
+    \DateTimeImmutable $to, 
+    array $statuses = ['APPROVED']
+): array {
+    $qb = $this->createQueryBuilder('e')
+        ->andWhere('e.startDate >= :from')
+        ->andWhere('e.startDate <= :to')
+        ->andWhere('e.status IN (:statuses)')
+        ->andWhere('e.visibility = :visibility')
+        ->setParameter('from', $from)
+        ->setParameter('to', $to)
+        ->setParameter('statuses', $statuses)
+        ->setParameter('visibility', Event::VISIBILITY_VISIBLE)
+        ->orderBy('e.startDate', 'ASC');
+
+    return $qb->getQuery()->getResult();
+}
+
+/**
+ * Trouve les événements qui se terminent dans une plage de temps
+ */
+public function findEventsEndingInTimeRange(
+    \DateTimeImmutable $from, 
+    \DateTimeImmutable $to, 
+    array $statuses = ['IN_PROGRESS']
+): array {
+    $qb = $this->createQueryBuilder('e')
+        ->andWhere('e.endDate IS NOT NULL')
+        ->andWhere('e.endDate >= :from')
+        ->andWhere('e.endDate <= :to')
+        ->andWhere('e.status IN (:statuses)')
+        ->andWhere('e.visibility = :visibility')
+        ->setParameter('from', $from)
+        ->setParameter('to', $to)
+        ->setParameter('statuses', $statuses)
+        ->setParameter('visibility', Event::VISIBILITY_VISIBLE)
+        ->orderBy('e.endDate', 'ASC');
+
+    return $qb->getQuery()->getResult();
+}
+
+/**
+ * Trouve les événements terminés dans une plage de temps
+ */
+public function findEventsEndedInTimeRange(
+    \DateTimeImmutable $from, 
+    \DateTimeImmutable $to, 
+    array $statuses = ['IN_PROGRESS', 'FINISHED']
+): array {
+    $qb = $this->createQueryBuilder('e')
+        ->andWhere('e.status IN (:statuses)')
+        ->andWhere('e.visibility = :visibility')
+        ->setParameter('statuses', $statuses)
+        ->setParameter('visibility', Event::VISIBILITY_VISIBLE)
+        ->orderBy('e.startDate', 'ASC');
+
+    // Si endDate est définie, l'utiliser, sinon utiliser startDate comme approximation
+    $qb->andWhere(
+        $qb->expr()->orX(
+            $qb->expr()->andX(
+                'e.endDate IS NOT NULL',
+                'e.endDate >= :from',
+                'e.endDate <= :to'
+            ),
+            $qb->expr()->andX(
+                'e.endDate IS NULL',
+                'e.startDate >= :from_start',
+                'e.startDate <= :to_start'
+            )
+        )
+    );
+
+    $qb->setParameter('from', $from)
+       ->setParameter('to', $to)
+       ->setParameter('from_start', $from->modify('-6 hours')) // Approximation pour événements sans endDate
+       ->setParameter('to_start', $to->modify('-6 hours'));
+
+    return $qb->getQuery()->getResult();
+}
+
+/**
+ * Compte les événements par statut
+ */
+public function countByStatus(string $status): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.status = :status')
+        ->setParameter('status', $status)
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Compte les événements par visibilité
+ */
+public function countByVisibility(string $visibility): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.visibility = :visibility')
+        ->setParameter('visibility', $visibility)
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Trouve les événements en attente de validation
+ */
+public function findPendingReview(int $limit = null): array
+{
+    $qb = $this->createQueryBuilder('e')
+        ->andWhere('e.status = :status')
+        ->setParameter('status', Event::STATUS_PENDING_REVIEW)
+        ->orderBy('e.createdAt', 'ASC');
+
+    if ($limit) {
+        $qb->setMaxResults($limit);
+    }
+
+    return $qb->getQuery()->getResult();
+}
+
+/**
+ * Trouve les événements en attente depuis X jours
+ */
+public function findOldPendingReview(int $daysSince): array
+{
+    $since = new \DateTimeImmutable("-{$daysSince} days");
+    
+    return $this->createQueryBuilder('e')
+        ->andWhere('e.status = :status')
+        ->andWhere('e.createdAt <= :since')
+        ->setParameter('status', Event::STATUS_PENDING_REVIEW)
+        ->setParameter('since', $since)
+        ->orderBy('e.createdAt', 'ASC')
+        ->getQuery()
+        ->getResult();
+}
+
+/**
+ * Trouve les événements à venir non validés (danger)
+ */
+public function findUpcomingUnvalidated(int $hoursUntilStart): array
+{
+    $deadline = new \DateTimeImmutable("+{$hoursUntilStart} hours");
+    
+    return $this->createQueryBuilder('e')
+        ->andWhere('e.status IN (:statuses)')
+        ->andWhere('e.startDate <= :deadline')
+        ->andWhere('e.startDate >= :now')
+        ->setParameter('statuses', [Event::STATUS_PENDING_REVIEW, Event::STATUS_DRAFT])
+        ->setParameter('deadline', $deadline)
+        ->setParameter('now', new \DateTimeImmutable())
+        ->orderBy('e.startDate', 'ASC')
+        ->getQuery()
+        ->getResult();
+}
+
+/**
+ * Compte les événements créés depuis une date
+ */
+public function countCreatedSince(\DateTimeImmutable $since): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.createdAt >= :since')
+        ->setParameter('since', $since)
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Compte les événements approuvés depuis une date
+ */
+public function countApprovedSince(\DateTimeImmutable $since): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.status = :status')
+        ->andWhere('e.reviewedAt >= :since')
+        ->setParameter('status', Event::STATUS_APPROVED)
+        ->setParameter('since', $since)
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Compte les événements rejetés depuis une date
+ */
+public function countRejectedSince(\DateTimeImmutable $since): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.status = :status')
+        ->andWhere('e.reviewedAt >= :since')
+        ->setParameter('status', Event::STATUS_REJECTED)
+        ->setParameter('since', $since)
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Statistiques par type d'événement
+ */
+public function countByTypeAndPeriod(string $eventType, \DateTimeImmutable $since): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.eventType = :eventType')
+        ->andWhere('e.createdAt >= :since')
+        ->setParameter('eventType', $eventType)
+        ->setParameter('since', $since)
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Statistiques par type d'organisateur
+ */
+public function countByOrganizerTypeAndPeriod(string $organizerType, \DateTimeImmutable $since): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.organizerType = :organizerType')
+        ->andWhere('e.createdAt >= :since')
+        ->setParameter('organizerType', $organizerType)
+        ->setParameter('since', $since)
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Trouve les événements avec des actions admin récentes
+ */
+public function findWithAdminActions(int $limit = 50, int $offset = 0): array
+{
+    return $this->createQueryBuilder('e')
+        ->andWhere('e.reviewedBy IS NOT NULL')
+        ->andWhere('e.reviewedAt IS NOT NULL')
+        ->orderBy('e.reviewedAt', 'DESC')
+        ->setMaxResults($limit)
+        ->setFirstResult($offset)
+        ->getQuery()
+        ->getResult();
+}
+
+/**
+ * Compte les événements avec des actions admin
+ */
+public function countWithAdminActions(): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.reviewedBy IS NOT NULL')
+        ->andWhere('e.reviewedAt IS NOT NULL')
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Compte tous les événements
+ */
+public function countAll(): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Compte les événements par créateur
+ */
+public function countByCreator(User $creator): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.createdBy = :creator')
+        ->setParameter('creator', $creator)
+        ->getQuery()
+        ->getSingleScalarResult();
+}
+
+/**
+ * Compte les événements actifs par créateur
+ */
+public function countActiveByCreator(User $creator): int
+{
+    return $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)')
+        ->andWhere('e.createdBy = :creator')
+        ->andWhere('e.status IN (:activeStatuses)')
+        ->setParameter('creator', $creator)
+        ->setParameter('activeStatuses', [
+            Event::STATUS_APPROVED, 
+            Event::STATUS_IN_PROGRESS, 
+            Event::STATUS_PENDING_REVIEW
+        ])
+        ->getQuery()
+        ->getSingleScalarResult();
+}
 }

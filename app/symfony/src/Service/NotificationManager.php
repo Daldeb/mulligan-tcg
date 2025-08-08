@@ -4,15 +4,24 @@ namespace App\Service;
 
 use App\Entity\Notification;
 use App\Entity\User;
+use App\Entity\Event;
+use App\Entity\EventRegistration;
+use App\Entity\Tournament;
 use App\Entity\RoleRequest;
 use App\Repository\NotificationRepository;
+use App\Repository\EventRepository;
+use App\Repository\EventRegistrationRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 
 class NotificationManager
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private NotificationRepository $notificationRepository
+        private NotificationRepository $notificationRepository,
+        private EventRepository $eventRepository,
+        private EventRegistrationRepository $registrationRepository,
+        private LoggerInterface $logger
     ) {}
 
     /**
@@ -26,7 +35,11 @@ class NotificationManager
         ?array $data = null,
         ?string $actionUrl = null,
         ?string $actionLabel = null,
-        ?string $icon = null
+        ?string $icon = null,
+        ?Event $relatedEvent = null,
+        ?User $relatedUser = null,
+        string $priority = 'normal',
+        ?string $category = null
     ): Notification {
         $notification = new Notification();
         $notification->setUser($user)
@@ -36,13 +49,24 @@ class NotificationManager
             ->setData($data)
             ->setActionUrl($actionUrl)
             ->setActionLabel($actionLabel)
-            ->setIcon($icon);
+            ->setIcon($icon)
+            ->setRelatedEvent($relatedEvent)
+            ->setRelatedUser($relatedUser)
+            ->setPriority($priority)
+            ->setCategory($category);
+
+        // Auto-configuration si pas d'icône fournie
+        if (!$icon) {
+            $notification->autoConfigureAppearance();
+        }
 
         $this->entityManager->persist($notification);
         $this->entityManager->flush();
 
         return $notification;
     }
+
+    // ============= MÉTHODES EXISTANTES (INCHANGÉES) =============
 
     /**
      * Crée une notification pour demande de rôle approuvée
@@ -65,7 +89,9 @@ class NotificationManager
             ],
             actionUrl: '/profile',
             actionLabel: 'Voir mon profil',
-            icon: '🎉'
+            icon: '🎉',
+            category: 'admin',
+            priority: 'high'
         );
     }
 
@@ -96,9 +122,474 @@ class NotificationManager
             ],
             actionUrl: '/profile?tab=roles',
             actionLabel: 'Faire une nouvelle demande',
-            icon: '❌'
+            icon: '❌',
+            category: 'admin',
+            priority: 'high'
         );
     }
+
+    // ============= NOUVELLES MÉTHODES POUR ÉVÉNEMENTS =============
+
+    /**
+     * Notifie l'approbation d'un événement
+     */
+    public function createEventApprovedNotification(Event $event, User $admin, ?string $comment = null): Notification
+    {
+        $creator = $event->getCreatedBy();
+        
+        $message = sprintf(
+            'Votre événement "%s" a été approuvé%s et est maintenant visible publiquement.',
+            $event->getTitle(),
+            $comment ? " avec le commentaire : {$comment}" : ''
+        );
+
+        return $this->create(
+            user: $creator,
+            type: Notification::TYPE_EVENT_APPROVED,
+            title: 'Événement approuvé',
+            message: $message,
+            data: [
+                'event_id' => $event->getId(),
+                'admin_id' => $admin->getId(),
+                'admin_comment' => $comment,
+                'approved_at' => (new \DateTimeImmutable())->format('c')
+            ],
+            relatedEvent: $event,
+            relatedUser: $admin,
+            priority: 'high',
+            category: 'admin'
+        );
+    }
+
+    /**
+     * Notifie le refus d'un événement
+     */
+    public function createEventRejectedNotification(Event $event, User $admin, string $reason): Notification
+    {
+        $creator = $event->getCreatedBy();
+        
+        $message = sprintf(
+            'Votre événement "%s" a été refusé. Motif : %s. Vous pouvez le modifier et le re-soumettre.',
+            $event->getTitle(),
+            $reason
+        );
+
+        return $this->create(
+            user: $creator,
+            type: Notification::TYPE_EVENT_REJECTED,
+            title: 'Événement refusé',
+            message: $message,
+            data: [
+                'event_id' => $event->getId(),
+                'admin_id' => $admin->getId(),
+                'rejection_reason' => $reason,
+                'rejected_at' => (new \DateTimeImmutable())->format('c')
+            ],
+            relatedEvent: $event,
+            relatedUser: $admin,
+            priority: 'high',
+            category: 'admin'
+        );
+    }
+
+    /**
+     * Notifie la suppression d'un événement
+     */
+    public function createEventDeletedNotification(Event $event, User $admin, string $reason): Notification
+    {
+        $creator = $event->getCreatedBy();
+        
+        $message = sprintf(
+            'Votre événement "%s" a été supprimé définitivement. Motif : %s',
+            $event->getTitle(),
+            $reason
+        );
+
+        return $this->create(
+            user: $creator,
+            type: Notification::TYPE_EVENT_DELETED,
+            title: 'Événement supprimé',
+            message: $message,
+            data: [
+                'event_title' => $event->getTitle(), // Pas d'event_id car supprimé
+                'admin_id' => $admin->getId(),
+                'deletion_reason' => $reason,
+                'deleted_at' => (new \DateTimeImmutable())->format('c')
+            ],
+            actionUrl: '/mes-evenements',
+            actionLabel: 'Voir mes événements',
+            icon: 'pi-trash',
+            relatedUser: $admin,
+            priority: 'urgent',
+            category: 'admin'
+        );
+    }
+
+    /**
+     * Notifie une nouvelle inscription à l'organisateur
+     */
+    public function createNewRegistrationNotification(EventRegistration $registration): Notification
+    {
+        $event = $registration->getEvent();
+        $participant = $registration->getUser();
+        $creator = $event->getCreatedBy();
+        
+        $message = sprintf(
+            '%s s\'est inscrit(e) à votre événement "%s" (%d/%s participants)',
+            $participant->getPseudo(),
+            $event->getTitle(),
+            $event->getCurrentParticipants(),
+            $event->getMaxParticipants() ?? '∞'
+        );
+
+        return $this->create(
+            user: $creator,
+            type: Notification::TYPE_NEW_REGISTRATION,
+            title: 'Nouvelle inscription',
+            message: $message,
+            data: [
+                'event_id' => $event->getId(),
+                'participant_id' => $participant->getId(),
+                'participant_pseudo' => $participant->getPseudo(),
+                'current_participants' => $event->getCurrentParticipants(),
+                'max_participants' => $event->getMaxParticipants()
+            ],
+            relatedEvent: $event,
+            relatedUser: $participant,
+            priority: 'normal',
+            category: 'participation'
+        );
+    }
+
+    /**
+     * Notifie la confirmation d'inscription au participant
+     */
+    public function createRegistrationConfirmedNotification(EventRegistration $registration): Notification
+    {
+        $event = $registration->getEvent();
+        $participant = $registration->getUser();
+        
+        $message = sprintf(
+            'Votre inscription à l\'événement "%s" est confirmée ! Rendez-vous le %s.',
+            $event->getTitle(),
+            $event->getStartDate()->format('d/m/Y à H:i')
+        );
+
+        return $this->create(
+            user: $participant,
+            type: Notification::TYPE_REGISTRATION_CONFIRMED,
+            title: 'Inscription confirmée',
+            message: $message,
+            data: [
+                'event_id' => $event->getId(),
+                'registration_id' => $registration->getId(),
+                'event_date' => $event->getStartDate()->format('c')
+            ],
+            relatedEvent: $event,
+            priority: 'high',
+            category: 'participation'
+        );
+    }
+
+    /**
+     * Notifications temporelles pour événements
+     */
+    public function createEventTemporalNotification(
+        User $user,
+        Event $event,
+        string $type,
+        string $title,
+        string $message,
+        string $priority = 'normal'
+    ): Notification {
+        return $this->create(
+            user: $user,
+            type: $type,
+            title: $title,
+            message: $message,
+            data: [
+                'event_id' => $event->getId(),
+                'event_date' => $event->getStartDate()->format('c'),
+                'event_end_date' => $event->getEndDate()?->format('c'),
+                'is_online' => $event->isOnline()
+            ],
+            relatedEvent: $event,
+            priority: $priority,
+            category: 'events'
+        );
+    }
+
+    // ============= MÉTHODES POUR NOTIFICATIONS EN LOT =============
+
+    /**
+     * Envoie une notification à tous les participants d'un événement
+     */
+    public function notifyEventParticipants(
+        Event $event,
+        string $type,
+        string $title,
+        string $message,
+        string $priority = 'normal',
+        ?array $additionalData = null
+    ): int {
+        $registrations = $this->registrationRepository->findActiveByEvent($event);
+        $notificationsSent = 0;
+
+        foreach ($registrations as $registration) {
+            $participant = $registration->getUser();
+            
+            // Éviter les doublons récents
+            if ($this->hasRecentNotification($participant, $event, $type)) {
+                continue;
+            }
+
+            $this->createEventTemporalNotification(
+                $participant,
+                $event,
+                $type,
+                $title,
+                $message,
+                $priority
+            );
+            
+            $notificationsSent++;
+        }
+
+        // Notifier aussi l'organisateur si différent
+        $creator = $event->getCreatedBy();
+        if ($creator && !$this->isUserInRegistrations($creator, $registrations)) {
+            if (!$this->hasRecentNotification($creator, $event, $type)) {
+                $this->createEventTemporalNotification(
+                    $creator,
+                    $event,
+                    $type,
+                    $title . ' (votre événement)',
+                    $message,
+                    $priority
+                );
+                $notificationsSent++;
+            }
+        }
+
+        $this->logger->info('Notifications temporelles envoyées', [
+            'type' => $type,
+            'event_id' => $event->getId(),
+            'notifications_sent' => $notificationsSent
+        ]);
+
+        return $notificationsSent;
+    }
+
+    /**
+     * Traite toutes les notifications automatiques d'événements
+     */
+    public function processAutomaticEventNotifications(): array
+    {
+        $results = [
+            'approaching' => $this->notifyEventsApproaching(),
+            'soon' => $this->notifyEventsSoon(),
+            'starting' => $this->notifyEventsStarting(),
+            'ending_soon' => $this->notifyEventsEndingSoon(),
+            'finished' => $this->notifyEventsFinished()
+        ];
+
+        $total = array_sum($results);
+        
+        $this->logger->info('Traitement automatique des notifications terminé', [
+            'results' => $results,
+            'total_sent' => $total
+        ]);
+
+        return $results;
+    }
+
+    /**
+     * Événements qui approchent (7 jours avant)
+     */
+    public function notifyEventsApproaching(): int
+    {
+        $from = new \DateTimeImmutable('+6 days 23 hours');
+        $to = new \DateTimeImmutable('+7 days 1 hour');
+        
+        $events = $this->eventRepository->findEventsInTimeRange($from, $to, ['APPROVED']);
+        $notificationsSent = 0;
+        
+        foreach ($events as $event) {
+            $count = $this->notifyEventParticipants(
+                $event,
+                Notification::TYPE_EVENT_APPROACHING,
+                'Événement dans 7 jours',
+                sprintf(
+                    'L\'événement "%s" commence dans une semaine (%s).',
+                    $event->getTitle(),
+                    $event->getStartDate()->format('d/m/Y à H:i')
+                ),
+                'normal'
+            );
+            $notificationsSent += $count;
+        }
+        
+        return $notificationsSent;
+    }
+
+    /**
+     * Événements bientôt (2 jours avant)
+     */
+    public function notifyEventsSoon(): int
+    {
+        $from = new \DateTimeImmutable('+1 day 23 hours');
+        $to = new \DateTimeImmutable('+2 days 1 hour');
+        
+        $events = $this->eventRepository->findEventsInTimeRange($from, $to, ['APPROVED']);
+        $notificationsSent = 0;
+        
+        foreach ($events as $event) {
+            $count = $this->notifyEventParticipants(
+                $event,
+                Notification::TYPE_EVENT_SOON,
+                'Événement dans 2 jours',
+                sprintf(
+                    'L\'événement "%s" commence après-demain (%s). N\'oubliez pas !',
+                    $event->getTitle(),
+                    $event->getStartDate()->format('d/m/Y à H:i')
+                ),
+                'high'
+            );
+            $notificationsSent += $count;
+        }
+        
+        return $notificationsSent;
+    }
+
+    /**
+     * Événements qui commencent (1h avant)
+     */
+    public function notifyEventsStarting(): int
+    {
+        $from = new \DateTimeImmutable('+59 minutes');
+        $to = new \DateTimeImmutable('+61 minutes');
+        
+        $events = $this->eventRepository->findEventsInTimeRange($from, $to, ['APPROVED']);
+        $notificationsSent = 0;
+        
+        foreach ($events as $event) {
+            $message = sprintf(
+                'L\'événement "%s" commence dans 1 heure ! %s',
+                $event->getTitle(),
+                $event->isOnline() 
+                    ? 'Préparez-vous à vous connecter.'
+                    : 'N\'oubliez pas de vous rendre sur place.'
+            );
+            
+            $count = $this->notifyEventParticipants(
+                $event,
+                Notification::TYPE_EVENT_STARTING,
+                'Événement commence bientôt !',
+                $message,
+                'urgent'
+            );
+            $notificationsSent += $count;
+        }
+        
+        return $notificationsSent;
+    }
+
+    /**
+     * Événements qui se terminent bientôt (1h avant la fin)
+     */
+    public function notifyEventsEndingSoon(): int
+    {
+        $from = new \DateTimeImmutable('+59 minutes');
+        $to = new \DateTimeImmutable('+61 minutes');
+        
+        $events = $this->eventRepository->findEventsEndingInTimeRange($from, $to, ['IN_PROGRESS']);
+        $notificationsSent = 0;
+        
+        foreach ($events as $event) {
+            $count = $this->notifyEventParticipants(
+                $event,
+                Notification::TYPE_EVENT_ENDING_SOON,
+                'Événement se termine bientôt',
+                sprintf(
+                    'L\'événement "%s" se termine dans 1 heure. Profitez des derniers moments !',
+                    $event->getTitle()
+                ),
+                'high'
+            );
+            $notificationsSent += $count;
+        }
+        
+        return $notificationsSent;
+    }
+
+    /**
+     * Événements terminés
+     */
+    public function notifyEventsFinished(): int
+    {
+        $from = new \DateTimeImmutable('-1 hour');
+        $to = new \DateTimeImmutable();
+        
+        $events = $this->eventRepository->findEventsEndedInTimeRange($from, $to, ['IN_PROGRESS', 'FINISHED']);
+        $notificationsSent = 0;
+        
+        foreach ($events as $event) {
+            // Marquer l'événement comme terminé s'il ne l'est pas déjà
+            if ($event->getStatus() !== Event::STATUS_FINISHED) {
+                $event->finish();
+            }
+            
+            $count = $this->notifyEventParticipants(
+                $event,
+                Notification::TYPE_EVENT_FINISHED,
+                'Événement terminé',
+                sprintf(
+                    'L\'événement "%s" est maintenant terminé. Merci de votre participation !',
+                    $event->getTitle()
+                ),
+                'normal'
+            );
+            $notificationsSent += $count;
+        }
+        
+        if ($notificationsSent > 0) {
+            $this->entityManager->flush();
+        }
+        
+        return $notificationsSent;
+    }
+
+    // ============= MÉTHODES UTILITAIRES =============
+
+    /**
+     * Vérifie si une notification récente existe
+     */
+    private function hasRecentNotification(User $user, Event $event, string $type, int $hoursBack = 2): bool
+    {
+        $since = new \DateTimeImmutable("-{$hoursBack} hours");
+        
+        return $this->notificationRepository->existsRecentNotificationForUserAndEvent(
+            $user,
+            $event,
+            $type,
+            $since
+        );
+    }
+
+    /**
+     * Vérifie si un utilisateur est dans la liste des inscriptions
+     */
+    private function isUserInRegistrations(User $user, array $registrations): bool
+    {
+        foreach ($registrations as $registration) {
+            if ($registration->getUser()->getId() === $user->getId()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ============= MÉTHODES EXISTANTES (INCHANGÉES) =============
 
     /**
      * Marque une notification comme lue
@@ -141,6 +632,30 @@ class NotificationManager
     public function getRecentNotifications(User $user, int $offset = 0, int $limit = 6): array
     {
         return $this->notificationRepository->findRecentForProfile($user, $offset, $limit);
+    }
+
+        /**
+     * Getter pour accès au EventRepository
+     */
+    public function getEventRepository(): EventRepository
+    {
+        return $this->eventRepository;
+    }
+
+    /**
+     * Getter pour accès au NotificationRepository  
+     */
+    public function getNotificationRepository(): NotificationRepository
+    {
+        return $this->notificationRepository;
+    }
+
+    /**
+     * Getter pour accès au EventRegistrationRepository
+     */
+    public function getEventRegistrationRepository(): EventRegistrationRepository
+    {
+        return $this->registrationRepository;
     }
 
     /**
@@ -193,8 +708,10 @@ class NotificationManager
             'timeAgo' => $notification->getTimeAgo(),
             'actionUrl' => $notification->getActionUrl(),
             'actionLabel' => $notification->getActionLabel(),
-            'icon' => $notification->getIcon(),
-            'typeLabel' => $notification->getTypeLabel()
+            'icon' => $notification->getIcon() ?: $notification->getDefaultIcon(),
+            'typeLabel' => $notification->getTypeLabel(),
+            'priority' => $notification->getPriority(),
+            'category' => $notification->getCategory()
         ];
     }
 
@@ -217,8 +734,9 @@ class NotificationManager
                 'title' => $notification->getTitle(),
                 'message' => $notification->getMessage(),
                 'timeAgo' => $notification->getTimeAgo(),
-                'icon' => $notification->getIcon(),
-                'actionUrl' => $notification->getActionUrl()
+                'icon' => $notification->getIcon() ?: $notification->getDefaultIcon(),
+                'actionUrl' => $notification->getActionUrl(),
+                'priority' => $notification->getPriority()
             ];
         }, $notifications);
     }
@@ -236,16 +754,18 @@ class NotificationManager
                 'message' => $notification->getMessage(),
                 'isRead' => $notification->isRead(),
                 'timeAgo' => $notification->getTimeAgo(),
-                'icon' => $notification->getIcon(),
+                'icon' => $notification->getIcon() ?: $notification->getDefaultIcon(),
                 'actionUrl' => $notification->getActionUrl(),
                 'actionLabel' => $notification->getActionLabel(),
-                'createdAt' => $notification->getCreatedAt()->format('Y-m-d H:i:s')
+                'createdAt' => $notification->getCreatedAt()->format('Y-m-d H:i:s'),
+                'priority' => $notification->getPriority(),
+                'category' => $notification->getCategory()
             ];
         }, $notifications);
     }
 
     /**
-     * Template pour futures notifications d'événements
+     * Template pour futures notifications d'événements (DÉPRÉCIÉE - utiliser les nouvelles méthodes)
      */
     public function createEventNotification(User $user, array $eventData): Notification
     {
@@ -262,12 +782,13 @@ class NotificationManager
             ],
             actionUrl: "/events/{$eventData['id']}",
             actionLabel: 'Voir l\'événement',
-            icon: '📅'
+            icon: '📅',
+            category: 'events'
         );
     }
 
     /**
-     * Template pour futures notifications de réponses
+     * Template pour futures notifications de réponses (INCHANGÉE)
      */
     public function createReplyNotification(User $user, array $replyData): Notification
     {
@@ -284,7 +805,8 @@ class NotificationManager
             ],
             actionUrl: "/topics/{$replyData['topic_id']}#{$replyData['id']}",
             actionLabel: 'Voir la réponse',
-            icon: '💬'
+            icon: '💬',
+            category: 'social'
         );
     }
 

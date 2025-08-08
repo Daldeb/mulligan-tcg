@@ -81,6 +81,7 @@ class ProfileController extends AbstractController
             'roles' => $user->getRoles(),
             'isVerified' => $user->isVerified(),
             'selectedGames' => $user->getSelectedGames(),
+            'followedEvents' => $user->getFollowedEvents(),
             'stats' => [
                 'topicsCreated' => $topicsCreated,
                 'topicsParticipated' => $topicsParticipated

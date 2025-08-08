@@ -25,11 +25,21 @@ fs.readdirSync(outputDir).forEach(file => {
 console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
 
 (async () => {
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    defaultViewport: null,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+const browser = await puppeteer.launch({
+  headless: 'new',
+  executablePath: '/usr/bin/google-chrome-stable',
+  defaultViewport: null,
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--no-zygote',
+    '--single-process',
+    '--disable-gpu'
+  ]
+});
 
   const page = await browser.newPage();
   await page.setViewport({

@@ -16,6 +16,8 @@ export const useAuthStore = defineStore('auth', () => {
   // Computed pour vérifier si l'utilisateur a des jeux sélectionnés
   const hasSelectedGames = computed(() => selectedGames.value.length > 0)
 
+  const followedEvents = computed(() => user.value?.followedEvents || [])
+
   const login = async (email, password) => {
     isLoading.value = true
 
@@ -29,7 +31,10 @@ export const useAuthStore = defineStore('auth', () => {
 
         try {
           const profileResponse = await api.get('/api/profile')
-          user.value = profileResponse.data
+          user.value = {
+            ...profileResponse.data,
+            followedEvents: profileResponse.data.followedEvents || [] 
+          }
         } catch (err) {
           console.warn('⚠️ Impossible de récupérer le profil après login.')
           user.value = null
@@ -66,10 +71,12 @@ export const useAuthStore = defineStore('auth', () => {
         token.value = response.data.token
         localStorage.setItem('auth_token', response.data.token)
         api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`
-
         try {
           const profileResponse = await api.get('/api/profile')
-          user.value = profileResponse.data
+          user.value = {
+            ...profileResponse.data,
+            followedEvents: profileResponse.data.followedEvents || [] 
+          }
         } catch (err) {
           console.warn('⚠️ Impossible de récupérer le profil après inscription.')
           user.value = null
@@ -109,7 +116,10 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
       const response = await api.get('/api/profile')
-      user.value = response.data
+      user.value = {
+        ...response.data,
+        followedEvents: response.data.followedEvents || []
+      }
     } catch (error) {
       console.error('Token invalide:', error)
       logout()
@@ -180,6 +190,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     selectedGames,
     hasSelectedGames,
+    followedEvents,
     login,
     register,
     logout,

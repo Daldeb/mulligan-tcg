@@ -81,6 +81,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $lastLoginAt = null;
 
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $followedEvents = null;
+
     /**
      * Adresse de l'utilisateur (optionnelle)
      */
@@ -206,6 +209,39 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->verificationToken = $verificationToken;
         return $this;
+    }
+
+    public function getFollowedEvents(): ?array
+    {
+        return $this->followedEvents ?? [];
+    }
+
+    public function setFollowedEvents(?array $followedEvents): static
+    {
+        $this->followedEvents = $followedEvents;
+        return $this;
+    }
+
+    public function followEvent(int $eventId): static
+    {
+        $followed = $this->getFollowedEvents();
+        if (!in_array($eventId, $followed)) {
+            $followed[] = $eventId;
+            $this->followedEvents = $followed;
+        }
+        return $this;
+    }
+
+    public function unfollowEvent(int $eventId): static
+    {
+        $followed = $this->getFollowedEvents();
+        $this->followedEvents = array_values(array_filter($followed, fn($id) => $id !== $eventId));
+        return $this;
+    }
+
+    public function isFollowingEvent(int $eventId): bool
+    {
+        return in_array($eventId, $this->getFollowedEvents());
     }
 
     public function getVerificationTokenExpiresAt(): ?\DateTimeImmutable
@@ -434,6 +470,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $validIds = array_filter($gameIds, fn($id) => is_int($id) && $id > 0);
         $this->selectedGames = empty($validIds) ? null : array_values(array_unique($validIds));
         return $this;
+    }
+
+    /**
+     * Retourne seulement les IDs des événements suivis (pour JSON)
+     */
+    public function getFollowedEventIds(): array
+    {
+        return $this->getFollowedEvents();
     }
 
     // ============= NOUVELLES MÉTHODES POUR GESTION BOUTIQUE =============
