@@ -115,25 +115,26 @@
                   </label>
                   <div class="range-slider-wrapper">
                     <!-- Slider min -->
-                    <input 
-                      type="range" 
-                      :min="0" 
-                      :max="10000" 
-                      :step="200"
-                      v-model="hearthstoneFilters.dustCost.min"
-                      class="range-slider range-min"
-                      @input="handleDustRangeChange"
-                    />
-                    <!-- Slider max -->
-                    <input 
-                      type="range" 
-                      :min="0" 
-                      :max="10000" 
-                      :step="200"
-                      v-model="hearthstoneFilters.dustCost.max"
-                      class="range-slider range-max"
-                      @input="handleDustRangeChange"
-                    />
+                      <input
+                        type="range"
+                        :min="0"
+                        :max="10000"
+                        :step="200"
+                        v-model="hearthstoneFilters.dustCost.min"
+                        class="range-slider min"
+                        @mousedown="activeHandle = 'min'"
+                        @input="handleDustRangeChange"
+                      />
+                      <input
+                        type="range"
+                        :min="0"
+                        :max="10000"
+                        :step="200"
+                        v-model="hearthstoneFilters.dustCost.max"
+                        class="range-slider max"
+                        @mousedown="activeHandle = 'max'"
+                        @input="handleDustRangeChange"
+                      />
                     <!-- Track visuel -->
                     <div class="range-track">
                       <div class="range-track-fill" :style="dustRangeStyle"></div>
@@ -930,6 +931,19 @@ const dustRangeStyle = computed(() => {
     width: `${maxPercent - minPercent}%`
   }
 })
+
+const minSliderHit = computed(() => {
+  const max = hearthstoneFilters.value.dustCost.max
+  const maxPercent = Math.min(Math.max((max / 10000) * 100, 0), 100)
+  return { left: '0%', width: `${maxPercent}%` }
+})
+
+const maxSliderHit = computed(() => {
+  const min = hearthstoneFilters.value.dustCost.min
+  const minPercent = Math.min(Math.max((min / 10000) * 100, 0), 100)
+  return { left: `${minPercent}%`, width: `${100 - minPercent}%` }
+})
+
 
 // Computed pour les decks filtrés par jeu
 const filteredHearthstoneDecks = computed(() => {
@@ -2396,20 +2410,22 @@ onMounted(async () => {
 
 /* Ligne principale des filtres */
 .filters-main-row {
-  display: flex;
-  gap: 2rem;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  column-gap: 2rem;
+  row-gap: 1rem;
+  align-items: flex-start; /* au lieu de center */
 }
 
 .filter-group-label {
   display: block;
+  height: 18px;           /* hauteur standardisée */
+  line-height: 18px;      /* texte centré verticalement */
+  margin-bottom: 8px;     /* espace avant le contrôle */
   font-size: 0.9rem;
   font-weight: 700;
-  color: #d97706;
   text-transform: uppercase;
   letter-spacing: 1px;
-  margin-bottom: 0.75rem;
 }
 
 /* === CHECKBOXES CLASSES AVEC IMAGES === */
@@ -2597,97 +2613,91 @@ onMounted(async () => {
   100% { transform: scale(1); opacity: 1; }
 }
 
-/* === SLIDER COÛT POUSSIÈRE === */
-.dust-cost-filter-group {
-  min-width: 250px;
-  flex: 1;
-}
+/* === SLIDER COÛT POUSSIÈRE — PATCH PROPRE === */
+.dust-cost-filter-group { min-width: 250px; flex: 1; }
 
-.dust-range-display {
-  font-weight: 600;
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-  padding: 0.25rem 0.5rem;
-  border-radius: 8px;
-  font-size: 0.8rem;
-}
-
+/* Wrapper plus haut pour que les thumbs ne mangent pas la piste */
 .range-slider-wrapper {
   position: relative;
-  height: 40px;
+  height: 48px;              /* + hauteur pour respirer */
   display: flex;
   align-items: center;
 }
 
+/* Input range au bon z-index, centré verticalement */
 .range-slider {
   position: absolute;
-  width: 100%;
-  height: 6px;
+  top: 14px;               /* garde ton centrage vertical */
+  height: 20px;            /* zone de clic confortable */
   background: transparent;
   outline: none;
   -webkit-appearance: none;
   cursor: pointer;
 }
 
-.range-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  background: #d97706;
-  border-radius: 50%;
-  cursor: pointer;
-  border: 3px solid white;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  transition: all var(--transition-fast);
-}
+/* Assure l’ordre d’empilement (au cas où) */
+.range-min { z-index: 3; }
+.range-max { z-index: 2; }
 
-.range-slider::-webkit-slider-thumb:hover {
-  background: #b45309;
-  transform: scale(1.2);
-  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.4);
-}
+/* Optionnel : petit nudge vertical si besoin */
+.range-slider::-webkit-slider-thumb { margin-top: -2px; }
+.range-slider::-moz-range-thumb { margin-top: -2px; }
 
-.range-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  background: #d97706;
-  border-radius: 50%;
-  border: 3px solid white;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
 
+/* Piste visuelle custom (sous l’input) */
 .range-track {
   position: absolute;
-  width: 100%;
-  height: 6px;
+  left: 0; right: 0;
+  top: 22px;                 /* centre la piste par rapport au wrapper */
+  height: 8px;               /* un poil plus épais, look + clean */
   background: #e5e7eb;
-  border-radius: 3px;
-  z-index: -1;
+  border-radius: 999px;
+  z-index: 1;
 }
 
+/* Segment rempli */
 .range-track-fill {
   position: absolute;
-  height: 100%;
+  left: 0;
+  top: 22px;
+  height: 8px;
   background: linear-gradient(90deg, #d97706, #f59e0b);
-  border-radius: 3px;
-  transition: all var(--transition-fast);
-  box-shadow: 0 2px 4px rgba(217, 119, 6, 0.3);
+  border-radius: 999px;
+  transition: width 0.15s ease;
+  box-shadow: 0 2px 4px rgba(217,119,6,0.25);
+  z-index: 2;                /* au-dessus de la piste, sous les thumbs */
 }
 
-.range-input-group label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Thumbs WebKit */
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #d97706;                     /* couleur Hearthstone */
+  border: 3px solid #fff;
+  box-shadow: 0 2px 10px rgba(217,119,6,0.35);
+  transition: transform .15s ease, background .15s ease;
+  transform: translateY(-4px);             /* remonte le thumb => ne mord plus la piste */
+}
+.range-slider::-webkit-slider-thumb:hover { transform: translateY(-4px) scale(1.05); background:#b45309; }
+.range-slider:focus-visible::-webkit-slider-thumb { outline: 3px solid rgba(217,119,6,0.35); outline-offset: 2px; }
+
+/* Firefox */
+.range-slider::-moz-range-thumb {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #d97706; border: 3px solid #fff;
+  box-shadow: 0 2px 10px rgba(217,119,6,0.35);
+}
+.range-slider::-moz-range-track { background: transparent; }
+
+/* Badge de valeurs */
+.dust-range-display {
+  font-weight: 600; color: #f59e0b;
+  background: rgba(245,158,11,0.1);
+  padding: 0.25rem 0.5rem; border-radius: 8px; font-size: .8rem;
 }
 
-.range-number-input:focus {
-  border-color: #d97706;
-  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.1);
-  outline: none;
-}
 
 @media (max-width: 1024px) {
   .classes-inline-row {
@@ -2825,9 +2835,10 @@ onMounted(async () => {
 /* === ACTIONS FILTRES === */
 .filters-actions-group {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;   /* horizontal */
+  align-items: center;
   gap: 0.75rem;
-  align-items: flex-end;
+  padding-top: 26px;     /* = hauteur label (18) + marge (8) */
 }
 
 :deep(.filter-sort-dropdown) {
@@ -2848,15 +2859,17 @@ onMounted(async () => {
   box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.2) !important;
 }
 
+:deep(.filter-sort-dropdown),
+:deep(.magic-dropdown) {
+  min-width: 180px !important;
+  height: 42px !important;
+}
 :deep(.reset-filters-btn) {
-  background: none !important;
-  border: 2px solid #ef4444 !important;
-  color: #ef4444 !important;
-  width: 40px !important;
-  height: 40px !important;
-  border-radius: 50% !important;
-  transition: all var(--transition-fast) !important;
-  opacity: 0.8;
+  width: 42px !important;
+  height: 42px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 :deep(.reset-filters-btn:hover) {
@@ -2940,8 +2953,8 @@ onMounted(async () => {
   }
   
   :deep(.filter-sort-dropdown) {
-    min-width: auto !important;
-    width: 100% !important;
+    min-width: 180px !important;
+    height: 42px !important;
   }
 }
 
@@ -3204,4 +3217,25 @@ onMounted(async () => {
     gap: 1rem;
   }
 }
+
+.dust-slider {
+  max-width: 220px !important; /* limite la longueur */
+}
+
+.dust-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  background: var(--surface-300);
+  border-radius: 3px;
+}
+
+.dust-slider::-moz-range-track {
+  height: 6px;
+  background: var(--surface-300);
+  border-radius: 3px;
+}
+
+.range-slider.min { z-index: 3; }
+.range-slider.max { z-index: 2; }
+
+
 </style>
