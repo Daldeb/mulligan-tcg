@@ -5,12 +5,25 @@
         
         <!-- Header du deck -->
         <div class="deck-header">
+          
+          <!-- Titre avec icône de classe -->
           <div class="deck-title-section">
             <div class="deck-title-line">
-              <div class="class-icon" :class="`class-${deck.hearthstoneClass}`">
-                {{ getClassIcon(deck.hearthstoneClass) }}
+              <div class="class-icon">
+                <img 
+                  :src="getClassIcon(deck.hearthstoneClass)" 
+                  :alt="getClassDisplayName(deck.hearthstoneClass)"
+                  class="class-icon-image"
+                />
               </div>
-              <h3 class="deck-name">{{ deck.title }}</h3>
+              
+              <div class="deck-title-content">
+                <h3 class="deck-name">{{ deck.title }}</h3>
+                <div class="class-name-display">
+                  {{ getClassDisplayName(deck.hearthstoneClass) }}
+                </div>
+              </div>
+              
               <div class="deck-visibility">
                 <i :class="deck.isPublic ? 'pi pi-globe' : 'pi pi-lock'" 
                    :style="{ color: deck.isPublic ? 'var(--primary)' : 'var(--text-secondary)' }"
@@ -19,9 +32,8 @@
               </div>
             </div>
             
+            <!-- Métadonnées du deck -->
             <div class="deck-meta-line">
-              <span class="class-name">{{ getClassDisplayName(deck.hearthstoneClass) }}</span>
-              <span class="separator">•</span>
               <span class="format-badge" :class="formatBadgeClass">
                 {{ deck.format.name }}
               </span>
@@ -32,6 +44,7 @@
               <span v-if="isComplete" class="complete-badge">COMPLET</span>
             </div>
             
+            <!-- Statistiques du deck -->
             <div class="deck-stats-line">
               <span class="dust-cost">
                 <i class="pi pi-circle-fill dust-icon"></i>
@@ -41,6 +54,15 @@
               <span class="avg-cost">
                 Coût moy: {{ deck.averageCost?.toFixed(1) || '0.0' }}
               </span>
+              
+              <!-- Affichage des likes en mode community -->
+              <template v-if="showLike">
+                <span class="separator">•</span>
+                <span class="likes-display">
+                  <i class="pi pi-heart"></i>
+                  {{ likesCount }}
+                </span>
+              </template>
             </div>
           </div>
         </div>
@@ -77,58 +99,58 @@
           </div>
         </div>
 
-<!-- Actions du deck -->
-<div class="deck-actions">
-  <Button 
-    :label="isExpanded ? 'Masquer' : 'Voir les cartes'"
-    :icon="isExpanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
-    class="expand-btn"
-    @click="toggleExpanded"
-    :disabled="!deck.cards || deck.cards.length === 0"
-  />
-  
-  <div class="action-buttons">
-    <!-- ✅ BOUTON LIKE (seulement en mode community) -->
-    <Button 
-      v-if="showLike"
-      :icon="isLiked ? 'pi pi-heart-fill' : 'pi pi-heart'"
-      :class="['action-btn', 'like-btn', { 'liked': isLiked }]"
-      @click="toggleLike"
-      :label="likesCount.toString()"
-      v-tooltip="isLiked ? 'Ne plus aimer' : 'Aimer ce deck'"
-      size="small"
-    />
-    
-    <!-- ✅ BOUTON EDIT (seulement si propriétaire et context my-decks) -->
-    <Button 
-      v-if="canEdit"
-      icon="pi pi-pencil"
-      class="action-btn edit-btn"
-      @click="$emit('edit', deck)"
-      v-tooltip="'Éditer le deck'"
-      size="small"
-    />
-    
-    <!-- ✅ BOUTON COPY (toujours présent) -->
-    <Button 
-      icon="pi pi-copy"
-      class="action-btn copy-btn"
-      @click="$emit('copyDeckcode', deck)"
-      v-tooltip="'Copier le deckcode'"
-      size="small"
-    />
-    
-    <!-- ✅ BOUTON DELETE (seulement si propriétaire et context my-decks) -->
-    <Button 
-      v-if="canDelete"
-      icon="pi pi-trash"
-      class="action-btn delete-btn"
-      @click="$emit('delete', deck)"
-      v-tooltip="'Supprimer le deck'"
-      size="small"
-    />
-  </div>
-</div>
+        <!-- Actions du deck -->
+        <div class="deck-actions">
+          <Button 
+            :label="isExpanded ? 'Masquer' : 'Voir les cartes'"
+            :icon="isExpanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+            class="expand-btn"
+            @click="toggleExpanded"
+            :disabled="!deck.cards || deck.cards.length === 0"
+          />
+          
+          <div class="action-buttons">
+            <!-- Bouton like (seulement en mode community) -->
+            <Button 
+              v-if="showLike"
+              :icon="isLiked ? 'pi pi-heart-fill' : 'pi pi-heart'"
+              :class="['action-btn', 'like-btn', { 'liked': isLiked }]"
+              @click="toggleLike"
+              :label="likesCount.toString()"
+              v-tooltip="isLiked ? 'Ne plus aimer' : 'Aimer ce deck'"
+              size="small"
+            />
+            
+            <!-- Bouton edit (seulement si propriétaire et context my-decks) -->
+            <Button 
+              v-if="canEdit"
+              icon="pi pi-pencil"
+              class="action-btn edit-btn"
+              @click="$emit('edit', deck)"
+              v-tooltip="'Éditer le deck'"
+              size="small"
+            />
+            
+            <!-- Bouton copy (toujours présent) -->
+            <Button 
+              icon="pi pi-copy"
+              class="action-btn copy-btn"
+              @click="$emit('copyDeckcode', deck)"
+              v-tooltip="'Copier le deckcode'"
+              size="small"
+            />
+            
+            <!-- Bouton delete (seulement si propriétaire et context my-decks) -->
+            <Button 
+              v-if="canDelete"
+              icon="pi pi-trash"
+              class="action-btn delete-btn"
+              @click="$emit('delete', deck)"
+              v-tooltip="'Supprimer le deck'"
+              size="small"
+            />
+          </div>
+        </div>
 
       </div>
     </template>
@@ -148,13 +170,11 @@ const props = defineProps({
     type: Object,
     required: true
   },
-  // ✅ NOUVELLE PROP POUR DIFFÉRENCIER LE CONTEXTE
   context: {
     type: String,
-    default: 'community', // 'community' ou 'my-decks'
+    default: 'community',
     validator: value => ['community', 'my-decks'].includes(value)
   },
-  // ✅ NOUVELLE PROP POUR L'UTILISATEUR CONNECTÉ
   currentUser: {
     type: Object,
     default: null
@@ -172,34 +192,26 @@ const isExpanded = ref(false)
 const isLiked = ref(props.deck.isLiked || false)
 const likesCount = ref(props.deck.likesCount || 0)
 
-// Computed pour vérifier les permissions
-// Computed pour vérifier les permissions
+// Computed - Permissions
 const canEdit = computed(() => {
-  //  En mode my-decks, tous les decks sont éditables par définition
   if (props.context === 'my-decks') {
     return true
   }
-  
-  // En mode community, vérifier la propriété user
-  return props.currentUser && 
-         props.deck.user?.id === props.currentUser.id
+  return props.currentUser && props.deck.user?.id === props.currentUser.id
 })
 
 const canDelete = computed(() => {
-  //  En mode my-decks, tous les decks sont supprimables par définition
   if (props.context === 'my-decks') {
     return true
   }
-  
-  // En mode community, vérifier la propriété user  
-  return props.currentUser && 
-         props.deck.user?.id === props.currentUser.id
+  return props.currentUser && props.deck.user?.id === props.currentUser.id
 })
 
 const showLike = computed(() => {
   return props.context === 'community'
 })
 
+// Computed - Deck info
 const isComplete = computed(() => props.deck.totalCards === 30)
 
 const formatBadgeClass = computed(() => {
@@ -242,7 +254,6 @@ const toggleExpanded = () => {
   isExpanded.value = !isExpanded.value
 }
 
-// ✅ NOUVELLE MÉTHODE POUR GÉRER LE LIKE
 const toggleLike = async () => {
   if (!props.currentUser) {
     toast.add({
@@ -285,20 +296,21 @@ const toggleLike = async () => {
 }
 
 const getClassIcon = (hearthstoneClass) => {
-  const icons = {
-    'mage': '🔥',
-    'hunter': '🏹',
-    'paladin': '🛡️',
-    'warrior': '⚔️',
-    'priest': '✨',
-    'warlock': '👹',
-    'shaman': '⚡',
-    'rogue': '🗡️',
-    'druid': '🌿',
-    'demonhunter': '😈',
-    'deathknight': '💀'
+  const iconMap = {
+    'mage': '/src/assets/images/icons/Alt-Heroes_Mage_Jaina.png.avif',
+    'hunter': '/src/assets/images/icons/Alt-Heroes_Hunter_Rexxar.png.avif',
+    'paladin': '/src/assets/images/icons/Alt-Heroes_Paladin_Uther.png.avif',
+    'warrior': '/src/assets/images/icons/Alt-Heroes_Warrior_Garrosh.png.avif',
+    'priest': '/src/assets/images/icons/Alt-Heroes_Priest_Anduin.png.avif',
+    'warlock': '/src/assets/images/icons/Alt-Heroes_Warlock_Guldan.png.avif',
+    'shaman': '/src/assets/images/icons/Alt-Heroes_Shaman_Thrall.png.avif',
+    'rogue': '/src/assets/images/icons/Alt-Heroes_Rogue_Valeera.png.avif',
+    'druid': '/src/assets/images/icons/Alt-Heroes_Druid_Malfurion.png.avif',
+    'demonhunter': '/src/assets/images/icons/Alt-Heroes_Demon-Hunter_Illidan.png.avif',
+    'deathknight': '/src/assets/images/icons/hearthstone-lich-king.webp'
   }
-  return icons[hearthstoneClass] || '🃏'
+  
+  return iconMap[hearthstoneClass] || iconMap['mage']
 }
 
 const getClassDisplayName = (classValue) => {
@@ -348,7 +360,7 @@ const getRarityIcon = (rarity) => {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+  background: linear-gradient(90deg, #d97706, #f59e0b, #d97706);
 }
 
 .hearthstone-deck-card.expanded {
@@ -367,7 +379,7 @@ const getRarityIcon = (rarity) => {
   gap: 1rem;
 }
 
-/* Header du deck */
+/* === HEADER DU DECK === */
 .deck-header {
   display: flex;
   flex-direction: column;
@@ -376,42 +388,33 @@ const getRarityIcon = (rarity) => {
 
 .deck-title-line {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
 }
 
-.class-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+.deck-title-content {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  flex-shrink: 0;
-  border: 2px solid var(--surface-300);
-  background: var(--surface-50);
+  flex-direction: column;
+  gap: 0.25rem;
 }
-
-.class-icon.class-mage { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
-.class-icon.class-hunter { border-color: #10b981; background: rgba(16, 185, 129, 0.1); }
-.class-icon.class-paladin { border-color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
-.class-icon.class-warrior { border-color: #ef4444; background: rgba(239, 68, 68, 0.1); }
-.class-icon.class-priest { border-color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
-.class-icon.class-warlock { border-color: #7c3aed; background: rgba(124, 58, 237, 0.1); }
-.class-icon.class-shaman { border-color: #06b6d4; background: rgba(6, 182, 212, 0.1); }
-.class-icon.class-rogue { border-color: #64748b; background: rgba(100, 116, 139, 0.1); }
-.class-icon.class-druid { border-color: #059669; background: rgba(5, 150, 105, 0.1); }
-.class-icon.class-demonhunter { border-color: #dc2626; background: rgba(220, 38, 38, 0.1); }
-.class-icon.class-deathknight { border-color: #374151; background: rgba(55, 65, 81, 0.1); }
 
 .deck-name {
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   margin: 0;
-  flex: 1;
   line-height: 1.3;
+}
+
+.class-name-display {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .deck-visibility {
@@ -422,21 +425,34 @@ const getRarityIcon = (rarity) => {
   font-size: 1.1rem;
 }
 
+/* === ICÔNE DE CLASSE === */
+.class-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.class-icon-image {
+  width: 78px;
+  height: 78px;
+  object-fit: contain;
+  transition: all var(--transition-fast);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.class-icon:hover .class-icon-image {
+  transform: scale(1.15);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+/* === MÉTADONNÉES === */
 .deck-meta-line {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
   font-size: 0.9rem;
-}
-
-.class-name {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.separator {
-  color: var(--surface-400);
 }
 
 .format-badge {
@@ -448,13 +464,15 @@ const getRarityIcon = (rarity) => {
 }
 
 .format-badge.format-standard {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
+  background: rgba(217, 119, 6, 0.1);
+  color: #d97706;
+  border: 1px solid rgba(217, 119, 6, 0.3);
 }
 
 .format-badge.format-wild {
   background: rgba(245, 158, 11, 0.1);
   color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .format-badge.format-default {
@@ -468,13 +486,13 @@ const getRarityIcon = (rarity) => {
 }
 
 .cards-count.complete {
-  color: var(--primary);
+  color: #d97706;
   font-weight: 600;
 }
 
 .complete-badge {
   padding: 0.25rem 0.5rem;
-  background: var(--primary);
+  background: #d97706;
   color: white;
   border-radius: 8px;
   font-size: 0.7rem;
@@ -483,12 +501,18 @@ const getRarityIcon = (rarity) => {
   letter-spacing: 0.5px;
 }
 
+.separator {
+  color: var(--surface-400);
+}
+
+/* === STATISTIQUES === */
 .deck-stats-line {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.85rem;
   color: var(--text-secondary);
+  flex-wrap: wrap;
 }
 
 .dust-cost {
@@ -507,7 +531,19 @@ const getRarityIcon = (rarity) => {
   font-weight: 500;
 }
 
-/* Section cartes */
+.likes-display {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #e11d48;
+  font-weight: 600;
+}
+
+.likes-display i {
+  font-size: 0.8rem;
+}
+
+/* === SECTION CARTES === */
 .cards-section {
   border: 1px solid var(--surface-200);
   border-radius: var(--border-radius);
@@ -600,7 +636,7 @@ const getRarityIcon = (rarity) => {
 }
 
 .card-quantity {
-  color: var(--primary);
+  color: #d97706;
   font-weight: 600;
   font-size: 0.85rem;
   flex-shrink: 0;
@@ -617,7 +653,7 @@ const getRarityIcon = (rarity) => {
   font-size: 0.9rem;
 }
 
-/* Actions du deck */
+/* === ACTIONS DU DECK === */
 .deck-actions {
   display: flex;
   justify-content: space-between;
@@ -639,9 +675,9 @@ const getRarityIcon = (rarity) => {
 }
 
 :deep(.expand-btn:hover) {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: rgba(38, 166, 154, 0.1) !important;
+  border-color: #d97706 !important;
+  color: #d97706 !important;
+  background: rgba(217, 119, 6, 0.1) !important;
 }
 
 :deep(.expand-btn:disabled) {
@@ -662,86 +698,7 @@ const getRarityIcon = (rarity) => {
   font-size: 0.85rem !important;
 }
 
-:deep(.edit-btn) {
-  background: var(--primary) !important;
-  border-color: var(--primary) !important;
-  color: white !important;
-}
-
-:deep(.edit-btn:hover) {
-  background: var(--primary-dark) !important;
-  border-color: var(--primary-dark) !important;
-}
-
-:deep(.copy-btn) {
-  background: white !important;
-  border: 2px solid var(--surface-300) !important;
-  color: var(--text-secondary) !important;
-}
-
-:deep(.copy-btn:hover) {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: rgba(38, 166, 154, 0.1) !important;
-}
-
-:deep(.delete-btn) {
-  background: white !important;
-  border: 2px solid rgba(255, 87, 34, 0.3) !important;
-  color: var(--accent) !important;
-}
-
-:deep(.delete-btn:hover) {
-  background: var(--accent) !important;
-  border-color: var(--accent) !important;
-  color: white !important;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .deck-card-content {
-    padding: 1rem;
-  }
-  
-  .deck-meta-line {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-  }
-  
-  .deck-actions {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  .action-buttons {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  :deep(.expand-btn) {
-    width: 100% !important;
-    justify-content: center !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .class-icon {
-    width: 32px;
-    height: 32px;
-    font-size: 1.1rem;
-  }
-  
-  .deck-name {
-    font-size: 1.1rem;
-  }
-  
-  .cards-list {
-    max-height: 200px;
-  }
-}
-
-/* ✅ STYLES POUR LE BOUTON LIKE */
+/* === BOUTONS D'ACTION === */
 :deep(.like-btn) {
   background: white !important;
   border: 2px solid var(--surface-300) !important;
@@ -770,7 +727,6 @@ const getRarityIcon = (rarity) => {
   border-color: #be185d !important;
 }
 
-/* Animation du cœur */
 :deep(.like-btn .pi-heart-fill) {
   animation: heartBeat 0.3s ease-in-out;
 }
@@ -779,5 +735,93 @@ const getRarityIcon = (rarity) => {
   0% { transform: scale(1); }
   50% { transform: scale(1.2); }
   100% { transform: scale(1); }
+}
+
+:deep(.edit-btn) {
+  background: #d97706 !important;
+  border-color: #d97706 !important;
+  color: white !important;
+}
+
+:deep(.edit-btn:hover) {
+  background: #b45309 !important;
+  border-color: #b45309 !important;
+}
+
+:deep(.copy-btn) {
+  background: white !important;
+  border: 2px solid var(--surface-300) !important;
+  color: var(--text-secondary) !important;
+}
+
+:deep(.copy-btn:hover) {
+  border-color: #d97706 !important;
+  color: #d97706 !important;
+  background: rgba(217, 119, 6, 0.1) !important;
+}
+
+:deep(.delete-btn) {
+  background: white !important;
+  border: 2px solid rgba(255, 87, 34, 0.3) !important;
+  color: var(--accent) !important;
+}
+
+:deep(.delete-btn:hover) {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: white !important;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .deck-card-content {
+    padding: 1rem;
+  }
+  
+  .deck-title-line {
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  .class-icon-image {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .deck-meta-line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  
+  .deck-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .action-buttons {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  :deep(.expand-btn) {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .class-icon-image {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .deck-name {
+    font-size: 1.1rem;
+  }
+  
+  .cards-list {
+    max-height: 200px;
+  }
 }
 </style>

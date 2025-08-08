@@ -587,11 +587,11 @@ const toggleLike = (data) => {
 }
 
 .hearthstone-section::before {
-  background: linear-gradient(90deg, #ff5722, #ff9800, #f57c00);
+  background: linear-gradient(90deg, #d97706, #f59e0b, #b45309);
 }
 
 .magic-section::before {
-  background: linear-gradient(90deg, #673ab7, #9c27b0, #4527a0);
+  background: linear-gradient(90deg, #7c3aed, #8b5cf6, #a855f7);
 }
 
 .pokemon-section::before {
@@ -626,15 +626,15 @@ const toggleLike = (data) => {
 }
 
 .game-badge.hearthstone {
-  background: linear-gradient(135deg, rgba(255, 87, 34, 0.15), rgba(255, 152, 0, 0.1));
-  color: #ff5722;
-  border: 2px solid rgba(255, 87, 34, 0.3);
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(245, 158, 11, 0.1));
+  color: #d97706;
+  border: 2px solid rgba(217, 119, 6, 0.3);
 }
 
 .game-badge.magic {
-  background: linear-gradient(135deg, rgba(103, 58, 183, 0.15), rgba(69, 39, 160, 0.1));
-  color: #673ab7;
-  border: 2px solid rgba(103, 58, 183, 0.4);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(139, 92, 246, 0.1));
+  color: #7c3aed;
+  border: 2px solid rgba(124, 58, 237, 0.4);
 }
 
 .game-badge.pokemon {
