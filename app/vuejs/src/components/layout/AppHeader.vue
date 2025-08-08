@@ -176,29 +176,42 @@
 
 
           <!-- Boutons navigation -->
-          <div class="nav-buttons">
-            <router-link to="/forums" class="nav-item" active-class="nav-active">
-              <Button label="Discussions" icon="pi pi-comments" class="nav-button" />
-            </router-link>
-            <router-link to="/decks" class="nav-item" active-class="nav-active">
-              <Button label="Decks" icon="pi pi-clone" class="nav-button" />
-            </router-link>
-            
-            <router-link to="/mes-decks" class="nav-item" active-class="nav-active">
-              <Button label="Mes Decks" icon="pi pi-user" class="nav-button" />
-            </router-link>
-            <router-link to="/evenements" class="nav-item" active-class="nav-active">
-              <Button label="Evenements" icon="pi pi-chart-bar" class="nav-button" />
-            </router-link>
-            <router-link to="/mes-evenements" class="nav-item" active-class="nav-active">
-              <Button label="Mes Evenements" icon="pi pi-chart-bar" class="nav-button" />
-            </router-link>
-          </div>
+<div class="nav-buttons">
+          <Button 
+            label="Discussions" 
+            icon="pi pi-comments" 
+            class="nav-button" 
+            @click="handleForumsClick"
+          />
+          <Button 
+            label="Decks" 
+            icon="pi pi-clone" 
+            class="nav-button" 
+            @click="handleDecksClick"
+          />
+          <Button 
+            label="Mes Decks" 
+            icon="pi pi-user" 
+            class="nav-button" 
+            @click="handleMyDecksClick"
+          />
+          <Button 
+            label="Evenements" 
+            icon="pi pi-chart-bar" 
+            class="nav-button" 
+            @click="handleEventsClick"
+          />
+          <Button 
+            label="Mes Evenements" 
+            icon="pi pi-chart-bar" 
+            class="nav-button" 
+            @click="handleMyEventsClick"
+          />
+        </div>
 
         </div>
       </nav>
     </div>
-    <AuthRequiredModal :visible="showAuthModal" @close="showAuthModal = false" />
   </header>
 </template>
 
@@ -209,7 +222,6 @@ import { useNotifications } from '../../composables/useNotifications'
 import { useRouter } from 'vue-router'
 import { useGameFilterStore } from '../../stores/gameFilter'
 import { storeToRefs } from 'pinia'
-import AuthRequiredModal from '@/components/auth/AuthRequiredModal.vue';
 
 
 const props = defineProps({
@@ -220,7 +232,6 @@ const props = defineProps({
 defineEmits(['open-login'])
 
 // Stores et router
-const showAuthModal = ref(false);
 const authStore = useAuthStore()
 const router = useRouter()
 
@@ -229,6 +240,47 @@ const gameFilter = useGameFilterStore()
 const { selectedGames, availableGames } = storeToRefs(gameFilter)
 
 const isSelected = (id) => selectedGames.value.includes(id)
+
+
+const handleDecksClick = () => {
+  if (!authStore.isAuthenticated) {
+    router.push('/auth-required?config=decks&redirect=/decks')
+  } else {
+    router.push('/decks')
+  }
+}
+
+const handleForumsClick = () => {
+  if (!authStore.isAuthenticated) {
+    router.push('/auth-required?config=forums&redirect=/forums')
+  } else {
+    router.push('/forums')
+  }
+}
+
+const handleMyDecksClick = () => {
+  if (!authStore.isAuthenticated) {
+    router.push('/auth-required?config=myDecks&redirect=/mes-decks')
+  } else {
+    router.push('/mes-decks')
+  }
+}
+
+const handleEventsClick = () => {
+  if (!authStore.isAuthenticated) {
+    router.push('/auth-required?config=events&redirect=/evenements')
+  } else {
+    router.push('/evenements')
+  }
+}
+
+const handleMyEventsClick = () => {
+  if (!authStore.isAuthenticated) {
+    router.push('/auth-required?config=myEvents&redirect=/mes-evenements')
+  } else {
+    router.push('/mes-evenements')
+  }
+}
 
 // 🆕 Composable notifications
 const {
@@ -281,14 +333,6 @@ const openMessages = () => {
 
 const goToProfile = () => {
   router.push('/profile')
-}
-
-const handleDiscussionsClick = () => {
-  if (authStore.isAuthenticated) {
-    router.push('/forums')
-  } else {
-    showAuthModal.value = true
-  }
 }
 
 const handleLogout = () => {

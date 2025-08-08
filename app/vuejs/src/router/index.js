@@ -1,4 +1,4 @@
-// router/index.js - Version nettoyée avec routes manquantes
+// router/index.js - Version complète avec protection d'authentification et correction réhydratation
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '../stores/auth'
@@ -37,7 +37,7 @@ const routes = [
       {
         path: 'communaute',
         name: 'community-decks',
-        component: () => import('../components/decks/CommunityDecksView.vue'),
+        component: () => import('../views/CommunityDecksView.vue'),
         meta: {
           title: 'Decks Communautaires - MULLIGAN TCG'
         }
@@ -97,7 +97,10 @@ const routes = [
     path: '/mes-decks',
     name: 'MyDecks',
     component: () => import('../views/MyDecksView.vue'),
-    meta: { requiresAuth: true }
+    meta: { 
+      title: 'Mes Decks - MULLIGAN TCG',
+      requiresAuth: true 
+    }
   },
   {
     path: '/forums/:forumSlug/posts/:id',
@@ -125,6 +128,14 @@ const routes = [
       title: 'Créer un événement - MULLIGAN TCG',
       requiresAuth: true,
       requiresRole: ['ROLE_ORGANIZER', 'ROLE_SHOP', 'ROLE_ADMIN']
+    }
+  },
+  {
+    path: '/auth-required',
+    name: 'auth-required',
+    component: () => import('../views/AuthRequiredView.vue'),
+    meta: {
+      title: 'Connexion requise - MULLIGAN TCG'
     }
   },
   {
@@ -219,25 +230,56 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   
+  // Routes protégées avec leurs configs pour la redirection vers auth-required
+  const protectedRoutes = {
+    'ForumsView': 'forums',
+    'ForumPostsView': 'forums', 
+    'PostView': 'forums',
+    'MyDecks': 'myDecks',
+    'mes-evenements': 'myEvents',
+    'creer-evenement': 'events',
+    'creer-tournoi': 'events',
+    'profile': 'profile',
+    'decks-edit': 'myDecks',
+    'community-decks': 'decks',
+    'metagame-decks': 'decks'
+  }
+  
   // Ajouter info de provenance pour les breadcrumbs
   if (to.name === 'evenement-detail' && from.name) {
     to.meta.from = from.name
   }
   
+  // ========== CORRECTION: Gestion de la réhydratation ==========
+  // Si un token existe mais pas d'utilisateur, attendre la vérification
+  if (authStore.token && !authStore.user) {
+    try {
+      await authStore.checkAuthStatus()
+    } catch (error) {
+      console.error('Erreur vérification auth:', error)
+      // Le token est invalide, logout géré par checkAuthStatus
+    }
+  }
+  
+  // Vérification d'authentification pour routes protégées (redirection vers auth-required)
+  const configKey = protectedRoutes[to.name]
+  if (configKey && !authStore.isAuthenticated) {
+    // Rediriger vers page d'auth avec config appropriée
+    next({ 
+      name: 'auth-required', 
+      query: { 
+        config: configKey, 
+        redirect: to.fullPath 
+      } 
+    })
+    return
+  }
+  
+  // Logique d'authentification existante pour les routes avec requiresAuth
   if (to.meta.requiresAuth) {
     if (!authStore.token) {
       next({ name: 'home' })
       return
-    }
-    
-    if (authStore.token && !authStore.user) {
-      try {
-        await authStore.checkAuthStatus()
-      } catch (error) {
-        console.error('Erreur vérification auth:', error)
-        next({ name: 'home' })
-        return
-      }
     }
     
     if (!authStore.isAuthenticated) {

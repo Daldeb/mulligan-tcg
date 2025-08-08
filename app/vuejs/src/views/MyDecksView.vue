@@ -18,7 +18,7 @@
             <Button 
               label="Créer un deck"
               icon="pi pi-plus"
-              class="emerald-button primary"
+              class="emerald-button primary create-deck"
               @click="showCreateModal = true"
             />
           </div>
@@ -32,7 +32,7 @@
             <div class="filters-content">
               <div class="search-wrapper">
                 <InputText 
-                  v-model="searchQuery"
+                  v-model="globalSearch"
                   placeholder="Rechercher dans mes decks..."
                   class="search-input"
                 />
@@ -46,7 +46,7 @@
                   @click="toggleVisibilityFilter"
                 />
                 <Button 
-                  :label="sortBy === 'recent' ? 'Récents' : sortBy === 'likes' ? 'Populaires' : 'Alphabétique'"
+                  :label="globalSort === 'recent' ? 'Récents' : globalSort === 'likes' ? 'Populaires' : 'Alphabétique'"
                   icon="pi pi-sort-alt"
                   class="sort-btn"
                   @click="toggleSort"
@@ -57,412 +57,44 @@
         </Card>
       </div>
 
-      <!-- Sections par jeu -->
+      <!-- Sections par jeu avec GameDeckSection -->
       <div class="games-sections" v-if="!isLoading && userDecks.length > 0">
         
-        <!-- Section Hearthstone avec filtres avancés -->
-        <div v-if="getGameDecks('hearthstone').length > 0" class="game-section hearthstone-section slide-in-up">
-          <div class="game-header">
-            <div class="game-title-area">
-              <div class="game-badge hearthstone">
-                <i class="game-icon">🃏</i>
-                <span class="game-name">Hearthstone</span>
-              </div>
-              <div class="game-stats-integrated">
-                <div class="stat-item likes">
-                  <i class="pi pi-heart"></i>
-                  <span class="stat-value">{{ getGameStats('hearthstone').totalLikes }}</span>
-                </div>
-                <div class="stat-item public">
-                  <i class="pi pi-globe"></i>
-                  <span class="stat-value">{{ getGameStats('hearthstone').publicCount }}</span>
-                </div>
-                <div class="stat-item private">
-                  <i class="pi pi-lock"></i>
-                  <span class="stat-value">{{ getGameStats('hearthstone').privateCount }}</span>
-                </div>
-                <div class="stat-item total">
-                  <span class="stat-label">{{ getGameDecks('hearthstone').length }} decks</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Filtres Hearthstone avancés -->
-            <div class="hearthstone-filters-panel">
-              
-              <!-- Barre de recherche spécifique -->
-              <div class="filter-search-wrapper">
-                <InputText 
-                  v-model="hearthstoneFilters.search"
-                  placeholder="Rechercher un deck Hearthstone..."
-                  class="filter-search-input hearthstone-search"
-                />
-                <i class="pi pi-search search-icon"></i>
-              </div>
-              
-              <!-- Première ligne : Filtres principaux -->
-              <div class="filters-main-row">
-                
-                <!-- Slider coût poussière (simplifié) -->
-                <div class="dust-cost-filter-group">
-                  <label class="filter-group-label">
-                    Coût en poussière : 
-                    <span class="dust-range-display">
-                      {{ hearthstoneFilters.dustCost.min.toLocaleString() }} - 
-                      {{ hearthstoneFilters.dustCost.max >= 10000 ? '10000+' : hearthstoneFilters.dustCost.max.toLocaleString() }}
-                    </span>
-                  </label>
-                  <div class="range-slider-wrapper">
-                    <!-- Slider min -->
-                      <input
-                        type="range"
-                        :min="0"
-                        :max="10000"
-                        :step="200"
-                        v-model="hearthstoneFilters.dustCost.min"
-                        class="range-slider min"
-                        @mousedown="activeHandle = 'min'"
-                        @input="handleDustRangeChange"
-                      />
-                      <input
-                        type="range"
-                        :min="0"
-                        :max="10000"
-                        :step="200"
-                        v-model="hearthstoneFilters.dustCost.max"
-                        class="range-slider max"
-                        @mousedown="activeHandle = 'max'"
-                        @input="handleDustRangeChange"
-                      />
-                    <!-- Track visuel -->
-                    <div class="range-track">
-                      <div class="range-track-fill" :style="dustRangeStyle"></div>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Toggle Standard/Wild -->
-                <div class="format-filter-group">
-                  <label class="filter-group-label">Format :</label>
-                  <div class="format-toggle-container">
-                    <div class="format-toggle-buttons">
-                      <button 
-                        class="format-toggle-btn"
-                        :class="{ 'active': hearthstoneFilters.format === 'all' }"
-                        @click="hearthstoneFilters.format = 'all'"
-                      >
-                        <i class="pi pi-globe"></i>
-                        <span>Tous</span>
-                      </button>
-                      <button 
-                        class="format-toggle-btn standard"
-                        :class="{ 'active': hearthstoneFilters.format === 'standard' }"
-                        @click="hearthstoneFilters.format = 'standard'"
-                      >
-                        <i class="pi pi-star"></i>
-                        <span>Standard</span>
-                      </button>
-                      <button 
-                        class="format-toggle-btn wild"
-                        :class="{ 'active': hearthstoneFilters.format === 'wild' }"
-                        @click="hearthstoneFilters.format = 'wild'"
-                      >
-                        <i class="pi pi-sun"></i>
-                        <span>Wild</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Bouton reset et tri -->
-                <div class="filters-actions-group">
-                  <Dropdown
-                    v-model="hearthstoneFilters.sortBy"
-                    :options="sortOptions"
-                    option-label="label"
-                    option-value="value"
-                    class="filter-sort-dropdown"
-                  />
-                  <Button
-                    icon="pi pi-filter-slash"
-                    class="reset-filters-btn"
-                    @click="resetHearthstoneFilters"
-                    v-tooltip="'Réinitialiser les filtres'"
-                    text
-                    size="small"
-                  />
-                </div>
-                
-              </div>
-              
-              <!-- Deuxième ligne : Classes en ligne (sans label) -->
-              <div class="classes-inline-row">
-                <div 
-                  v-for="hsClass in hearthstoneClassesFilter" 
-                  :key="hsClass.value"
-                  class="class-checkbox-inline"
-                  :class="{ 'selected': hearthstoneFilters.selectedClasses.includes(hsClass.value) }"
-                  @click="toggleHearthstoneClass(hsClass.value)"
-                >
-                  <img 
-                    :src="hsClass.icon" 
-                    :alt="hsClass.name"
-                    class="class-checkbox-icon-inline"
-                  />
-                  <span class="class-checkbox-name-inline">{{ hsClass.name }}</span>
-                  <div class="class-checkbox-indicator-inline" v-if="hearthstoneFilters.selectedClasses.includes(hsClass.value)">
-                    <i class="pi pi-check"></i>
-                  </div>
-                </div>
-              </div>
-              
-            </div>
-          
-          <div class="decks-grid">
-            <HearthstoneCompactDeck 
-              v-for="deck in filteredHearthstoneDecks" 
-              :key="`my-hs-${deck.id}`"
-              :deck="deck"
-              context="my-decks"
-              :current-user="authStore.user"
-              @edit="editDeck"
-              @delete="deleteDeck"
-              @copyDeckcode="copyDeckcode"
-            />
-          </div>
-        </div>
+        <!-- Section Hearthstone -->
+        <GameDeckSection 
+          v-if="getGameDecks('hearthstone').length > 0"
+          game-slug="hearthstone"
+          :decks="getGameDecks('hearthstone')"
+          context="my-decks"
+          :current-user="authStore.user"
+          @edit="editDeck"
+          @delete="deleteDeck"
+          @copyDeckcode="copyDeckcode"
+        />
 
-        <!-- Section Magic avec filtres avancés -->
-        <div v-if="getGameDecks('magic').length > 0" class="game-section magic-section slide-in-up">
-          <div class="game-header">
-            <div class="game-title-area">
-              <div class="game-badge magic">
-                <i class="game-icon">🎴</i>
-                <span class="game-name">Magic: The Gathering</span>
-              </div>
-              <div class="game-stats-integrated">
-                <div class="stat-item likes">
-                  <i class="pi pi-heart"></i>
-                  <span class="stat-value">{{ getGameStats('magic').totalLikes }}</span>
-                </div>
-                <div class="stat-item public">
-                  <i class="pi pi-globe"></i>
-                  <span class="stat-value">{{ getGameStats('magic').publicCount }}</span>
-                </div>
-                <div class="stat-item private">
-                  <i class="pi pi-lock"></i>
-                  <span class="stat-value">{{ getGameStats('magic').privateCount }}</span>
-                </div>
-                <div class="stat-item total">
-                  <span class="stat-label">{{ getGameDecks('magic').length }} decks</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Filtres Magic avancés -->
-          <div class="magic-filters-panel">
-            
-            <!-- Barre de recherche spécifique -->
-            <div class="filter-search-wrapper">
-              <InputText 
-                v-model="magicFilters.search"
-                placeholder="Rechercher un deck Magic..."
-                class="filter-search-input magic-search"
-              />
-              <i class="pi pi-search search-icon"></i>
-            </div>
-            
-            <!-- Ligne principale des filtres -->
-            <div class="filters-main-row">
-              
-              <!-- Checkboxes Couleurs Magic -->
-              <div class="magic-colors-filter">
-                <label class="filter-group-label">Couleurs :</label>
-                <div class="magic-colors-grid">
-                  <div 
-                    v-for="color in magicColors" 
-                    :key="color.value"
-                    class="magic-color-checkbox"
-                    :class="{ 'selected': magicFilters.selectedColors.includes(color.value) }"
-                    :style="{ 
-                      backgroundColor: magicFilters.selectedColors.includes(color.value) ? color.color : 'transparent',
-                      color: magicFilters.selectedColors.includes(color.value) ? color.textColor : '#6b7280',
-                      borderColor: color.color
-                    }"
-                    @click="toggleMagicColor(color.value)"
-                  >
-                    <i class="pi pi-check" v-if="magicFilters.selectedColors.includes(color.value)"></i>
-                    <span>{{ color.label }}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Dropdown formats Magic -->
-              <div class="format-filter-group">
-                <label class="filter-group-label">Format :</label>
-                <Dropdown
-                  v-model="magicFilters.format"
-                  :options="magicFormats"
-                  option-label="label"
-                  option-value="value"
-                  placeholder="Tous les formats"
-                  class="filter-dropdown magic-dropdown"
-                />
-              </div>
-              
-              <!-- Bouton reset et tri -->
-              <div class="filters-actions-group">
-                <Dropdown
-                  v-model="magicFilters.sortBy"
-                  :options="sortOptions"
-                  option-label="label"
-                  option-value="value"
-                  class="filter-sort-dropdown"
-                />
-                <Button
-                  icon="pi pi-filter-slash"
-                  class="reset-filters-btn"
-                  @click="resetMagicFilters"
-                  v-tooltip="'Réinitialiser les filtres'"
-                  text
-                  size="small"
-                />
-              </div>
-              
-            </div>
-          </div>
-          
-          <div class="decks-grid">
-            <MagicCompactDeck 
-              v-for="deck in filteredMagicDecks" 
-              :key="`my-magic-${deck.id}`"
-              :deck="deck"
-              context="my-decks"
-              :current-user="authStore.user"
-              @edit="editDeck"
-              @delete="deleteDeck"
-              @copyDeckcode="copyDeckcode"
-            />
-          </div>
-        </div>
+        <!-- Section Magic -->
+        <GameDeckSection 
+          v-if="getGameDecks('magic').length > 0"
+          game-slug="magic"
+          :decks="getGameDecks('magic')"
+          context="my-decks"
+          :current-user="authStore.user"
+          @edit="editDeck"
+          @delete="deleteDeck"
+          @copyDeckcode="copyDeckcode"
+        />
 
-        <!-- Section Pokemon avec filtres simples -->
-        <div v-if="getGameDecks('pokemon').length > 0" class="game-section pokemon-section slide-in-up">
-          <div class="game-header">
-            <div class="game-title-area">
-              <div class="game-badge pokemon">
-                <i class="game-icon">⚡</i>
-                <span class="game-name">Pokemon TCG</span>
-              </div>
-              <div class="game-stats-integrated">
-                <div class="stat-item likes">
-                  <i class="pi pi-heart"></i>
-                  <span class="stat-value">{{ getGameStats('pokemon').totalLikes }}</span>
-                </div>
-                <div class="stat-item public">
-                  <i class="pi pi-globe"></i>
-                  <span class="stat-value">{{ getGameStats('pokemon').publicCount }}</span>
-                </div>
-                <div class="stat-item private">
-                  <i class="pi pi-lock"></i>
-                  <span class="stat-value">{{ getGameStats('pokemon').privateCount }}</span>
-                </div>
-                <div class="stat-item total">
-                  <span class="stat-label">{{ getGameDecks('pokemon').length }} decks</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Filtres Pokemon simples -->
-          <div class="pokemon-filters-panel">
-            
-            <!-- Barre de recherche spécifique -->
-            <div class="filter-search-wrapper">
-              <InputText 
-                v-model="pokemonFilters.search"
-                placeholder="Rechercher un deck Pokemon..."
-                class="filter-search-input pokemon-search"
-              />
-              <i class="pi pi-search search-icon"></i>
-            </div>
-            
-            <!-- Ligne de filtres -->
-            <div class="filters-main-row">
-              <div class="filters-actions-group">
-                <Dropdown
-                  v-model="pokemonFilters.sortBy"
-                  :options="sortOptions"
-                  option-label="label"
-                  option-value="value"
-                  class="filter-sort-dropdown"
-                />
-                <Button
-                  icon="pi pi-filter-slash"
-                  class="reset-filters-btn"
-                  @click="resetPokemonFilters"
-                  v-tooltip="'Réinitialiser les filtres'"
-                  text
-                  size="small"
-                />
-              </div>
-            </div>
-          </div>
-          
-          <div class="decks-grid">
-            <Card 
-              v-for="deck in filteredPokemonDecks" 
-              :key="`my-pkmn-${deck.id}`"
-              class="deck-card gaming-card hover-lift"
-            >
-              <template #content>
-                <div class="deck-content">
-                  <div class="deck-header-info">
-                    <h3 class="deck-name">{{ deck.name }}</h3>
-                    <div class="deck-status">
-                      <i :class="deck.isPublic ? 'pi pi-globe' : 'pi pi-lock'" 
-                        :style="{ color: deck.isPublic ? 'var(--primary)' : 'var(--text-secondary)' }"
-                        :title="deck.isPublic ? 'Public' : 'Privé'"></i>
-                    </div>
-                  </div>
-                  <div class="deck-meta">
-                    <span class="format-badge pokemon">{{ deck.format }}</span>
-                  </div>
-                  <div class="deck-stats-info">
-                    <span class="likes">{{ deck.likes || 0 }} ❤️</span>
-                    <span class="views">{{ deck.views || 0 }} 👁️</span>
-                    <span class="cards">{{ deck.cardCount || 0 }}/60 cartes</span>
-                  </div>
-                  <div class="deck-actions">
-                    <Button 
-                      icon="pi pi-pencil"
-                      class="edit-btn"
-                      @click="editDeck(deck)"
-                      v-tooltip="'Éditer'"
-                      size="small"
-                    />
-                    <Button 
-                      icon="pi pi-copy"
-                      class="copy-btn"
-                      @click="duplicateDeck(deck)"
-                      v-tooltip="'Dupliquer'"
-                      size="small"
-                    />
-                    <Button 
-                      icon="pi pi-trash"
-                      class="delete-btn"
-                      @click="deleteDeck(deck)"
-                      v-tooltip="'Supprimer'"
-                      size="small"
-                    />
-                  </div>
-                </div>
-              </template>
-            </Card>
-          </div>
-        </div>
+        <!-- Section Pokemon -->
+        <GameDeckSection 
+          v-if="getGameDecks('pokemon').length > 0"
+          game-slug="pokemon"
+          :decks="getGameDecks('pokemon')"
+          context="my-decks"
+          :current-user="authStore.user"
+          @edit="editDeck"
+          @delete="deleteDeck"
+          @copyDeckcode="copyDeckcode"
+        />
 
       </div>
 
@@ -491,7 +123,7 @@
               <Button 
                 label="Créer mon premier deck"
                 icon="pi pi-plus"
-                class="emerald-button primary"
+                class="emerald-button primary create-deck"
                 @click="showCreateModal = true"
               />
             </div>
@@ -614,6 +246,7 @@
             />
           </div>
 
+          <!-- Classe Hearthstone si applicable -->
           <div class="field-group" v-if="deckData.selectedGame && getSelectedGameSlug(deckData.selectedGame) === 'hearthstone'">
             <label for="deck-class" class="field-label">Classe Hearthstone *</label>
             <Dropdown
@@ -635,7 +268,8 @@
             <small v-if="errors.hearthstoneClass" class="field-error">{{ errors.hearthstoneClass }}</small>
           </div>
 
-        <div class="field-group" v-if="deckData.selectedGame">
+          <!-- Archetype optionnel -->
+          <div class="field-group" v-if="deckData.selectedGame">
             <label for="deck-archetype" class="field-label">Archetype (optionnel)</label>
             <Dropdown
               id="deck-archetype"
@@ -684,8 +318,7 @@ import api from '../services/api'
 import Dialog from 'primevue/dialog'
 import Dropdown from 'primevue/dropdown' 
 import Textarea from 'primevue/textarea'
-import HearthstoneCompactDeck from '../components/decks/HearthstoneCompactDeck.vue'
-import MagicCompactDeck from '../components/decks/MagicCompactDeck.vue'
+import GameDeckSection from '../components/decks/GameDeckSection.vue'
 
 // Stores et composables
 const router = useRouter()
@@ -695,9 +328,9 @@ const toast = useToast()
 // State principal
 const userDecks = ref([])
 const isLoading = ref(true)
-const searchQuery = ref('')
+const globalSearch = ref('')
 const visibilityFilter = ref('all') // all, public, private
-const sortBy = ref('recent') // recent, likes, name
+const globalSort = ref('recent') // recent, likes, name
 
 // State modale
 const showCreateModal = ref(false)
@@ -721,33 +354,7 @@ const errors = ref({
   hearthstoneClass: ''
 })
 
-// State pour les filtres Hearthstone
-const hearthstoneFilters = ref({
-  search: '',
-  selectedClasses: [],
-  dustCost: {
-    min: 0,
-    max: 10000
-  },
-  format: 'all', // 'all', 'standard', 'wild'
-  sortBy: 'recent'
-})
-
-// State pour les filtres Magic
-const magicFilters = ref({
-  search: '',
-  selectedColors: [],
-  format: 'all',
-  sortBy: 'recent'
-})
-
-// State pour les filtres Pokemon
-const pokemonFilters = ref({
-  search: '',
-  sortBy: 'recent'
-})
-
-// Classes Hearthstone pour l'affichage
+// Classes Hearthstone
 const hearthstoneClasses = ref([
   { name: 'Mage', value: 'mage' },
   { name: 'Chasseur', value: 'hunter' },
@@ -762,98 +369,11 @@ const hearthstoneClasses = ref([
   { name: 'Chevalier de la mort', value: 'deathknight' }
 ])
 
-// Classes Hearthstone avec icônes (même mapping que HearthstoneCompactDeck)
-const hearthstoneClassesFilter = ref([
-  { 
-    name: 'Mage', 
-    value: 'mage',
-    icon: '/src/assets/images/icons/Alt-Heroes_Mage_Jaina.png.avif'
-  },
-  { 
-    name: 'Chasseur', 
-    value: 'hunter',
-    icon: '/src/assets/images/icons/Alt-Heroes_Hunter_Rexxar.png.avif'
-  },
-  { 
-    name: 'Paladin', 
-    value: 'paladin',
-    icon: '/src/assets/images/icons/Alt-Heroes_Paladin_Uther.png.avif'
-  },
-  { 
-    name: 'Guerrier', 
-    value: 'warrior',
-    icon: '/src/assets/images/icons/Alt-Heroes_Warrior_Garrosh.png.avif'
-  },
-  { 
-    name: 'Prêtre', 
-    value: 'priest',
-    icon: '/src/assets/images/icons/Alt-Heroes_Priest_Anduin.png.avif'
-  },
-  { 
-    name: 'Démoniste', 
-    value: 'warlock',
-    icon: '/src/assets/images/icons/Alt-Heroes_Warlock_Guldan.png.avif'
-  },
-  { 
-    name: 'Chaman', 
-    value: 'shaman',
-    icon: '/src/assets/images/icons/Alt-Heroes_Shaman_Thrall.png.avif'
-  },
-  { 
-    name: 'Voleur', 
-    value: 'rogue',
-    icon: '/src/assets/images/icons/Alt-Heroes_Rogue_Valeera.png.avif'
-  },
-  { 
-    name: 'Druide', 
-    value: 'druid',
-    icon: '/src/assets/images/icons/Alt-Heroes_Druid_Malfurion.png.avif'
-  },
-  { 
-    name: 'Chasseur de démons', 
-    value: 'demonhunter',
-    icon: '/src/assets/images/icons/Alt-Heroes_Demon-Hunter_Illidan.png.avif'
-  },
-  { 
-    name: 'Chevalier de la mort', 
-    value: 'deathknight',
-    icon: '/src/assets/images/icons/hearthstone-lich-king.webp'
-  }
-])
-
-// Couleurs Magic
-const magicColors = [
-  { label: 'Blanc', value: 'W', color: '#FFFBD5', textColor: '#8B4513' },
-  { label: 'Bleu', value: 'U', color: '#0E68AB', textColor: '#FFFFFF' },
-  { label: 'Noir', value: 'B', color: '#150B00', textColor: '#FFFFFF' },
-  { label: 'Rouge', value: 'R', color: '#D3202A', textColor: '#FFFFFF' },
-  { label: 'Vert', value: 'G', color: '#00733E', textColor: '#FFFFFF' },
-  { label: 'Incolore', value: '', color: '#CCCCCC', textColor: '#333333' }
-]
-
-// Formats Magic
-const magicFormats = [
-  { label: 'Tous les formats', value: 'all' },
-  { label: 'Standard', value: 'standard' },
-  { label: 'Commander', value: 'commander' },
-  { label: 'Modern', value: 'modern' },
-  { label: 'Legacy', value: 'legacy' }
-]
-
 const archetypes = {
   hearthstone: ['Aggro', 'Midrange', 'Control', 'Combo', 'Tempo', 'Big', 'Zoo', 'Burn', 'Mill'],
   pokemon: ['Aggro', 'Control', 'Combo', 'Toolbox', 'Stall', 'Beatdown', 'Engine', 'Disruption'],
   magic: ['Aggro', 'Control', 'Midrange', 'Combo', 'Ramp', 'Tribal', 'Voltron', 'Stax', 'Storm']
 }
-
-// Options de tri
-const sortOptions = [
-  { label: 'Plus récents', value: 'recent' },
-  { label: 'Plus populaires', value: 'likes' },
-  { label: 'Alphabétique', value: 'name' },
-  { label: 'Coût croissant', value: 'dust-asc' },
-  { label: 'Coût décroissant', value: 'dust-desc' }
-]
 
 // Computed
 const filteredDecks = computed(() => {
@@ -864,9 +384,9 @@ const filteredDecks = computed(() => {
   
   let decks = [...userDecks.value]
   
-  // Filtre par recherche
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
+  // Filtre par recherche globale
+  if (globalSearch.value) {
+    const query = globalSearch.value.toLowerCase()
     decks = decks.filter(deck => 
       deck.name && deck.name.toLowerCase().includes(query) ||
       deck.description && deck.description.toLowerCase().includes(query)
@@ -880,8 +400,8 @@ const filteredDecks = computed(() => {
     )
   }
   
-  // Tri
-  switch (sortBy.value) {
+  // Tri global
+  switch (globalSort.value) {
     case 'likes':
       return decks.sort((a, b) => (b.likes || 0) - (a.likes || 0))
     case 'name':
@@ -890,20 +410,6 @@ const filteredDecks = computed(() => {
     default:
       return decks.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
   }
-})
-
-const publicDecksCount = computed(() => 
-  Array.isArray(userDecks.value) ? userDecks.value.filter(deck => deck.isPublic).length : 0
-)
-
-const totalLikes = computed(() => 
-  Array.isArray(userDecks.value) ? userDecks.value.reduce((sum, deck) => sum + (deck.likes || 0), 0) : 0
-)
-
-const averageViews = computed(() => {
-  if (!Array.isArray(userDecks.value) || userDecks.value.length === 0) return 0
-  const totalViews = userDecks.value.reduce((sum, deck) => sum + (deck.views || 0), 0)
-  return Math.round(totalViews / userDecks.value.length)
 })
 
 const isFormValid = computed(() => {
@@ -918,145 +424,6 @@ const isFormValid = computed(() => {
   
   return baseValid
 })
-
-// Computed pour le style du slider Hearthstone
-const dustRangeStyle = computed(() => {
-  const min = hearthstoneFilters.value.dustCost.min
-  const max = hearthstoneFilters.value.dustCost.max
-  const minPercent = (min / 10000) * 100
-  const maxPercent = (max / 10000) * 100
-  
-  return {
-    left: `${minPercent}%`,
-    width: `${maxPercent - minPercent}%`
-  }
-})
-
-const minSliderHit = computed(() => {
-  const max = hearthstoneFilters.value.dustCost.max
-  const maxPercent = Math.min(Math.max((max / 10000) * 100, 0), 100)
-  return { left: '0%', width: `${maxPercent}%` }
-})
-
-const maxSliderHit = computed(() => {
-  const min = hearthstoneFilters.value.dustCost.min
-  const minPercent = Math.min(Math.max((min / 10000) * 100, 0), 100)
-  return { left: `${minPercent}%`, width: `${100 - minPercent}%` }
-})
-
-
-// Computed pour les decks filtrés par jeu
-const filteredHearthstoneDecks = computed(() => {
-  let decks = getGameDecks('hearthstone')
-  
-  // Filtre par recherche
-  if (hearthstoneFilters.value.search.trim()) {
-    const query = hearthstoneFilters.value.search.toLowerCase()
-    decks = decks.filter(deck => 
-      deck.title?.toLowerCase().includes(query) ||
-      deck.description?.toLowerCase().includes(query) ||
-      deck.archetype?.toLowerCase().includes(query)
-    )
-  }
-  
-  // Filtre par classes
-  if (hearthstoneFilters.value.selectedClasses.length > 0) {
-    decks = decks.filter(deck => 
-      hearthstoneFilters.value.selectedClasses.includes(deck.hearthstoneClass)
-    )
-  }
-  
-  // Filtre par format
-  if (hearthstoneFilters.value.format !== 'all') {
-    decks = decks.filter(deck => 
-      deck.format?.slug === hearthstoneFilters.value.format
-    )
-  }
-  
-  // Filtre par coût poussière
-  decks = decks.filter(deck => {
-    const dustCost = calculateDeckDustCost(deck)
-    return dustCost >= hearthstoneFilters.value.dustCost.min && 
-           dustCost <= hearthstoneFilters.value.dustCost.max
-  })
-  
-  // Tri
-  return sortHearthstoneDecks(decks, hearthstoneFilters.value.sortBy)
-})
-
-const filteredMagicDecks = computed(() => {
-  let decks = getGameDecks('magic')
-  
-  // Filtre par recherche
-  if (magicFilters.value.search.trim()) {
-    const query = magicFilters.value.search.toLowerCase()
-    decks = decks.filter(deck => 
-      deck.title?.toLowerCase().includes(query) ||
-      deck.description?.toLowerCase().includes(query) ||
-      deck.archetype?.toLowerCase().includes(query)
-    )
-  }
-  
-  // Filtre par couleurs
-  if (magicFilters.value.selectedColors.length > 0) {
-    decks = decks.filter(deck => {
-      const deckColors = deck.colorIdentity || []
-      return magicFilters.value.selectedColors.some(selectedColor => 
-        selectedColor === '' ? deckColors.length === 0 : deckColors.includes(selectedColor)
-      )
-    })
-  }
-  
-  // Filtre par format
-  if (magicFilters.value.format !== 'all') {
-    decks = decks.filter(deck => 
-      deck.format?.slug === magicFilters.value.format
-    )
-  }
-  
-  // Tri
-  return sortDecks(decks, magicFilters.value.sortBy)
-})
-
-const filteredPokemonDecks = computed(() => {
-  let decks = getGameDecks('pokemon')
-  
-  // Filtre par recherche
-  if (pokemonFilters.value.search.trim()) {
-    const query = pokemonFilters.value.search.toLowerCase()
-    decks = decks.filter(deck => 
-      deck.title?.toLowerCase().includes(query) ||
-      deck.description?.toLowerCase().includes(query)
-    )
-  }
-  
-  // Tri
-  return sortDecks(decks, pokemonFilters.value.sortBy)
-})
-
-const getGameStats = (gameSlug) => {
-  const gameDecks = getGameDecks(gameSlug)
-  
-  if (gameDecks.length === 0) {
-    return {
-      totalLikes: 0,
-      publicCount: 0,
-      privateCount: 0,
-      totalDecks: 0
-    }
-  }
-  
-  const totalLikes = gameDecks.reduce((sum, deck) => sum + (deck.likesCount || 0), 0)
-  const publicCount = gameDecks.filter(deck => deck.isPublic).length
-  const privateCount = gameDecks.filter(deck => !deck.isPublic).length
-  
-  return {
-    totalLikes,
-    publicCount,
-    privateCount,
-    totalDecks: gameDecks.length
-  }
-}
 
 // Méthodes
 const loadUserDecks = async () => {
@@ -1128,43 +495,8 @@ const getGameDecks = (game) => {
   })
 }
 
-const filteredDecksByGame = (gameSlug) => {
-  return filteredDecks.value.filter(deck => {
-    // Gérer les deux formats : deck.game.slug ou deck.game directement
-    const deckGameSlug = typeof deck.game === 'object' ? deck.game.slug : deck.game
-    return deckGameSlug === gameSlug
-  })
-}
-
-const getClassDisplayName = (classValue) => {
-  const classObj = hearthstoneClasses.value.find(c => c.value === classValue)
-  return classObj ? classObj.name : classValue
-}
-
 const editDeck = (deck) => {
   router.push(`/edition/${deck.game.slug}/${deck.format.slug}/${deck.slug}`)
-}
-
-const duplicateDeck = async (deck) => {
-  try {
-    const response = await api.post(`/api/decks/${deck.id}/duplicate`)
-    if (response.data.success) {
-      toast.add({
-        severity: 'success',
-        summary: 'Deck dupliqué',
-        detail: `"${deck.name}" a été dupliqué`,
-        life: 3000
-      })
-      await loadUserDecks() // Recharger la liste
-    }
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Erreur',
-      detail: 'Impossible de dupliquer le deck',
-      life: 3000
-    })
-  }
 }
 
 const deleteDeck = async (deck) => {
@@ -1189,6 +521,15 @@ const deleteDeck = async (deck) => {
   }
 }
 
+const copyDeckcode = (deck) => {
+  toast.add({
+    severity: 'info',
+    summary: 'Deckcode',
+    detail: 'Fonctionnalité bientôt disponible...',
+    life: 2000
+  })
+}
+
 const toggleVisibilityFilter = () => {
   const filters = ['all', 'public', 'private']
   const currentIndex = filters.indexOf(visibilityFilter.value)
@@ -1197,115 +538,8 @@ const toggleVisibilityFilter = () => {
 
 const toggleSort = () => {
   const sorts = ['recent', 'likes', 'name']
-  const currentIndex = sorts.indexOf(sortBy.value)
-  sortBy.value = sorts[(currentIndex + 1) % sorts.length]
-}
-
-// Méthodes filtres Hearthstone
-const toggleHearthstoneClass = (classValue) => {
-  const classes = hearthstoneFilters.value.selectedClasses
-  const index = classes.indexOf(classValue)
-  
-  if (index > -1) {
-    classes.splice(index, 1)
-  } else {
-    classes.push(classValue)
-  }
-}
-
-const handleDustRangeChange = () => {
-  // S'assurer que min <= max
-  if (hearthstoneFilters.value.dustCost.min > hearthstoneFilters.value.dustCost.max) {
-    hearthstoneFilters.value.dustCost.min = hearthstoneFilters.value.dustCost.max
-  }
-}
-
-const calculateDeckDustCost = (deck) => {
-  if (!deck.cards || deck.cards.length === 0) return 0
-  
-  const dustCosts = {
-    'common': 40,
-    'rare': 100,
-    'epic': 400,
-    'legendary': 1600
-  }
-  
-  return deck.cards.reduce((sum, cardEntry) => {
-    const rarity = cardEntry.card.rarity?.toLowerCase() || 'common'
-    const cardCost = dustCosts[rarity] || 40
-    return sum + (cardCost * cardEntry.quantity)
-  }, 0)
-}
-
-const sortHearthstoneDecks = (decks, sortBy) => {
-  switch (sortBy) {
-    case 'likes':
-      return [...decks].sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0))
-    case 'name':
-      return [...decks].sort((a, b) => a.title.localeCompare(b.title))
-    case 'dust-asc':
-      return [...decks].sort((a, b) => calculateDeckDustCost(a) - calculateDeckDustCost(b))
-    case 'dust-desc':
-      return [...decks].sort((a, b) => calculateDeckDustCost(b) - calculateDeckDustCost(a))
-    case 'recent':
-    default:
-      return [...decks].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
-  }
-}
-
-const resetHearthstoneFilters = () => {
-  hearthstoneFilters.value = {
-    search: '',
-    selectedClasses: [],
-    dustCost: {
-      min: 0,
-      max: 10000
-    },
-    format: 'all',
-    sortBy: 'recent'
-  }
-}
-
-// Méthodes filtres Magic
-const toggleMagicColor = (colorValue) => {
-  const colors = magicFilters.value.selectedColors
-  const index = colors.indexOf(colorValue)
-  
-  if (index > -1) {
-    colors.splice(index, 1)
-  } else {
-    colors.push(colorValue)
-  }
-}
-
-const resetMagicFilters = () => {
-  magicFilters.value = {
-    search: '',
-    selectedColors: [],
-    format: 'all',
-    sortBy: 'recent'
-  }
-}
-
-// Méthodes filtres Pokemon
-const resetPokemonFilters = () => {
-  pokemonFilters.value = {
-    search: '',
-    sortBy: 'recent'
-  }
-}
-
-// Méthode de tri générique
-const sortDecks = (decks, sortBy) => {
-  switch (sortBy) {
-    case 'likes':
-      return [...decks].sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0))
-    case 'name':
-      return [...decks].sort((a, b) => a.title.localeCompare(b.title))
-    case 'recent':
-    default:
-      return [...decks].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
-  }
+  const currentIndex = sorts.indexOf(globalSort.value)
+  globalSort.value = sorts[(currentIndex + 1) % sorts.length]
 }
 
 // Méthodes modale
@@ -1372,15 +606,6 @@ const validateForm = () => {
   }
 
   return isValid
-}
-
-const copyDeckcode = (deck) => {
-  toast.add({
-    severity: 'info',
-    summary: 'Deckcode',
-    detail: 'Fonctionnalité bientôt disponible...',
-    life: 2000
-  })
 }
 
 const createDeck = async () => {
@@ -1601,389 +826,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 3rem;
-}
-
-.game-section {
-  background: white;
-  border-radius: var(--border-radius-large);
-  border: 1px solid var(--surface-200);
-  box-shadow: var(--shadow-small);
-  overflow: hidden;
-  position: relative;
-}
-
-.game-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-}
-
-.hearthstone-section::before {
-  background: linear-gradient(90deg, #d97706, #f59e0b, #b45309);
-}
-
-.magic-section::before {
-  background: linear-gradient(90deg, #7c3aed, #8b5cf6, #a855f7);
-}
-
-.pokemon-section::before {
-  background: linear-gradient(90deg, #ffc107, #ff6f00);
-}
-
-/* === STATS INTÉGRÉES DANS LES HEADERS === */
-.game-header {
-  padding: 1.5rem 2rem;
-  background: var(--surface-50);
-  border-bottom: 1px solid var(--surface-200);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 2rem;
-}
-
-.game-title-area {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 2rem;
-}
-
-.game-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1.25rem;
-  border-radius: 25px;
-  font-weight: 600;
-  font-size: 1.1rem;
-}
-
-.game-badge.hearthstone {
-  background: rgba(217, 119, 6, 0.1);
-  color: #d97706;
-  border: 2px solid rgba(217, 119, 6, 0.3);
-}
-
-.game-badge.magic {
-  background: rgba(124, 58, 237, 0.1);
-  color: #7c3aed;
-  border: 2px solid rgba(124, 58, 237, 0.3);
-}
-
-.game-badge.pokemon {
-  background: rgba(255, 193, 7, 0.1);
-  color: #ff6f00;
-  border: 2px solid rgba(255, 193, 7, 0.3);
-}
-
-.game-icon {
-  font-size: 1.5rem;
-}
-
-.game-stats-integrated {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: white;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  border: 1px solid var(--surface-200);
-  transition: all var(--transition-fast);
-}
-
-.stat-item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.stat-item.likes {
-  color: #e11d48;
-  border-color: rgba(225, 29, 72, 0.2);
-}
-
-.stat-item.likes:hover {
-  background: rgba(225, 29, 72, 0.05);
-  border-color: #e11d48;
-}
-
-.stat-item.likes i {
-  color: #e11d48;
-  font-size: 0.9rem;
-}
-
-.stat-item.public {
-  color: var(--primary);
-  border-color: rgba(38, 166, 154, 0.2);
-}
-
-.stat-item.public:hover {
-  background: rgba(38, 166, 154, 0.05);
-  border-color: var(--primary);
-}
-
-.stat-item.public i {
-  color: var(--primary);
-  font-size: 0.9rem;
-}
-
-.stat-item.private {
-  color: #6b7280;
-  border-color: rgba(107, 114, 128, 0.2);
-}
-
-.stat-item.private:hover {
-  background: rgba(107, 114, 128, 0.05);
-  border-color: #6b7280;
-}
-
-.stat-item.private i {
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-.stat-item.total {
-  color: var(--text-primary);
-  border-color: var(--surface-300);
-  background: var(--surface-100);
-  font-style: italic;
-}
-
-.stat-item.total:hover {
-  background: var(--surface-200);
-  border-color: var(--surface-400);
-}
-
-.stat-value {
-  font-weight: 700;
-  font-size: 0.9rem;
-  min-width: 20px;
-  text-align: center;
-  color: var(--text-primary) !important; 
-}
-
-.stat-label {
-  font-weight: 500;
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-/* === ADAPTATIONS THÉMATIQUES PAR JEU === */
-
-/* Hearthstone - Orange/Feu */
-.hearthstone-section .stat-item.likes {
-  color: #ff5722;
-  border-color: rgba(255, 87, 34, 0.2);
-}
-
-.hearthstone-section .stat-item.likes:hover {
-  background: rgba(255, 87, 34, 0.05);
-  border-color: #ff5722;
-}
-
-.hearthstone-section .stat-item.public {
-  color: #d97706;
-  border-color: rgba(217, 119, 6, 0.2);
-}
-
-.hearthstone-section .stat-item.public:hover {
-  background: rgba(217, 119, 6, 0.05);
-  border-color: #d97706;
-}
-
-/* Magic - Violet/Noir */
-.magic-section .stat-item.likes {
-  color: #c2410c;
-  border-color: rgba(194, 65, 12, 0.2);
-}
-
-.magic-section .stat-item.likes:hover {
-  background: rgba(194, 65, 12, 0.05);
-  border-color: #c2410c;
-}
-
-.magic-section .stat-item.public {
-  color: #7c3aed;
-  border-color: rgba(124, 58, 237, 0.2);
-}
-
-.magic-section .stat-item.public:hover {
-  background: rgba(124, 58, 237, 0.05);
-  border-color: #7c3aed;
-}
-
-/* Pokemon - Jaune/Rouge */
-.pokemon-section .stat-item.likes {
-  color: #dc2626;
-  border-color: rgba(220, 38, 38, 0.2);
-}
-
-.pokemon-section .stat-item.likes:hover {
-  background: rgba(220, 38, 38, 0.05);
-  border-color: #dc2626;
-}
-
-.pokemon-section .stat-item.public {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.2);
-}
-
-.pokemon-section .stat-item.public:hover {
-  background: rgba(251, 191, 36, 0.05);
-  border-color: #fbbf24;
-}
-
-/* Decks grid */
-.decks-grid {
-  padding: 2rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 1.5rem;
-}
-
-/* Deck cards */
-.deck-content {
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  height: 100%;
-}
-
-.deck-header-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.deck-name {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-  flex: 1;
-  line-height: 1.3;
-}
-
-.deck-status {
-  flex-shrink: 0;
-}
-
-.deck-status i {
-  font-size: 1.1rem;
-}
-
-.deck-meta {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.format-badge {
-  padding: 0.25rem 0.75rem;
-  background: rgba(38, 166, 154, 0.1);
-  color: var(--primary);
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.format-badge.magic {
-  background: rgba(139, 69, 19, 0.1);
-  color: #8b4513;
-}
-
-.format-badge.pokemon {
-  background: rgba(255, 193, 7, 0.1);
-  color: #ff6f00;
-}
-
-.class-badge {
-  padding: 0.25rem 0.75rem;
-  background: var(--surface-200);
-  color: var(--text-primary);
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.deck-stats-info {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.deck-stats-info span {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.deck-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: auto;
-  padding-top: 1rem;
-  border-top: 1px solid var(--surface-200);
-}
-
-:deep(.deck-actions .p-button) {
-  flex: 1 !important;
-  padding: 0.5rem !important;
-  border-radius: 6px !important;
-  font-size: 0.85rem !important;
-}
-
-:deep(.edit-btn) {
-  background: var(--primary) !important;
-  border-color: var(--primary) !important;
-  color: white !important;
-}
-
-:deep(.edit-btn:hover) {
-  background: var(--primary-dark) !important;
-  border-color: var(--primary-dark) !important;
-}
-
-:deep(.copy-btn) {
-  background: white !important;
-  border: 2px solid var(--surface-300) !important;
-  color: var(--text-secondary) !important;
-}
-
-:deep(.copy-btn:hover) {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: rgba(38, 166, 154, 0.1) !important;
-}
-
-:deep(.delete-btn) {
-  background: white !important;
-  border: 2px solid rgba(255, 87, 34, 0.3) !important;
-  color: var(--accent) !important;
-}
-
-:deep(.delete-btn:hover) {
-  background: var(--accent) !important;
-  border-color: var(--accent) !important;
-  color: white !important;
 }
 
 /* Loading and empty states */
@@ -2209,7 +1051,7 @@ onMounted(async () => {
   border-top: 1px solid var(--surface-200);
 }
 
-/* === RESPONSIVE STATS === */
+/* Responsive */
 @media (max-width: 1024px) {
   .container {
     padding: 0 1rem;
@@ -2229,25 +1071,6 @@ onMounted(async () => {
   .search-wrapper {
     max-width: none;
   }
-  
-  .decks-grid {
-    padding: 1.5rem;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-  }
-  
-  .game-stats-integrated {
-    gap: 1rem;
-  }
-  
-  .stat-item {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-  }
-  
-  .stat-value {
-    font-size: 0.85rem;
-  }
 }
 
 @media (max-width: 768px) {
@@ -2259,38 +1082,6 @@ onMounted(async () => {
     font-size: 2rem;
   }
   
-  .game-header {
-    padding: 1rem 1.5rem;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-  
-  .game-title-area {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-  
-  .game-stats-integrated {
-    align-self: stretch;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-  
-  .stat-item {
-    flex: 1;
-    min-width: 60px;
-    justify-content: center;
-    padding: 0.5rem 0.25rem;
-  }
-  
-  .decks-grid {
-    grid-template-columns: 1fr;
-    padding: 1rem;
-  }
-  
   .filter-buttons {
     width: 100%;
     justify-content: space-between;
@@ -2298,15 +1089,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 640px) {
-  .deck-actions {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  :deep(.deck-actions .p-button) {
-    width: 100% !important;
-  }
-  
   .modal-body {
     padding: 1.5rem;
   }
@@ -2318,17 +1100,6 @@ onMounted(async () => {
   
   :deep(.modal-actions .p-button) {
     width: 100% !important;
-  }
-  
-  .game-stats-integrated {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-  }
-  
-  .stat-item {
-    justify-content: center;
-    text-align: center;
   }
 }
 
@@ -2362,880 +1133,4 @@ onMounted(async () => {
     transform: translateY(0);
   }
 }
-
-.hover-lift {
-  transition: all var(--transition-fast);
-}
-
-.hover-lift:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-medium);
-}
-
-/* === FILTRES HEARTHSTONE AVANCÉS === */
-
-.hearthstone-filters-panel {
-  padding: 2rem;
-  background: linear-gradient(135deg, rgba(217, 119, 6, 0.04), rgba(255, 152, 0, 0.02));
-  border-left: 6px solid #d97706;
-  border-bottom: 1px solid var(--surface-200);
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  animation: fadeInScale 0.3s ease-out;
-}
-
-/* Barre de recherche spécifique Hearthstone */
-.filter-search-wrapper {
-  position: relative;
-  max-width: 400px;
-  width: 100%;
-}
-
-:deep(.hearthstone-search) {
-  width: 100% !important;
-  padding: 0.875rem 1rem 0.875rem 3rem !important;
-  border: 2px solid #d97706 !important;
-  border-radius: 25px !important;
-  background: white !important;
-  font-size: 0.9rem !important;
-  transition: all var(--transition-fast) !important;
-}
-
-:deep(.hearthstone-search:focus) {
-  border-color: #b45309 !important;
-  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15) !important;
-  outline: none !important;
-}
-
-/* Ligne principale des filtres */
-.filters-main-row {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  column-gap: 2rem;
-  row-gap: 1rem;
-  align-items: flex-start; /* au lieu de center */
-}
-
-.filter-group-label {
-  display: block;
-  height: 18px;           /* hauteur standardisée */
-  line-height: 18px;      /* texte centré verticalement */
-  margin-bottom: 8px;     /* espace avant le contrôle */
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-/* === CHECKBOXES CLASSES AVEC IMAGES === */
-
-
-.classes-inline-row {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding-top: 0.75rem;
-  border-top: 1px solid rgba(217, 119, 6, 0.2);
-  margin-top: 0.75rem;
-}
-
-.class-checkbox-inline {
-  position: relative;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 10px;
-  overflow: hidden;
-  border: 2px solid transparent;
-  background: white;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  min-width: 100px;
-}
-
-.class-checkbox-inline:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2);
-  border-color: #d97706;
-}
-
-.class-checkbox-inline.selected {
-  border-color: #d97706;
-  background: linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(255, 152, 0, 0.08));
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(217, 119, 6, 0.25);
-}
-
-.class-checkbox-icon-inline {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-  transition: all var(--transition-fast);
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.2));
-  flex-shrink: 0;
-}
-
-.class-checkbox-inline:hover .class-checkbox-icon-inline {
-  transform: scale(1.1);
-}
-
-.class-checkbox-name-inline {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-
-.class-checkbox-indicator-inline {
-  position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
-  width: 16px;
-  height: 16px;
-  background: #d97706;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 0.6rem;
-  animation: checkPop 0.3s ease-out;
-  box-shadow: 0 2px 4px rgba(217, 119, 6, 0.4);
-}
-
-/* === SLIDER COÛT SIMPLIFIÉ (SANS INPUT FIELDS) === */
-.dust-cost-filter-group {
-  min-width: 280px;
-  flex: 1;
-}
-
-.class-checkbox {
-  position: relative;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 12px;
-  overflow: hidden;
-  border: 2px solid transparent;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.class-checkbox:hover {
-  transform: translateY(-3px) scale(1.02);
-  box-shadow: 0 6px 20px rgba(217, 119, 6, 0.2);
-  border-color: #d97706;
-}
-
-.class-checkbox.selected {
-  border-color: #d97706;
-  background: linear-gradient(135deg, rgba(217, 119, 6, 0.1), rgba(255, 152, 0, 0.05));
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 8px 25px rgba(217, 119, 6, 0.3);
-}
-
-.class-checkbox.selected::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(45deg, #d97706, transparent, #f59e0b);
-  border-radius: 14px;
-  z-index: -1;
-  opacity: 0.6;
-  animation: classGlow 2s ease-in-out infinite alternate;
-}
-
-@keyframes classGlow {
-  0% { opacity: 0.4; }
-  100% { opacity: 0.8; }
-}
-
-.class-checkbox-content {
-  padding: 0.75rem 0.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  position: relative;
-}
-
-.class-checkbox-icon {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-  transition: all var(--transition-fast);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-}
-
-.class-checkbox:hover .class-checkbox-icon {
-  transform: scale(1.1);
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
-}
-
-.class-checkbox-name {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  text-align: center;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  line-height: 1.2;
-}
-
-.class-checkbox-indicator {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  width: 20px;
-  height: 20px;
-  background: #d97706;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 0.7rem;
-  animation: checkPop 0.3s ease-out;
-  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.4);
-}
-
-@keyframes checkPop {
-  0% { transform: scale(0); opacity: 0; }
-  50% { transform: scale(1.3); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-/* === SLIDER COÛT POUSSIÈRE — PATCH PROPRE === */
-.dust-cost-filter-group { min-width: 250px; flex: 1; }
-
-/* Wrapper plus haut pour que les thumbs ne mangent pas la piste */
-.range-slider-wrapper {
-  position: relative;
-  height: 48px;              /* + hauteur pour respirer */
-  display: flex;
-  align-items: center;
-}
-
-/* Input range au bon z-index, centré verticalement */
-.range-slider {
-  position: absolute;
-  top: 14px;               /* garde ton centrage vertical */
-  height: 20px;            /* zone de clic confortable */
-  background: transparent;
-  outline: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-}
-
-/* Assure l’ordre d’empilement (au cas où) */
-.range-min { z-index: 3; }
-.range-max { z-index: 2; }
-
-/* Optionnel : petit nudge vertical si besoin */
-.range-slider::-webkit-slider-thumb { margin-top: -2px; }
-.range-slider::-moz-range-thumb { margin-top: -2px; }
-
-
-/* Piste visuelle custom (sous l’input) */
-.range-track {
-  position: absolute;
-  left: 0; right: 0;
-  top: 22px;                 /* centre la piste par rapport au wrapper */
-  height: 8px;               /* un poil plus épais, look + clean */
-  background: #e5e7eb;
-  border-radius: 999px;
-  z-index: 1;
-}
-
-/* Segment rempli */
-.range-track-fill {
-  position: absolute;
-  left: 0;
-  top: 22px;
-  height: 8px;
-  background: linear-gradient(90deg, #d97706, #f59e0b);
-  border-radius: 999px;
-  transition: width 0.15s ease;
-  box-shadow: 0 2px 4px rgba(217,119,6,0.25);
-  z-index: 2;                /* au-dessus de la piste, sous les thumbs */
-}
-
-/* Thumbs WebKit */
-.range-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #d97706;                     /* couleur Hearthstone */
-  border: 3px solid #fff;
-  box-shadow: 0 2px 10px rgba(217,119,6,0.35);
-  transition: transform .15s ease, background .15s ease;
-  transform: translateY(-4px);             /* remonte le thumb => ne mord plus la piste */
-}
-.range-slider::-webkit-slider-thumb:hover { transform: translateY(-4px) scale(1.05); background:#b45309; }
-.range-slider:focus-visible::-webkit-slider-thumb { outline: 3px solid rgba(217,119,6,0.35); outline-offset: 2px; }
-
-/* Firefox */
-.range-slider::-moz-range-thumb {
-  width: 22px; height: 22px; border-radius: 50%;
-  background: #d97706; border: 3px solid #fff;
-  box-shadow: 0 2px 10px rgba(217,119,6,0.35);
-}
-.range-slider::-moz-range-track { background: transparent; }
-
-/* Badge de valeurs */
-.dust-range-display {
-  font-weight: 600; color: #f59e0b;
-  background: rgba(245,158,11,0.1);
-  padding: 0.25rem 0.5rem; border-radius: 8px; font-size: .8rem;
-}
-
-
-@media (max-width: 1024px) {
-  .classes-inline-row {
-    gap: 0.5rem;
-  }
-  
-  .class-checkbox-inline {
-    min-width: 90px;
-    padding: 0.4rem 0.6rem;
-  }
-  
-  .class-checkbox-icon-inline {
-    width: 28px;
-    height: 28px;
-  }
-  
-  .class-checkbox-name-inline {
-    font-size: 0.7rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .classes-inline-row {
-    justify-content: flex-start;
-    gap: 0.4rem;
-  }
-  
-  .class-checkbox-inline {
-    min-width: 80px;
-    padding: 0.35rem 0.5rem;
-  }
-  
-  .class-checkbox-icon-inline {
-    width: 24px;
-    height: 24px;
-  }
-  
-  .class-checkbox-name-inline {
-    font-size: 0.65rem;
-  }
-  
-  .class-checkbox-indicator-inline {
-    width: 14px;
-    height: 14px;
-    font-size: 0.55rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .classes-inline-row {
-    gap: 0.25rem;
-  }
-  
-  .class-checkbox-inline {
-    min-width: 70px;
-    padding: 0.3rem 0.4rem;
-  }
-  
-  .class-checkbox-icon-inline {
-    width: 20px;
-    height: 20px;
-  }
-  
-  .class-checkbox-name-inline {
-    font-size: 0.6rem;
-  }
-}
-
-/* === TOGGLE FORMAT STANDARD/WILD === */
-.format-filter-group {
-  min-width: 200px;
-}
-
-.format-toggle-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.format-toggle-buttons {
-  display: flex;
-  background: white;
-  border-radius: 12px;
-  padding: 0.25rem;
-  border: 2px solid var(--surface-300);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.format-toggle-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.format-toggle-btn:hover {
-  background: rgba(217, 119, 6, 0.1);
-  color: #d97706;
-  transform: translateY(-1px);
-}
-
-.format-toggle-btn.active {
-  background: linear-gradient(135deg, #d97706, #f59e0b);
-  color: white;
-  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
-  transform: translateY(-2px);
-}
-
-.format-toggle-btn.standard.active {
-  background: linear-gradient(135deg, #3b82f6, #1e40af);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-.format-toggle-btn.wild.active {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-}
-
-.format-toggle-btn i {
-  font-size: 0.9rem;
-}
-
-/* === ACTIONS FILTRES === */
-.filters-actions-group {
-  display: flex;
-  flex-direction: row;   /* horizontal */
-  align-items: center;
-  gap: 0.75rem;
-  padding-top: 26px;     /* = hauteur label (18) + marge (8) */
-}
-
-:deep(.filter-sort-dropdown) {
-  min-width: 160px !important;
-  border: 2px solid #d97706 !important;
-  border-radius: 8px !important;
-  background: white !important;
-  font-size: 0.85rem !important;
-}
-
-:deep(.filter-sort-dropdown:hover) {
-  border-color: #b45309 !important;
-  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1) !important;
-}
-
-:deep(.filter-sort-dropdown.p-focus) {
-  border-color: #b45309 !important;
-  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.2) !important;
-}
-
-:deep(.filter-sort-dropdown),
-:deep(.magic-dropdown) {
-  min-width: 180px !important;
-  height: 42px !important;
-}
-:deep(.reset-filters-btn) {
-  width: 42px !important;
-  height: 42px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-:deep(.reset-filters-btn:hover) {
-  background: #ef4444 !important;
-  color: white !important;
-  transform: scale(1.05) rotate(90deg) !important;
-  opacity: 1;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
-}
-
-/* === RESPONSIVE === */
-@media (max-width: 1024px) {
-  .hearthstone-filters-panel {
-    padding: 1.5rem;
-  }
-  
-  .filters-main-row {
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-  
-  .classes-checkboxes-grid {
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 0.5rem;
-  }
-  
-  .class-checkbox-icon {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .class-checkbox-name {
-    font-size: 0.65rem;
-  }
-  
-  .range-inputs {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .hearthstone-filters-panel {
-    padding: 1rem;
-    gap: 1rem;
-  }
-  
-  .filter-search-wrapper {
-    max-width: 100%;
-  }
-  
-  .classes-checkboxes-grid {
-    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-    gap: 0.5rem;
-  }
-  
-  .class-checkbox-content {
-    padding: 0.5rem 0.25rem;
-  }
-  
-  .class-checkbox-icon {
-    width: 36px;
-    height: 36px;
-  }
-  
-  .class-checkbox-name {
-    font-size: 0.6rem;
-  }
-  
-  .format-toggle-buttons {
-    flex-direction: column;
-  }
-  
-  .format-toggle-btn {
-    padding: 0.6rem;
-    font-size: 0.8rem;
-  }
-  
-  .filters-actions-group {
-    align-items: stretch;
-  }
-  
-  :deep(.filter-sort-dropdown) {
-    min-width: 180px !important;
-    height: 42px !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .classes-checkboxes-grid {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.25rem;
-  }
-  
-  .class-checkbox-content {
-    padding: 0.4rem 0.2rem;
-  }
-  
-  .class-checkbox-icon {
-    width: 32px;
-    height: 32px;
-  }
-  
-  .class-checkbox-name {
-    font-size: 0.55rem;
-  }
-  
-  .class-checkbox-indicator {
-    width: 16px;
-    height: 16px;
-    font-size: 0.6rem;
-  }
-  
-  .dust-range-display {
-    font-size: 0.7rem;
-  }
-  
-  .range-number-input {
-    padding: 0.4rem;
-    font-size: 0.8rem;
-  }
-}
-/* === FILTRES MAGIC AVANCÉS (STYLE HEARTHSTONE) === */
-
-.magic-filters-panel {
-  padding: 2rem;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.04), rgba(139, 92, 246, 0.02));
-  border-left: 6px solid #7c3aed;
-  border-bottom: 1px solid var(--surface-200);
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  animation: fadeInScale 0.3s ease-out;
-}
-
-/* Barre de recherche spécifique Magic */
-:deep(.magic-search) {
-  width: 100% !important;
-  padding: 0.875rem 1rem 0.875rem 3rem !important;
-  border: 2px solid #7c3aed !important;
-  border-radius: 25px !important;
-  background: white !important;
-  font-size: 0.9rem !important;
-  transition: all var(--transition-fast) !important;
-}
-
-:deep(.magic-search:focus) {
-  border-color: #5b21b6 !important;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15) !important;
-  outline: none !important;
-}
-
-/* === CHECKBOXES COULEURS MAGIC REDESIGNÉES === */
-.magic-colors-filter {
-  min-width: 320px;
-  flex: 1;
-}
-
-.magic-colors-grid {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-}
-
-.magic-color-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border: 2px solid;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 0.85rem;
-  font-weight: 600;
-  user-select: none;
-  min-width: 85px;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  background: white;
-}
-
-.magic-color-checkbox::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.magic-color-checkbox:hover::before {
-  left: 100%;
-}
-
-.magic-color-checkbox:hover {
-  transform: translateY(-3px) scale(1.05);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
-}
-
-.magic-color-checkbox.selected {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
-  position: relative;
-}
-
-.magic-color-checkbox.selected::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(45deg, currentColor, transparent, currentColor);
-  border-radius: 14px;
-  z-index: -1;
-  opacity: 0.3;
-  animation: magicGlow 2s ease-in-out infinite alternate;
-}
-
-@keyframes magicGlow {
-  0% { opacity: 0.3; }
-  100% { opacity: 0.6; }
-}
-
-.magic-color-checkbox i {
-  font-size: 0.75rem;
-  animation: checkPop 0.3s ease-out;
-}
-
-/* === DROPDOWN FORMATS MAGIC === */
-:deep(.magic-dropdown) {
-  min-width: 160px !important;
-  border: 2px solid #7c3aed !important;
-  border-radius: 8px !important;
-  background: white !important;
-  font-size: 0.85rem !important;
-  transition: all var(--transition-fast) !important;
-}
-
-:deep(.magic-dropdown:hover) {
-  border-color: #5b21b6 !important;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1) !important;
-  transform: translateY(-1px) !important;
-}
-
-:deep(.magic-dropdown.p-focus) {
-  border-color: #5b21b6 !important;
-  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2) !important;
-}
-
-/* === RESPONSIVE MAGIC === */
-@media (max-width: 1024px) {
-  .magic-filters-panel {
-    padding: 1.5rem;
-  }
-  
-  .magic-colors-grid {
-    gap: 0.5rem;
-  }
-  
-  .magic-color-checkbox {
-    min-width: 75px;
-    padding: 0.6rem 0.8rem;
-    font-size: 0.8rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .magic-filters-panel {
-    padding: 1rem;
-    gap: 1rem;
-  }
-  
-  .magic-colors-grid {
-    justify-content: center;
-    gap: 0.4rem;
-  }
-  
-  .magic-color-checkbox {
-    min-width: 70px;
-    padding: 0.5rem 0.7rem;
-    font-size: 0.75rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .magic-colors-grid {
-    gap: 0.3rem;
-  }
-  
-  .magic-color-checkbox {
-    min-width: 60px;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.7rem;
-  }
-}
-
-/* === FILTRES POKEMON SIMPLES === */
-
-.pokemon-filters-panel {
-  padding: 2rem;
-  background: linear-gradient(135deg, rgba(255, 193, 7, 0.04), rgba(255, 152, 0, 0.02));
-  border-left: 6px solid #ffc107;
-  border-bottom: 1px solid var(--surface-200);
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  animation: fadeInScale 0.3s ease-out;
-}
-
-/* Barre de recherche spécifique Pokemon */
-:deep(.pokemon-search) {
-  width: 100% !important;
-  padding: 0.875rem 1rem 0.875rem 3rem !important;
-  border: 2px solid #ffc107 !important;
-  border-radius: 25px !important;
-  background: white !important;
-  font-size: 0.9rem !important;
-  transition: all var(--transition-fast) !important;
-}
-
-:deep(.pokemon-search:focus) {
-  border-color: #f59e0b !important;
-  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.15) !important;
-  outline: none !important;
-}
-
-@media (max-width: 1024px) {
-  .pokemon-filters-panel {
-    padding: 1.5rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .pokemon-filters-panel {
-    padding: 1rem;
-    gap: 1rem;
-  }
-}
-
-.dust-slider {
-  max-width: 220px !important; /* limite la longueur */
-}
-
-.dust-slider::-webkit-slider-runnable-track {
-  height: 6px;
-  background: var(--surface-300);
-  border-radius: 3px;
-}
-
-.dust-slider::-moz-range-track {
-  height: 6px;
-  background: var(--surface-300);
-  border-radius: 3px;
-}
-
-.range-slider.min { z-index: 3; }
-.range-slider.max { z-index: 2; }
-
-
 </style>
