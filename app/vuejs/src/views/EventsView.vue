@@ -1,6 +1,4 @@
-/* === SUPPRESSION ANCIEN CSS === */
-
-/* Anciens styles supprimés et remplacés par le nouveau système */<template>
+<template>
   <div class="events-page">
     <div class="container">
       
@@ -178,6 +176,16 @@
         </div>
       </div>
 
+      <!-- Carte des événements à proximité -->
+      <div class="map-section">
+        <EventMap 
+          :events="eventsWithCoordinates"
+          :filters="filters"
+          @event-selected="handleMapEventSelection"
+          @location-changed="handleUserLocationChange"
+        />
+      </div>
+
       <!-- Résultats -->
       <div class="results-section">
         
@@ -284,6 +292,7 @@ import { useEventStore } from '@/stores/events'
 import { useAuthStore } from '@/stores/auth'
 import { useGameFilterStore } from '@/stores/gameFilter'
 import EventCard from '@/components/events/EventCard.vue'
+import EventMap from '@/components/events/EventMap.vue'
 import SplitButton from 'primevue/splitbutton'
 import Menu from 'primevue/menu'
 import Dropdown from 'primevue/dropdown'
@@ -419,6 +428,15 @@ const displayedActiveFilters = computed(() => {
   return active
 })
 
+// Événements avec coordonnées pour la carte
+const eventsWithCoordinates = computed(() => {
+  return eventStore.filteredEvents.filter(event => 
+    event.address?.latitude && 
+    event.address?.longitude &&
+    !event.is_online
+  )
+})
+
 // ============= WATCHERS =============
 
 // Synchroniser les filtres avec le store
@@ -536,6 +554,28 @@ const goToEventDetail = (eventId) => {
 const handleFollowChanged = async (data) => {
   console.log('Suivi modifié:', data.event.title, 'Suivi:', data.isFollowing)
 }
+
+// ============= MÉTHODES CARTE =============
+
+/**
+ * Gestion sélection d'événement depuis la carte
+ */
+const handleMapEventSelection = (eventData) => {
+  if (eventData.id) {
+    goToEventDetail(eventData.id)
+  } else if (eventData) {
+    goToEventDetail(eventData.id)
+  }
+}
+
+/**
+ * Gestion changement position utilisateur
+ */
+const handleUserLocationChange = (location) => {
+  console.log('📍 Position utilisateur mise à jour:', location)
+}
+
+// ============= GESTION FILTRES ET RECHERCHE =============
 
 /**
  * Gestion recherche avec debounce
@@ -1028,36 +1068,9 @@ onUnmounted(() => {
   border-color: var(--primary-dark);
 }
 
-:deep(.reset-filters-btn) {
-  flex: 1;
-  padding: 0.75rem 1rem !important;
-  border: 2px solid var(--surface-400) !important;
-  color: var(--text-secondary) !important;
-  border-radius: var(--border-radius) !important;
-  background: transparent !important;
-}
-
-:deep(.reset-filters-btn:hover) {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: rgba(38, 166, 154, 0.1) !important;
-}
-
-:deep(.apply-filters-btn) {
-  flex: 2;
-  padding: 0.75rem 1rem !important;
-  background: var(--primary) !important;
-  border: 2px solid var(--primary) !important;
-  color: white !important;
-  border-radius: var(--border-radius) !important;
-  font-weight: 600 !important;
-}
-
-:deep(.apply-filters-btn:hover) {
-  background: var(--primary-dark) !important;
-  border-color: var(--primary-dark) !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3) !important;
+/* === SECTION CARTE === */
+.map-section {
+  margin-bottom: 2rem;
 }
 
 /* === RÉSULTATS === */
@@ -1243,8 +1256,6 @@ onUnmounted(() => {
 
 /* === RESPONSIVE === */
 
-/* === RESPONSIVE === */
-
 @media (max-width: 1024px) {
   .events-grid {
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -1329,46 +1340,16 @@ onUnmounted(() => {
   
   .filters-content {
     padding: 1rem;
-    gap: 0.75rem;
   }
   
-  .filters-row-primary {
-    flex-direction: column;
+  .filters-line-1 {
+    grid-template-columns: 1fr;
     gap: 1rem;
-    margin-bottom: 1rem;
   }
   
-  .filters-row-secondary {
-    flex-direction: column;
+  .filters-line-2 {
+    grid-template-columns: 1fr;
     gap: 1rem;
-    margin-bottom: 1rem;
-  }
-  
-  .filters-row-actions {
-    justify-content: center;
-  }
-  
-  /* Toutes les largeurs fixes deviennent auto sur mobile */
-  .search-group,
-  .type-group,
-  .game-group,
-  .format-group,
-  .start-date-group,
-  .end-date-group,
-  .sort-group {
-    width: 100%;
-  }
-  
-  .filter-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
-  :deep(.reset-filters-btn),
-  :deep(.apply-filters-btn) {
-    flex: 1 !important;
-    width: auto !important;
-    max-width: 45% !important;
   }
   
   .events-grid {
@@ -1430,24 +1411,6 @@ onUnmounted(() => {
   }
 }
 
-/* === OVERLAY POUR MOBILE === */
-
-/* Supprimé car plus nécessaire avec le nouveau layout étendu */
-
-/* === ÉTATS FOCUS ET ACCESSIBILITÉ === */
-
-.filter-toggle:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-.remove-filter:focus-visible {
-  outline: 1px solid var(--primary);
-  outline-offset: 1px;
-}
-
-/* === ANIMATIONS SUPPLÉMENTAIRES === */
-
 .active-filter-tag {
   animation: filterTagAppear 0.3s ease-out;
 }
@@ -1500,10 +1463,6 @@ onUnmounted(() => {
 }
 
 /* === TRANSITIONS DOUCES === */
-
-.filters-panel {
-  transform-origin: top right;
-}
 
 .stats-and-filters {
   transition: all var(--transition-medium);
