@@ -39,7 +39,12 @@
         <header class="post-header">
           <div class="post-meta">
             <div class="post-author">
-              <div class="author-avatar">
+              <div 
+                class="author-avatar"
+                :class="{ 'clickable-avatar': canNavigateToProfile(post.authorId) }"
+                @click="canNavigateToProfile(post.authorId) && goToProfile(post.authorId, post.author)"
+                :title="canNavigateToProfile(post.authorId) ? getProfileTooltip(post.author) : ''"
+              >
                 <img 
                   v-if="post.authorAvatar"
                   :src="`${backendUrl}/uploads/${post.authorAvatar}`"
@@ -51,7 +56,14 @@
                 </span>
               </div>
               <div class="author-info">
-                <strong class="author-name">{{ post.author }}</strong>
+                <strong 
+                  class="author-name"
+                  :class="{ 'clickable-name': canNavigateToProfile(post.authorId) }"
+                  @click="canNavigateToProfile(post.authorId) && goToProfile(post.authorId, post.author)"
+                  :title="canNavigateToProfile(post.authorId) ? getProfileTooltip(post.author) : ''"
+                >
+                  {{ post.author }}
+                </strong>
                 <time class="post-date">{{ formatDate(post.createdAt) }}</time>
               </div>
             </div>
@@ -350,6 +362,11 @@ import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 import CommentThread from '@/components/forum/CommentThread.vue'
 
+// Ajouter cette ligne aux imports existants
+import { useProfileNavigation } from '@/composables/useProfileNavigation'
+
+// Dans le script setup, ajouter :
+const { goToProfile, canNavigateToProfile, getProfileTooltip } = useProfileNavigation()
 const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
 
 const route = useRoute()
@@ -1816,5 +1833,68 @@ onMounted(fetchPost)
 .action-btn.delete:hover {
   background: rgba(239, 68, 68, 0.1);
   color: #dc2626;
+}
+
+/* Styles pour les éléments cliquables */
+.clickable-avatar {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-radius: 50%;
+  position: relative;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.3);
+}
+
+.clickable-name {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  text-decoration: none;
+  border-radius: var(--border-radius-small);
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+}
+
+.clickable-name:hover {
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1);
+}
+
+/* Animation subtile pour indiquer l'interactivité */
+@keyframes profileHint {
+  0% { background: transparent; }
+  50% { background: rgba(38, 166, 154, 0.05); }
+  100% { background: transparent; }
+}
+
+.clickable-avatar:hover::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+/* Tooltip style pour les titres */
+.clickable-avatar[title],
+.clickable-name[title] {
+  position: relative;
+}
+
+/* Responsive - réduire les effets sur mobile */
+@media (max-width: 768px) {
+  .clickable-avatar:hover {
+    transform: scale(1.02);
+  }
+  
+  .clickable-avatar:hover::after {
+    display: none;
+  }
 }
 </style>

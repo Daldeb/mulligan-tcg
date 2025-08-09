@@ -593,8 +593,13 @@ private function serializeDeck(Deck $deck): array
             'slug' => $deck->getGameFormat()->getSlug()
         ],
         'author' => $deck->getAuthorName(),
+        // 🎯 AJOUT CRUCIAL : ID de l'auteur pour navigation profil
+        'authorId' => $deck->getUser() ? $deck->getUser()->getId() : null,
+        // 🎯 BONUS : Avatar de l'auteur pour affichage
+        'authorAvatar' => $deck->getUser() && $deck->getUser()->getAvatar() ? $deck->getUser()->getAvatar() : null,
         'createdAt' => $deck->getCreatedAt()?->format('Y-m-d H:i:s'),
         'updatedAt' => $deck->getUpdatedAt()?->format('Y-m-d H:i:s'),
+        'publishedAt' => $deck->getPublishedAt()?->format('Y-m-d H:i:s'),
         'hearthstoneClass' => $deck->getHearthstoneClass(),
         'cards' => $serializedCards,
     ], $additionalData);

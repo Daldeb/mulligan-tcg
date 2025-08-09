@@ -211,7 +211,19 @@ const routes = [
     meta: {
       title: 'Page non trouvée - MULLIGAN TCG'
     }
-  }
+  },
+
+  {
+  path: '/profile/:userId',
+  name: 'public-profile',
+  component: () => import('../views/PublicProfileView.vue'),
+  meta: {
+    title: 'Profil - MULLIGAN TCG'
+  },
+  props: route => ({
+    userId: parseInt(route.params.userId)
+  })
+}
 ]
 
 const router = createRouter({

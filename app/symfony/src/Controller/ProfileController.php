@@ -640,6 +640,136 @@ public function updateShop(Request $request, EntityManagerInterface $em): JsonRe
         }
     }
 
+// À AJOUTER dans ProfileController.php après les autres méthodes
+
+#[Route('/api/users/{id}/public-profile', name: 'api_public_profile', methods: ['GET'])]
+public function getPublicProfile(int $id): JsonResponse
+{
+    // Récupérer l'utilisateur
+    $userRepository = $this->entityManager->getRepository(User::class);
+    $user = $userRepository->find($id);
+    
+    if (!$user) {
+        return $this->json(['error' => 'Utilisateur non trouvé'], Response::HTTP_NOT_FOUND);
+    }
+
+    // Calculer les statistiques publiques
+    $postRepository = $this->entityManager->getRepository(Post::class);
+    $commentRepository = $this->entityManager->getRepository(Comment::class);
+    
+    $postsCount = $postRepository->countByUser($user);
+    $topicsParticipated = $commentRepository->countTopicsParticipatedByUser($user);
+    
+    // Calculer les likes reçus sur ses posts
+    $postVoteRepository = $this->entityManager->getRepository(\App\Entity\PostVote::class);
+    $totalPostLikes = $postVoteRepository->createQueryBuilder('pv')
+        ->select('COUNT(pv.id)')
+        ->join('pv.post', 'p')
+        ->where('p.author = :user')
+        ->andWhere('pv.type = :upvote')
+        ->setParameter('user', $user)
+        ->setParameter('upvote', 'UP')
+        ->getQuery()
+        ->getSingleScalarResult();
+
+    // Posts récents publics (5 derniers)
+    $recentPosts = $postRepository->findBy(
+        ['author' => $user, 'isDeleted' => false], 
+        ['createdAt' => 'DESC'], 
+        5
+    );
+
+    $postsData = array_map(function (Post $post) use ($commentRepository) {
+        $commentsCount = $commentRepository->createQueryBuilder('c')
+            ->select('COUNT(c.id)')
+            ->where('c.post = :post')
+            ->andWhere('c.isDeleted = false')
+            ->setParameter('post', $post)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return [
+            'id' => $post->getId(),
+            'title' => $post->getTitle(),
+            'slug' => $post->getSlug(),
+            'score' => $post->getScore(),
+            'commentsCount' => (int) $commentsCount,
+            'postType' => $post->getPostType(),
+            'tags' => $post->getTags(),
+            'createdAt' => $post->getCreatedAt()->format('c'),
+            'forum' => [
+                'id' => $post->getForum()->getId(),
+                'name' => $post->getForum()->getName(),
+                'slug' => $post->getForum()->getSlug()
+            ]
+        ];
+    }, $recentPosts);
+
+    // Événements créés (si organizer/shop)
+    $eventsData = [];
+    if (in_array('ROLE_ORGANIZER', $user->getRoles()) || in_array('ROLE_SHOP', $user->getRoles())) {
+        $eventRepository = $this->entityManager->getRepository(\App\Entity\Event::class);
+        $events = $eventRepository->findBy(
+            ['organizer' => $user], 
+            ['createdAt' => 'DESC'], 
+            5
+        );
+        
+        $eventsData = array_map(function ($event) {
+            return [
+                'id' => $event->getId(),
+                'title' => $event->getTitle(),
+                'startDate' => $event->getStartDate()->format('c'),
+                'status' => $event->getStatus(),
+                'participantsCount' => count($event->getRegistrations()),
+                'type' => $event->getType()
+            ];
+        }, $events);
+    }
+
+    // Données boutique publiques (si ROLE_SHOP)
+    $shopData = null;
+    if ($user->hasShop() && $user->canActAsShop()) {
+        $shop = $user->getShop();
+        $shopData = [
+            'id' => $shop->getId(),
+            'name' => $shop->getName(),
+            'description' => $shop->getDescription(),
+            'address' => $shop->getAddress() ? [
+                'streetAddress' => $shop->getAddress()->getStreetAddress(),
+                'city' => $shop->getAddress()->getCity(),
+                'postalCode' => $shop->getAddress()->getPostalCode(),
+                'fullAddress' => $shop->getAddress()->getFullAddress()
+            ] : null,
+            'website' => $shop->getWebsite(),
+            'services' => $shop->getServices(),
+            'isActive' => $shop->isActive(),
+            'logo' => $shop->getLogo()
+        ];
+    }
+
+    return $this->json([
+        'user' => [
+            'id' => $user->getId(),
+            'pseudo' => $user->getPseudo(),
+            'avatar' => $user->getAvatar(),
+            'bio' => $user->getBio(),
+            'favoriteClass' => $user->getFavoriteClass(),
+            'roles' => $user->getRoles(),
+            'createdAt' => $user->getCreatedAt()->format('c'),
+            'stats' => [
+                'postsCount' => (int) $postsCount,
+                'topicsParticipated' => (int) $topicsParticipated,
+                'totalLikes' => (int) $totalPostLikes,
+                'eventsCreated' => count($eventsData)
+            ]
+        ],
+        'posts' => $postsData,
+        'events' => $eventsData,
+        'shop' => $shopData
+    ]);
+}
+
     #[Route('/api/profile/posts', name: 'api_profile_posts', methods: ['GET'])]
     #[IsGranted('IS_AUTHENTICATED_FULLY')]
     public function getUserPosts(Request $request): JsonResponse

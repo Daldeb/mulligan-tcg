@@ -254,4 +254,18 @@ api.games = {
   getFormatById: (id) => api.get(`/api/game-formats/${id}`)
 }
 
+/**
+ * API Users - Méthodes pour la recherche et profils d'utilisateurs
+ */
+api.users = {
+  // Recherche d'utilisateurs
+  search: (query, limit = 5) => api.get('/api/users/search', { params: { q: query, limit } }),
+  
+  // Suggestions d'utilisateurs actifs
+  getSuggestions: () => api.get('/api/users/suggestions'),
+  
+  // Profil public d'un utilisateur
+  getPublicProfile: (userId) => api.get(`/api/users/${userId}/public`)
+}
+
 export default api

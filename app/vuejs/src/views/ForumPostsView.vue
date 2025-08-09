@@ -284,23 +284,35 @@
                   <i :class="getPostTypeIcon(post.postType)"></i>
                 </div>
                 
-                <div class="post-author">
-                  <div class="author-avatar">
-                    <img 
-                      v-if="post.authorAvatar"
-                      :src="`${backendUrl}/uploads/${post.authorAvatar}`"
-                      class="author-avatar-image"
-                      alt="Avatar"
-                    />
-                    <span v-else class="author-avatar-fallback">
-                      {{ post.author?.charAt(0).toUpperCase() }}
-                    </span>
+                  <div class="post-author">
+                    <div 
+                      class="author-avatar"
+                      :class="{ 'clickable-avatar': canNavigateToProfile(post.authorId) }"
+                      @click="canNavigateToProfile(post.authorId) && goToProfile(post.authorId, post.author)"
+                      :title="canNavigateToProfile(post.authorId) ? getProfileTooltip(post.author) : ''"
+                    >
+                      <img 
+                        v-if="post.authorAvatar"
+                        :src="`${backendUrl}/uploads/${post.authorAvatar}`"
+                        class="author-avatar-image"
+                        alt="Avatar"
+                      />
+                      <span v-else class="author-avatar-fallback">
+                        {{ post.author?.charAt(0).toUpperCase() }}
+                      </span>
+                    </div>
+                    <div class="author-info">
+                      <span 
+                        class="author-name"
+                        :class="{ 'clickable-name': canNavigateToProfile(post.authorId) }"
+                        @click="canNavigateToProfile(post.authorId) && goToProfile(post.authorId, post.author)"
+                        :title="canNavigateToProfile(post.authorId) ? getProfileTooltip(post.author) : ''"
+                      >
+                        {{ post.author }}
+                      </span>
+                      <time class="post-date">{{ formatRelativeDate(post.createdAt) }}</time>
+                    </div>
                   </div>
-                  <div class="author-info">
-                    <span class="author-name">{{ post.author }}</span>
-                    <time class="post-date">{{ formatRelativeDate(post.createdAt) }}</time>
-                  </div>
-                </div>
 
                 <!-- Post Tags -->
                 <div v-if="post.tags && post.tags.length" class="post-tags">
@@ -452,11 +464,17 @@ import hearthstoneImg from '@/assets/images/forums/hearthstone-bg.jpg'
 import magicImg from '@/assets/images/forums/magic-bg.jpg'
 import pokemonImg from '@/assets/images/forums/pokemon-bg.jpg'
 
+import { useProfileNavigation } from '@/composables/useProfileNavigation'
+
+const { goToProfile, canNavigateToProfile, getProfileTooltip } = useProfileNavigation()
+
 const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
 
 const route = useRoute()
 const slug = route.params.slug
 
+import { useRouter } from 'vue-router'
+const router = useRouter()
 // Data
 const forum = ref({})
 const posts = ref([])
@@ -1915,5 +1933,68 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+}
+
+/* Styles pour les éléments cliquables */
+.clickable-avatar {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-radius: 50%;
+  position: relative;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.3);
+}
+
+.clickable-name {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  text-decoration: none;
+  border-radius: var(--border-radius-small);
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+}
+
+.clickable-name:hover {
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1);
+}
+
+/* Animation subtile pour indiquer l'interactivité */
+@keyframes profileHint {
+  0% { background: transparent; }
+  50% { background: rgba(38, 166, 154, 0.05); }
+  100% { background: transparent; }
+}
+
+.clickable-avatar:hover::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  animation: profileHint 0.6s ease-out;
+}
+
+/* Tooltip style pour les titres */
+.clickable-avatar[title],
+.clickable-name[title] {
+  position: relative;
+}
+
+/* Responsive - réduire les effets sur mobile */
+@media (max-width: 768px) {
+  .clickable-avatar:hover {
+    transform: scale(1.02);
+  }
+  
+  .clickable-avatar:hover::after {
+    display: none;
+  }
 }
 </style>

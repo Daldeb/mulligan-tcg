@@ -275,19 +275,81 @@
 
     <!-- Grid de decks -->
     <div class="decks-grid">
-      <component 
-        v-for="deck in filteredDecks" 
-        :key="`${context}-${gameSlug}-${deck.id}`"
-        :is="deckComponentName"
-        :deck="deck"
-        :context="context"
-        :current-user="currentUser"
-        @edit="$emit('edit', deck)"
-        @delete="$emit('delete', deck)"
-        @like="$emit('like', deck)"
-        @copy="$emit('copy', deck)"
-        @copyDeckcode="$emit('copyDeckcode', deck)"
-      />
+      
+      <!-- Wrapper pour chaque deck avec créateur (si community) -->
+      <template v-for="deck in filteredDecks" :key="`${context}-${gameSlug}-${deck.id}`">
+        
+        <!-- Section créateur (uniquement pour community) -->
+        <div v-if="context === 'community'" class="deck-with-creator">
+          <div class="deck-creator-header">
+            <div class="creator-info">
+              <div 
+                class="creator-avatar"
+                :class="{ 'clickable-avatar': canNavigateToProfile(deck.authorId || deck.user?.id) }"
+                @click="canNavigateToProfile(deck.authorId || deck.user?.id) && goToProfile(deck.authorId || deck.user?.id, deck.author || deck.user?.pseudo)"
+                :title="canNavigateToProfile(deck.authorId || deck.user?.id) ? getProfileTooltip(deck.author || deck.user?.pseudo) : ''"
+              >
+                <img 
+                  v-if="deck.authorAvatar || deck.user?.avatar"
+                  :src="`${backendUrl}/uploads/${deck.authorAvatar || deck.user?.avatar}`"
+                  class="creator-avatar-image"
+                  alt="Avatar"
+                  @error="handleImageError"
+                />
+                <span v-else class="creator-avatar-fallback">
+                  {{ (deck.author || deck.user?.pseudo || 'U')?.charAt(0).toUpperCase() }}
+                </span>
+              </div>
+              
+              <div class="creator-details">
+                <span 
+                  class="creator-name"
+                  :class="{ 'clickable-name': canNavigateToProfile(deck.authorId || deck.user?.id) }"
+                  @click="canNavigateToProfile(deck.authorId || deck.user?.id) && goToProfile(deck.authorId || deck.user?.id, deck.author || deck.user?.pseudo)"
+                  :title="canNavigateToProfile(deck.authorId || deck.user?.id) ? getProfileTooltip(deck.author || deck.user?.pseudo) : ''"
+                >
+                  {{ deck.author || deck.user?.pseudo || 'Deck importé' }}
+                </span>
+                <span v-if="deck.user" class="creator-label">Créateur du deck</span>
+                <span v-else class="creator-label imported">Deck importé</span>
+              </div>
+            </div>
+            
+            <div v-if="deck.publishedAt || deck.createdAt" class="deck-publish-date">
+              <i class="pi pi-calendar"></i>
+              <span>{{ formatDeckDate(deck.publishedAt || deck.createdAt) }}</span>
+            </div>
+          </div>
+          
+          <!-- Le composant deck -->
+          <component 
+            :is="deckComponentName"
+            :deck="deck"
+            :context="context"
+            :current-user="currentUser"
+            @edit="$emit('edit', deck)"
+            @delete="$emit('delete', deck)"
+            @like="$emit('like', deck)"
+            @copy="$emit('copy', deck)"
+            @copyDeckcode="$emit('copyDeckcode', deck)"
+          />
+        </div>
+        
+        <!-- Deck simple (pour my-decks) -->
+        <component 
+          v-else
+          :is="deckComponentName"
+          :deck="deck"
+          :context="context"
+          :current-user="currentUser"
+          @edit="$emit('edit', deck)"
+          @delete="$emit('delete', deck)"
+          @like="$emit('like', deck)"
+          @copy="$emit('copy', deck)"
+          @copyDeckcode="$emit('copyDeckcode', deck)"
+        />
+        
+      </template>
     </div>
   </div>
 </template>
@@ -300,6 +362,33 @@ import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Dropdown from 'primevue/dropdown'
 import InputText from 'primevue/inputtext'
+import { useProfileNavigation } from '@/composables/useProfileNavigation'
+
+
+const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
+const { goToProfile, canNavigateToProfile, getProfileTooltip } = useProfileNavigation()
+
+const formatDeckDate = (dateString) => {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffTime = Math.abs(now - date)
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  
+  if (diffDays === 1) return 'Hier'
+  if (diffDays < 7) return `Il y a ${diffDays} jours`
+  if (diffDays < 30) return `Il y a ${Math.ceil(diffDays / 7)} semaines`
+  
+  return date.toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+  })
+}
+
+const handleImageError = (event) => {
+  // Gérer les erreurs d'image
+  event.target.style.display = 'none'
+}
 
 const props = defineProps({
   gameSlug: {
@@ -1590,6 +1679,229 @@ const resetFilters = () => {
   
   .dust-range-display {
     font-size: 0.7rem;
+  }
+}
+
+.deck-with-creator {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: var(--border-radius-large);
+  overflow: hidden;
+  box-shadow: var(--shadow-medium);
+  transition: all var(--transition-medium);
+  background: white;
+  border: 1px solid var(--surface-200);
+}
+
+.deck-with-creator:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-large);
+}
+
+.deck-creator-header {
+  background: linear-gradient(135deg, var(--surface-50), var(--surface-100));
+  border-bottom: 1px solid var(--surface-200);
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.creator-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.creator-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.creator-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.creator-avatar-fallback {
+  background: var(--primary-light);
+  color: white;
+  font-weight: 700;
+  font-size: 1.1rem;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.creator-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.creator-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.2;
+  transition: color var(--transition-fast);
+}
+
+.creator-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.creator-label.imported {
+  color: #8b7355;
+  font-style: italic;
+}
+
+.deck-publish-date {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.deck-publish-date .pi {
+  font-size: 0.75rem;
+  color: var(--primary);
+}
+
+/* Styles cliquables pour navigation profil */
+.clickable-avatar {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-radius: 50%;
+  position: relative;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.3);
+}
+
+.clickable-name {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  text-decoration: none;
+  border-radius: var(--border-radius-small);
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+}
+
+.clickable-name:hover {
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1);
+}
+
+.clickable-avatar:hover::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+/* Override de la grid pour les decks avec créateurs */
+.game-section .decks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 2rem;
+  padding: 2rem;
+}
+
+/* Responsive pour créateurs */
+@media (max-width: 768px) {
+  .deck-creator-header {
+    padding: 0.75rem 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .creator-info {
+    gap: 0.5rem;
+  }
+  
+  .creator-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .creator-avatar-fallback {
+    font-size: 0.9rem;
+  }
+  
+  .creator-name {
+    font-size: 0.9rem;
+  }
+  
+  .creator-label {
+    font-size: 0.7rem;
+  }
+  
+  .deck-publish-date {
+    font-size: 0.75rem;
+    align-self: flex-end;
+  }
+  
+  .clickable-avatar:hover {
+    transform: scale(1.02);
+  }
+  
+  .clickable-avatar:hover::after {
+    display: none;
+  }
+  
+  .game-section .decks-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .deck-creator-header {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .creator-details {
+    gap: 0.125rem;
+  }
+  
+  .deck-publish-date {
+    margin-top: 0.5rem;
+    align-self: flex-start;
   }
 }
 </style>

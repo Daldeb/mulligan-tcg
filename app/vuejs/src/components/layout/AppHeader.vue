@@ -15,14 +15,75 @@
         </div>
 
         <!-- Barre de recherche -->
+<!-- Barre de recherche d'utilisateurs -->
         <div class="search-section">
           <div class="search-wrapper">
             <InputText 
-              v-model="searchQuery"
-              placeholder="Recherche d'utilisateurs"
+              v-model="userSearchQuery"
+              placeholder="Rechercher un utilisateur..."
               class="search-input"
+              @focus="onSearchFocus"
+              @blur="onSearchBlur"
             />
             <i class="pi pi-search search-icon"></i>
+            
+            <!-- Spinner de recherche -->
+            <div v-if="showSearchSpinner" class="search-spinner">
+              <i class="pi pi-spin pi-spinner"></i>
+            </div>
+            
+            <!-- Dropdown des résultats -->
+            <div 
+              v-if="showSearchResults" 
+              class="search-results-dropdown"
+              @mousedown.prevent
+            >
+              <!-- Loading state -->
+              <div v-if="isUserSearching" class="search-loading">
+                <i class="pi pi-spin pi-spinner"></i>
+                <span>Recherche en cours...</span>
+              </div>
+              
+              <!-- Résultats -->
+              <div v-else-if="hasSearchResults" class="search-results-list">
+                <div 
+                  v-for="user in userSearchResults" 
+                  :key="user.id"
+                  class="search-result-item"
+                  @click="handleUserSelect(user)"
+                >
+                  <div class="user-result-avatar">
+                    <img 
+                      v-if="getUserAvatarUrl(user)"
+                      :src="getUserAvatarUrl(user)"
+                      class="result-avatar-image"
+                      alt="Avatar"
+                    />
+                    <span v-else class="result-avatar-fallback">
+                      {{ getUserInitials(user) }}
+                    </span>
+                  </div>
+                  <div class="user-result-info">
+                    <div class="user-result-name">{{ user.pseudo }}</div>
+                    <div class="user-result-role">{{ formatUserRole(user.roles) }}</div>
+                  </div>
+                  <div class="user-result-arrow">
+                    <i class="pi pi-chevron-right"></i>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Aucun résultat -->
+              <div v-else-if="userSearchQuery.length >= 2" class="search-no-results">
+                <i class="pi pi-search"></i>
+                <span>Aucun utilisateur trouvé</span>
+              </div>
+              
+              <!-- Message d'aide -->
+              <div v-else class="search-help">
+                <span>Tapez au moins 2 caractères pour rechercher</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -176,38 +237,24 @@
 
 
           <!-- Boutons navigation -->
-<div class="nav-buttons">
-          <Button 
-            label="Discussions" 
-            icon="pi pi-comments" 
-            class="nav-button" 
-            @click="handleForumsClick"
-          />
-          <Button 
-            label="Decks" 
-            icon="pi pi-clone" 
-            class="nav-button" 
-            @click="handleDecksClick"
-          />
-          <Button 
-            label="Mes Decks" 
-            icon="pi pi-user" 
-            class="nav-button" 
-            @click="handleMyDecksClick"
-          />
-          <Button 
-            label="Evenements" 
-            icon="pi pi-chart-bar" 
-            class="nav-button" 
-            @click="handleEventsClick"
-          />
-          <Button 
-            label="Mes Evenements" 
-            icon="pi pi-chart-bar" 
-            class="nav-button" 
-            @click="handleMyEventsClick"
-          />
-        </div>
+          <div class="nav-buttons">
+            <button @click="handleForumsClick" :class="['nav-item', { 'nav-active': $route.path.startsWith('/forums') }]">
+              <Button label="Discussions" icon="pi pi-comments" class="nav-button" />
+            </button>
+            <button @click="handleDecksClick" :class="['nav-item', { 'nav-active': $route.path.startsWith('/decks') }]">
+              <Button label="Decks" icon="pi pi-clone" class="nav-button" />
+            </button>
+            
+            <button @click="handleMyDecksClick" :class="['nav-item', { 'nav-active': $route.path === '/mes-decks' }]">
+              <Button label="Mes Decks" icon="pi pi-user" class="nav-button" />
+            </button>
+            <button @click="handleEventsClick" :class="['nav-item', { 'nav-active': $route.path.startsWith('/evenements') && $route.path !== '/mes-evenements' }]">
+              <Button label="Evenements" icon="pi pi-calendar" class="nav-button" />
+            </button>
+            <button @click="handleMyEventsClick" :class="['nav-item', { 'nav-active': $route.path === '/mes-evenements' }]">
+              <Button label="Mes Evenements" icon="pi pi-calendar-plus" class="nav-button" />
+            </button>
+          </div>
 
         </div>
       </nav>
@@ -219,6 +266,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useNotifications } from '../../composables/useNotifications'
+import { useProfileNavigation } from '../../composables/useProfileNavigation'
+import { useUserSearch } from '../../composables/useUserSearch'
 import { useRouter } from 'vue-router'
 import { useGameFilterStore } from '../../stores/gameFilter'
 import { storeToRefs } from 'pinia'
@@ -234,6 +283,21 @@ defineEmits(['open-login'])
 // Stores et router
 const authStore = useAuthStore()
 const router = useRouter()
+
+const { goToProfile } = useProfileNavigation()
+const {
+  searchQuery: userSearchQuery,
+  searchResults: userSearchResults,
+  isSearching: isUserSearching,
+  showResults: showSearchResults,
+  hasResults: hasSearchResults,
+  showSpinner: showSearchSpinner,
+  clearSearch,
+  hideResults,
+  formatUserRole,
+  getAvatarUrl: getUserAvatarUrl,
+  getUserInitials
+} = useUserSearch()
 
 //game choice filters
 const gameFilter = useGameFilterStore()
@@ -297,10 +361,32 @@ const {
 } = useNotifications()
 
 // State local
-const searchQuery = ref('')
 const unreadMessages = ref(3) // Exemple
 const showFallbackAvatar = ref(false)
 const showNotifications = ref(false)
+const searchFocused = ref(false)
+
+// Gestion focus/blur pour la recherche
+const onSearchFocus = () => {
+  searchFocused.value = true
+  if (userSearchQuery.value.length >= 2) {
+    showSearchResults.value = true
+  }
+}
+
+const onSearchBlur = () => {
+  // Délai pour permettre le clic sur les résultats
+  setTimeout(() => {
+    searchFocused.value = false
+    hideResults()
+  }, 200)
+}
+
+// Gestion sélection utilisateur
+const handleUserSelect = (user) => {
+  goToProfile(user.id, user.pseudo)
+  clearSearch()
+}
 
 // Computed
 const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
@@ -329,10 +415,6 @@ const goToNotifications = () => {
 // Methods existantes
 const openMessages = () => {
   router.push('/messages')
-}
-
-const goToProfile = () => {
-  router.push('/profile')
 }
 
 const handleLogout = () => {
@@ -455,10 +537,12 @@ onUnmounted(() => {
 }
 
 /* Search section */
+/* Search section avec dropdown */
 .search-section {
   flex: 1;
   max-width: 400px;
   margin: 0 2rem;
+  position: relative;
 }
 
 .search-wrapper {
@@ -490,6 +574,128 @@ onUnmounted(() => {
   color: var(--text-secondary);
   font-size: 1rem;
   pointer-events: none;
+  z-index: 2;
+}
+
+.search-spinner {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--primary);
+  z-index: 2;
+}
+
+/* Dropdown des résultats de recherche */
+.search-results-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: var(--border-radius-large);
+  box-shadow: var(--shadow-large);
+  border: 1px solid var(--surface-200);
+  z-index: 1000;
+  max-height: 320px;
+  overflow-y: auto;
+  animation: slideDown 0.2s ease-out;
+}
+
+.search-loading,
+.search-no-results,
+.search-help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.search-results-list {
+  padding: 0.5rem 0;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-bottom: 1px solid var(--surface-100);
+}
+
+.search-result-item:hover {
+  background: var(--surface-50);
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.user-result-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.result-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.result-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.user-result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-result-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.2;
+  margin-bottom: 0.25rem;
+}
+
+.user-result-role {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.user-result-arrow {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  opacity: 0.6;
+  transition: all var(--transition-fast);
+}
+
+.search-result-item:hover .user-result-arrow {
+  opacity: 1;
+  transform: translateX(2px);
+  color: var(--primary);
 }
 
 /* User actions */
@@ -842,6 +1048,7 @@ onUnmounted(() => {
   background: white;
 }
 
+/* Navigation buttons avec authentification */
 .nav-buttons {
   display: flex;
   justify-content: center;
@@ -850,8 +1057,14 @@ onUnmounted(() => {
 }
 
 .nav-item {
+  background: none;
+  border: none;
   text-decoration: none;
   transition: all var(--transition-fast);
+  cursor: pointer;
+  border-radius: 25px;
+  overflow: hidden;
+  padding: 0;
 }
 
 :deep(.nav-button) {

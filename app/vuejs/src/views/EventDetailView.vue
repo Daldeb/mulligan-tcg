@@ -125,6 +125,14 @@
                       @click="handleUnregister"
                     />
                     <Button
+                      v-if="canPost"
+                      label="Soumettre pour validation"
+                      icon="pi pi-send"
+                      class="post-btn emerald-button primary create-deck"
+                      :loading="isPosting"
+                      @click="submitForReview"
+                    />
+                    <Button
                       v-if="canEdit"
                       label="Modifier"
                       icon="pi pi-pencil"
@@ -290,6 +298,7 @@ const isLoading = ref(true)
 const error = ref(null)
 const isRegistering = ref(false)
 const isUnregistering = ref(false)
+const isPosting = ref(false)
 
 // Computed
 const event = computed(() => eventStore.currentEvent)
@@ -303,6 +312,10 @@ const canEdit = computed(() => {
          (event.value.organizer_type === 'SHOP' && 
           authStore.user?.shop?.id === event.value.organizer_id)
 })
+
+const canPost = computed(() => 
+  event.value?.status === 'DRAFT' && canEdit.value
+)
 
 const canDelete = computed(() => canEdit.value)
 
@@ -507,6 +520,36 @@ const getStatusBadgeClass = (status) => {
     'FINISHED': 'badge-finished'
   }
   return classes[status] || 'badge-default'
+}
+
+const submitForReview = async () => {
+  if (!canPost.value) return
+
+  isPosting.value = true
+  try {
+    await eventStore.submitForReview(props.eventId)
+    
+    toast.add({
+      severity: 'success',
+      summary: 'Événement soumis',
+      detail: 'Votre événement a été soumis pour validation par un administrateur',
+      life: 4000
+    })
+    
+    // Recharger l'événement pour voir le nouveau statut
+    await loadEvent()
+    
+  } catch (err) {
+    console.error('❌ Erreur soumission événement:', err)
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur de soumission',
+      detail: err.message || 'Une erreur est survenue lors de la soumission',
+      life: 5000
+    })
+  } finally {
+    isPosting.value = false
+  }
 }
 
 // Lifecycle

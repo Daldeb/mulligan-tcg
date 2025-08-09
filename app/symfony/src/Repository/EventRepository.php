@@ -131,6 +131,9 @@ class EventRepository extends ServiceEntityRepository
     {
         $qb = $this->createQueryBuilder('e');
 
+            $qb->where('e.status != :cancelled')
+       ->setParameter('cancelled', Event::STATUS_CANCELLED);
+
         // Filtre par visibilité (défaut: visible uniquement)
         if (!isset($filters['include_hidden']) || !$filters['include_hidden']) {
             $qb->where('e.status = :approved')
@@ -218,6 +221,9 @@ class EventRepository extends ServiceEntityRepository
     {
         $qb = $this->createQueryBuilder('e')
             ->select('COUNT(e.id)');
+
+                $qb->where('e.status != :cancelled')
+       ->setParameter('cancelled', Event::STATUS_CANCELLED);
 
         // Applique les mêmes filtres que findWithFilters (sans pagination)
         if (!isset($filters['include_hidden']) || !$filters['include_hidden']) {

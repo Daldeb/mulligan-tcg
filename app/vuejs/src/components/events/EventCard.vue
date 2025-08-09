@@ -140,6 +140,15 @@
       <!-- Actions propriétaire/admin -->
       <div v-if="canEdit" class="owner-actions">
         <Button
+          v-if="canPost"
+          label="Poster"
+          icon="pi pi-send"
+          class="post-btn emerald-button primary create-deck"
+          :loading="isPosting"
+          @click.stop="submitForReview"
+          size="small"
+        />
+        <Button
           v-if="canEdit"
           icon="pi pi-pencil"
           class="edit-btn"
@@ -169,7 +178,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
@@ -185,16 +194,26 @@ const props = defineProps({
   onUnregister: { type: Function }
 })
 
-const emit = defineEmits(['followChanged'])
+const emit = defineEmits(['followChanged', 'statusChanged'])
 const router = useRouter()
 const authStore = useAuthStore()
+const isPosting = ref(false)
 
 // ============= COMPUTED STATES =============
 
-const canEdit = computed(() =>
-  authStore.user?.id === props.event.created_by_id
-  || (authStore.user?.roles || []).includes('ROLE_ADMIN')
-)
+const canEdit = computed(() => {
+  const result = authStore.user?.id === props.event.created_by_id
+    || (authStore.user?.roles || []).includes('ROLE_ADMIN')
+  
+  console.log('🔍 CanEdit debug:', {
+    userId: authStore.user?.id,
+    eventCreatedBy: props.event.created_by_id,
+    userRoles: authStore.user?.roles,
+    result: result
+  })
+  
+  return result
+})
 
 const canRegister = computed(() =>
   !isRegistered.value && 
@@ -226,6 +245,36 @@ const isLive = computed(() => {
   const end = props.event.end_date ? new Date(props.event.end_date) : new Date(start.getTime() + 4 * 60 * 60 * 1000)
   return start <= now && now <= end
 })
+
+const canPost = computed(() => 
+  props.event.status === 'DRAFT' && canEdit.value
+)
+
+async function submitForReview(e) {
+  e?.stopPropagation()
+  
+  isPosting.value = true
+  try {
+    await api.post(`/api/events/${props.event.id}/submit-for-review`)
+    
+    // Mettre à jour le statut localement
+    props.event.status = 'PENDING_REVIEW'
+    
+    // Success feedback
+    console.log('✅ Événement soumis pour validation:', props.event.id)
+    
+    // Optionnel: émettre un événement pour informer le parent
+    emit('statusChanged', { 
+      event: props.event, 
+      newStatus: 'PENDING_REVIEW' 
+    })
+    
+  } catch (error) {
+    console.error('❌ Erreur soumission événement:', error)
+  } finally {
+    isPosting.value = false
+  }
+}
 
 const isFeatured = computed(() => 
   props.event.featured || props.event.event_type === 'TOURNOI'

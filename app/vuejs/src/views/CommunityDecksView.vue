@@ -35,13 +35,6 @@
               </div>
             </div>
             <div class="stat-card">
-              <i class="pi pi-heart stat-icon"></i>
-              <div class="stat-info">
-                <span class="stat-value">{{ totalLikes }}</span>
-                <span class="stat-label">Likes</span>
-              </div>
-            </div>
-            <div class="stat-card">
               <i class="pi pi-users stat-icon"></i>
               <div class="stat-info">
                 <span class="stat-value">{{ uniqueAuthors }}</span>
@@ -71,12 +64,6 @@
                   icon="pi pi-calendar"
                   class="filter-btn"
                   @click="toggleTimeFilter"
-                />
-                <Button 
-                  :label="validFilter === 'all' ? 'Tous' : validFilter === 'valid' ? 'Valides' : 'En construction'"
-                  icon="pi pi-check-circle"
-                  class="filter-btn"
-                  @click="toggleValidFilter"
                 />
                 <Button 
                   :label="globalSort === 'smart' ? 'Score intelligent' : globalSort === 'recent' ? 'Récents' : globalSort === 'popular' ? 'Populaires' : 'Alphabétique'"

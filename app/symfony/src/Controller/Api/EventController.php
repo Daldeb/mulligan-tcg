@@ -104,8 +104,12 @@ class EventController extends AbstractController
             return $this->json(['error' => 'Événement non trouvé'], 404);
         }
 
-        // Vérifier visibilité (sauf admin)
-        if (!$this->isGranted('ROLE_ADMIN') && !$event->isVisible()) {
+        // CORRECTION: Autoriser le créateur à voir ses propres événements
+        $user = $this->getUser();
+        $isCreator = $user && $event->getCreatedBy() === $user;
+        $isAdmin = $this->isGranted('ROLE_ADMIN');
+        
+        if (!$isAdmin && !$event->isVisible() && !$isCreator) {
             return $this->json(['error' => 'Événement non trouvé'], 404);
         }
 
@@ -768,6 +772,7 @@ $this->logger->info('🔍 php://input size: ' . strlen(file_get_contents('php://
             'registration_deadline' => $event->getRegistrationDeadline()?->format('c'),
             'max_participants' => $event->getMaxParticipants(),
             'current_participants' => $event->getCurrentParticipants(),
+            'created_by_id' => $event->getCreatedBy()?->getId(),
             'is_online' => $event->isOnline(),
             'organizer_type' => $event->getOrganizerType(),
             'organizer_name' => $event->getOrganizerName(),

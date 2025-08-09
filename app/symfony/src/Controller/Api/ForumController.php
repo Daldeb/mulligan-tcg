@@ -140,6 +140,7 @@ class ForumController extends AbstractController
                 'slug' => $post->getSlug(),
                 'author' => $post->getAuthor()->getPseudo(),
                 'authorAvatar' => $post->getAuthor()->getAvatar(),
+                'authorId' => $post->getAuthor()->getId(),
                 'score' => $post->getScore(),
                 'commentsCount' => (int) $commentsCount,
                 'isSaved' => $isSaved,

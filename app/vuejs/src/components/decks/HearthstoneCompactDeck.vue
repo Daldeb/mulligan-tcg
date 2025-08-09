@@ -54,15 +54,7 @@
               <span class="avg-cost">
                 Coût moy: {{ deck.averageCost?.toFixed(1) || '0.0' }}
               </span>
-              
-              <!-- Affichage des likes en mode community -->
-              <template v-if="showLike">
-                <span class="separator">•</span>
-                <span class="likes-display">
-                  <i class="pi pi-heart"></i>
-                  {{ likesCount }}
-                </span>
-              </template>
+            
             </div>
           </div>
         </div>
@@ -77,11 +69,14 @@
           </div>
           
           <div class="cards-list">
-            <div 
-              v-for="cardEntry in sortedCards" 
-              :key="cardEntry.card.id"
-              class="card-entry"
-            >
+              <div 
+                v-for="cardEntry in sortedCards" 
+                :key="cardEntry.card.id"
+                class="card-entry"
+                @mouseenter="(e) => handleCardHover(cardEntry, e)"
+                @mousemove="updateMousePosition"
+                @mouseleave="handleCardLeave"
+              >
               <div class="card-cost-badge">{{ cardEntry.card.cost || 0 }}</div>
               <div class="card-info">
                 <span class="card-name">{{ cardEntry.card.name }}</span>
@@ -111,15 +106,16 @@
           
           <div class="action-buttons">
             <!-- Bouton like (seulement en mode community) -->
-            <Button 
-              v-if="showLike"
-              :icon="isLiked ? 'pi pi-heart-fill' : 'pi pi-heart'"
-              :class="['action-btn', 'like-btn', { 'liked': isLiked }]"
-              @click="toggleLike"
-              :label="likesCount.toString()"
-              v-tooltip="isLiked ? 'Ne plus aimer' : 'Aimer ce deck'"
-              size="small"
-            />
+          <Button 
+            v-if="showLike"
+            :icon="isLiked ? 'pi pi-heart-fill' : 'pi pi-heart'"
+            :class="['action-btn', 'like-btn', { 'liked': isLiked, 'loading': isLikeLoading }]"
+            @click.stop.prevent="toggleLike"
+            :label="likesCount.toString()"
+            :disabled="isLikeLoading"
+            v-tooltip="isLiked ? 'Ne plus aimer' : 'Aimer ce deck'"
+            size="small"
+          />
             
             <!-- Bouton edit (seulement si propriétaire et context my-decks) -->
             <Button 
@@ -153,16 +149,36 @@
         </div>
 
       </div>
+      
+      <!-- Preview simple d'image qui suit le curseur -->
+      <div 
+        v-if="hoveredCard" 
+        class="card-image-preview"
+        :style="{ 
+          left: mousePosition.x + 20 + 'px', 
+          top: mousePosition.y - 200 + 'px' 
+        }"
+      >
+        <img 
+          :src="hoveredCard.imageUrl" 
+          :alt="hoveredCard.name"
+          class="card-image-only"
+          @error="handleImageError"
+        />
+      </div>
     </template>
   </Card>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import api from '../../services/api'
+
+const hoveredCard = ref(null)
+const mousePosition = ref({ x: 0, y: 0 })
 
 // Props
 const props = defineProps({
@@ -181,16 +197,47 @@ const props = defineProps({
   }
 })
 
+// Méthodes pour hover
+const handleCardHover = (cardEntry, event) => {
+  if (cardEntry && cardEntry.card) {
+    hoveredCard.value = cardEntry.card
+    updateMousePosition(event)
+  }
+}
+
+const handleCardLeave = () => {
+  hoveredCard.value = null
+}
+
+const updateMousePosition = (event) => {
+  mousePosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  }
+}
+
+const handleImageError = (event) => {
+  event.target.style.display = 'none'
+}
+
 // Events
-const emit = defineEmits(['edit', 'delete', 'copyDeckcode', 'like'])
+const emit = defineEmits(['edit', 'delete', 'copyDeckcode'])
 
 // Composables
 const toast = useToast()
 
-// State
+// State réactif
 const isExpanded = ref(false)
-const isLiked = ref(props.deck.isLiked || false)
-const likesCount = ref(props.deck.likesCount || 0)
+const isLiked = ref(false)
+const likesCount = ref(0)
+
+// Synchroniser avec les props
+watch(() => props.deck, (newDeck) => {
+  if (newDeck) {
+    isLiked.value = newDeck.isLiked || false
+    likesCount.value = newDeck.likesCount || 0
+  }
+}, { immediate: true })
 
 // Computed - Permissions
 const canEdit = computed(() => {
@@ -254,7 +301,17 @@ const toggleExpanded = () => {
   isExpanded.value = !isExpanded.value
 }
 
+// Dans le script setup, ajouter un état de loading
+const isLikeLoading = ref(false)
+
+// Remplacer la fonction toggleLike existante par :
 const toggleLike = async () => {
+  // Protection contre les clics multiples
+  if (isLikeLoading.value) {
+    console.log('Like en cours, clic ignoré')
+    return
+  }
+
   if (!props.currentUser) {
     toast.add({
       severity: 'warn',
@@ -265,33 +322,49 @@ const toggleLike = async () => {
     return
   }
 
+  // Bloquer les clics pendant la requête
+  isLikeLoading.value = true
+
   try {
+    console.log('Envoi requête like pour deck:', props.deck.id)
     const response = await api.post(`/api/decks/${props.deck.id}/like`)
     
     if (response.data.success) {
-      isLiked.value = response.data.isLiked
-      likesCount.value = response.data.likesCount
+      // console.log('Réponse serveur:', response.data)
       
-      toast.add({
-        severity: 'success',
-        summary: response.data.message,
-        life: 2000
-      })
+      // Mise à jour immédiate de l'état local
+      const newIsLiked = response.data.isLiked
+      const newLikesCount = response.data.likesCount
       
-      emit('like', {
-        deck: props.deck,
-        isLiked: isLiked.value,
-        likesCount: likesCount.value
-      })
+      // Vérification que l'état a vraiment changé
+      if (isLiked.value !== newIsLiked) {
+        isLiked.value = newIsLiked
+        likesCount.value = newLikesCount
+        
+        // console.log(`Like mis à jour: ${newIsLiked ? 'Liké' : 'Déliké'}, count: ${newLikesCount}`)
+        
+        toast.add({
+          severity: 'success',
+          summary: response.data.message,
+          life: 2000
+        })
+      } else {
+        // console.warn('État like inchangé côté serveur')
+      }
     }
   } catch (error) {
-    console.error('Erreur lors du like:', error)
+    // console.error('Erreur lors du like:', error)
     toast.add({
       severity: 'error',
       summary: 'Erreur',
       detail: 'Impossible de modifier le like',
       life: 3000
     })
+  } finally {
+    // Débloquer les clics après un délai minimal
+    setTimeout(() => {
+      isLikeLoading.value = false
+    }, 500)
   }
 }
 
@@ -531,18 +604,6 @@ const getRarityIcon = (rarity) => {
   font-weight: 500;
 }
 
-.likes-display {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: #e11d48;
-  font-weight: 600;
-}
-
-.likes-display i {
-  font-size: 0.8rem;
-}
-
 /* === SECTION CARTES === */
 .cards-section {
   border: 1px solid var(--surface-200);
@@ -595,7 +656,10 @@ const getRarityIcon = (rarity) => {
 }
 
 .card-entry:hover {
-  background: var(--surface-100);
+  background: rgba(217, 119, 6, 0.1) !important;
+  transform: translateX(4px);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .card-cost-badge {
@@ -690,7 +754,7 @@ const getRarityIcon = (rarity) => {
   gap: 0.5rem;
 }
 
-:deep(.action-buttons .p-button) {
+:deep(.action-btn) {
   width: 36px !important;
   height: 36px !important;
   padding: 0 !important;
@@ -698,16 +762,32 @@ const getRarityIcon = (rarity) => {
   font-size: 0.85rem !important;
 }
 
-/* === BOUTONS D'ACTION === */
+/* === BOUTON LIKE CORRIGÉ === */
 :deep(.like-btn) {
   background: white !important;
   border: 2px solid var(--surface-300) !important;
   color: var(--text-secondary) !important;
+  min-width: 60px !important;
+  padding: 0.5rem !important;
+}
+
+:deep(.like-btn .p-button-content) {
   display: flex !important;
   align-items: center !important;
-  gap: 0.25rem !important;
-  min-width: 50px !important;
   justify-content: center !important;
+  gap: 0.375rem !important;
+  width: 100% !important;
+}
+
+:deep(.like-btn .p-button-icon) {
+  margin: 0 !important;
+  order: 1 !important;
+}
+
+:deep(.like-btn .p-button-label) {
+  margin: 0 !important;
+  order: 2 !important;
+  font-weight: 600 !important;
 }
 
 :deep(.like-btn:hover) {
@@ -725,6 +805,7 @@ const getRarityIcon = (rarity) => {
 :deep(.like-btn.liked:hover) {
   background: #be185d !important;
   border-color: #be185d !important;
+  color: white !important;
 }
 
 :deep(.like-btn .pi-heart-fill) {
@@ -772,6 +853,43 @@ const getRarityIcon = (rarity) => {
   color: white !important;
 }
 
+/* === PREVIEW IMAGE SIMPLE === */
+.card-image-preview {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+
+.card-image-only {
+  width: 180px;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 2px solid #d97706;
+  background: white;
+  object-fit: contain;
+}
+
+/* === SCROLLBAR === */
+.cards-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cards-list::-webkit-scrollbar-track {
+  background: var(--surface-200);
+  border-radius: 3px;
+}
+
+.cards-list::-webkit-scrollbar-thumb {
+  background: #d97706;
+  border-radius: 3px;
+}
+
+.cards-list::-webkit-scrollbar-thumb:hover {
+  background: #b45309;
+}
+
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
   .deck-card-content {
@@ -807,6 +925,11 @@ const getRarityIcon = (rarity) => {
   :deep(.expand-btn) {
     width: 100% !important;
     justify-content: center !important;
+  }
+  
+  /* Masquer preview sur mobile */
+  .card-image-preview {
+    display: none !important;
   }
 }
 

@@ -379,10 +379,8 @@ const loadPendingEvents = async () => {
   
   adminLoading.value = true
   try {
-    const response = await api.get('/api/admin/events/pending-review', {
-      params: { limit: 20 }
-    })
-    pendingEvents.value = response.data.events || []
+    const response = await eventStore.loadPendingEvents({ limit: 20 })
+    pendingEvents.value = response.events || []
     console.log('📋 Événements en attente chargés:', pendingEvents.value.length)
   } catch (error) {
     console.error('❌ Erreur chargement événements admin:', error)
@@ -472,28 +470,21 @@ const confirmAdminAction = async () => {
   }
   
   try {
-    let response
     let successMessage = ''
     
     switch (adminAction.value) {
       case 'approve':
-        response = await api.post(`/api/admin/events/${eventId}/approve`, {
-          comment: reason || null
-        })
+        await eventStore.approveEvent(eventId, reason || null)
         successMessage = 'Événement approuvé avec succès'
         break
         
       case 'reject':
-        response = await api.post(`/api/admin/events/${eventId}/reject`, {
-          reason: reason
-        })
+        await eventStore.rejectEvent(eventId, reason)
         successMessage = 'Événement refusé. Le créateur a été notifié.'
         break
         
       case 'delete':
-        response = await api.delete(`/api/admin/events/${eventId}`, {
-          data: { reason: reason }
-        })
+        await eventStore.deleteEventAdmin(eventId, reason)
         successMessage = 'Événement supprimé définitivement'
         break
     }
@@ -506,29 +497,6 @@ const confirmAdminAction = async () => {
       life: 3000
     })
     
-    // Ajouter notification au créateur (sauf pour delete car plus d'événement)
-    if (adminAction.value !== 'delete') {
-      const notificationType = adminAction.value === 'approve' ? 'EVENT_APPROVED' : 'EVENT_REJECTED'
-      addNotification(adminActionEvent.value.created_by.id, {
-        type: notificationType,
-        title: `Événement ${adminAction.value === 'approve' ? 'approuvé' : 'refusé'}`,
-        message: adminAction.value === 'approve' 
-          ? `Votre événement "${adminActionEvent.value.title}" a été approuvé et est maintenant visible.`
-          : `Votre événement "${adminActionEvent.value.title}" a été refusé. Motif: ${reason}`,
-        related_id: eventId,
-        related_type: 'event'
-      })
-    } else {
-      // Pour suppression, notification différente
-      addNotification(adminActionEvent.value.created_by.id, {
-        type: 'EVENT_DELETED',
-        title: 'Événement supprimé',
-        message: `Votre événement "${adminActionEvent.value.title}" a été supprimé. Motif: ${reason}`,
-        related_id: null,
-        related_type: 'event'
-      })
-    }
-    
     // Fermer dialog et recharger
     adminActionDialog.value = false
     await loadPendingEvents()
@@ -538,7 +506,7 @@ const confirmAdminAction = async () => {
     toast.add({
       severity: 'error',
       summary: 'Erreur',
-      detail: error.response?.data?.error || 'Erreur lors de l\'action',
+      detail: error.message || 'Erreur lors de l\'action',
       life: 4000
     })
   }
@@ -572,6 +540,16 @@ function confirmDelete(event) {
       }
     }
   })
+}
+
+// Ajoute ces méthodes APRÈS les autres méthodes (vers la ligne 600)
+const onCreateEvent = () => {
+  router.push({ name: 'creer-evenement' })
+}
+
+const onEditEvent = (event) => {
+  console.log('📝 Édition événement:', event.id, event.title)
+  router.push({ name: 'creer-evenement', query: { id: event.id } })
 }
 
 onMounted(async () => {

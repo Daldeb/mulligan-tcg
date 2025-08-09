@@ -85,7 +85,12 @@
                   </RouterLink>
                   <div class="post-meta">
                     <div class="author-info">
-                      <div class="author-avatar">
+                      <div 
+                        class="author-avatar"
+                        :class="{ 'clickable-avatar': canNavigateToProfile(post.authorId) }"
+                        @click="canNavigateToProfile(post.authorId) && goToProfile(post.authorId, post.author)"
+                        :title="canNavigateToProfile(post.authorId) ? getProfileTooltip(post.author) : ''"
+                      >
                         <img 
                           v-if="post.authorAvatar"
                           :src="`${backendUrl}/uploads/${post.authorAvatar}`"
@@ -97,7 +102,14 @@
                           {{ post.author?.charAt(0).toUpperCase() }}
                         </span>
                       </div>
-                      <span class="author-name">{{ post.author }}</span>
+                      <span 
+                        class="author-name"
+                        :class="{ 'clickable-name': canNavigateToProfile(post.authorId) }"
+                        @click="canNavigateToProfile(post.authorId) && goToProfile(post.authorId, post.author)"
+                        :title="canNavigateToProfile(post.authorId) ? getProfileTooltip(post.author) : ''"
+                      >
+                        {{ post.author }}
+                      </span>
                     </div>
                     <span class="post-date">{{ formatDate(post.createdAt) }}</span>
                   </div>
@@ -151,8 +163,11 @@ import api from '@/services/api';
 import hearthstoneImg from '@/assets/images/forums/hearthstone-bg.jpg'
 import magicImg from '@/assets/images/forums/magic-bg.jpg'
 import pokemonImg from '@/assets/images/forums/pokemon-bg.jpg'
+import { useProfileNavigation } from '@/composables/useProfileNavigation'
+
 
 const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
+const { goToProfile, canNavigateToProfile, getProfileTooltip } = useProfileNavigation()
 
 const forums = ref([]);
 const loading = ref(true);
@@ -612,6 +627,55 @@ onMounted(async () => {
   
   .forum-title {
     font-size: 1.25rem;
+  }
+}
+
+/* Styles pour les éléments cliquables */
+.clickable-avatar {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-radius: 50%;
+  position: relative;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.3);
+}
+
+.clickable-name {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  text-decoration: none;
+  border-radius: var(--border-radius-small);
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+}
+
+.clickable-name:hover {
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1);
+}
+
+.clickable-avatar:hover::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+@media (max-width: 768px) {
+  .clickable-avatar:hover {
+    transform: scale(1.02);
+  }
+  
+  .clickable-avatar:hover::after {
+    display: none;
   }
 }
 </style>

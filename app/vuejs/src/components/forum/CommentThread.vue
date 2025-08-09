@@ -20,7 +20,12 @@
           </button>
           
           <!-- Avatar -->
-          <div class="comment-avatar">
+          <div 
+            class="comment-avatar"
+            :class="{ 'clickable-avatar': canNavigateToProfile(comment.authorId) }"
+            @click="canNavigateToProfile(comment.authorId) && goToProfile(comment.authorId, comment.author)"
+            :title="canNavigateToProfile(comment.authorId) ? getProfileTooltip(comment.author) : ''"
+          >
             <img 
               v-if="comment.authorAvatar"
               :src="`${backendUrl}/uploads/${comment.authorAvatar}`"
@@ -42,7 +47,14 @@
         <div class="comment-content">
           <header class="comment-header">
             <div class="comment-meta">
-              <strong class="comment-author">{{ comment.author }}</strong>
+              <strong 
+                class="comment-author"
+                :class="{ 'clickable-name': canNavigateToProfile(comment.authorId) }"
+                @click="canNavigateToProfile(comment.authorId) && goToProfile(comment.authorId, comment.author)"
+                :title="canNavigateToProfile(comment.authorId) ? getProfileTooltip(comment.author) : ''"
+              >
+                {{ comment.author }}
+              </strong>
               <time class="comment-date">{{ formatDate(comment.createdAt) }}</time>
               <span v-if="comment.score !== 0" class="comment-score">
                 {{ comment.score > 0 ? '+' : '' }}{{ comment.score }}
@@ -167,6 +179,14 @@
 <script setup>
 import { defineProps, defineEmits, computed, inject, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
+// Ajouter cette ligne aux imports existants
+import { useProfileNavigation } from '@/composables/useProfileNavigation'
+
+// Dans le script setup, ajouter :
+const { goToProfile, canNavigateToProfile, getProfileTooltip } = useProfileNavigation()
+
+const router = useRouter()
 
 const authStore = useAuthStore() 
 const backendUrl = computed(() => import.meta.env.VITE_BACKEND_URL)
@@ -272,6 +292,7 @@ const renderMarkdown = (content) => {
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/\n/g, '<br>')
 }
+
 </script>
 
 <style scoped>
@@ -667,6 +688,69 @@ const renderMarkdown = (content) => {
   .comment-action.delete {
     color: #ef4444;
     opacity: 0.8;
+  }
+}
+
+/* Styles pour les éléments cliquables */
+.clickable-avatar {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-radius: 50%;
+  position: relative;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.3);
+}
+
+.clickable-name {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  text-decoration: none;
+  border-radius: var(--border-radius-small);
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+}
+
+.clickable-name:hover {
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1);
+}
+
+/* Animation subtile pour indiquer l'interactivité */
+@keyframes profileHint {
+  0% { background: transparent; }
+  50% { background: rgba(38, 166, 154, 0.05); }
+  100% { background: transparent; }
+}
+
+.clickable-avatar:hover::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  animation: profileHint 0.6s ease-out;
+}
+
+/* Tooltip style pour les titres */
+.clickable-avatar[title],
+.clickable-name[title] {
+  position: relative;
+}
+
+/* Responsive - réduire les effets sur mobile */
+@media (max-width: 768px) {
+  .clickable-avatar:hover {
+    transform: scale(1.02);
+  }
+  
+  .clickable-avatar:hover::after {
+    display: none;
   }
 }
 </style>

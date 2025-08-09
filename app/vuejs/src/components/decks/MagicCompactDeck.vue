@@ -75,14 +75,6 @@
               </span>
               <span v-else class="no-archetype">Aucun archetype</span>
               
-              <!-- Affichage des likes en mode community -->
-              <template v-if="showLike">
-                <span class="separator">•</span>
-                <span class="likes-display">
-                  <i class="pi pi-heart"></i>
-                  {{ likesCount }}
-                </span>
-              </template>
             </div>
           </div>
         </div>
@@ -112,11 +104,14 @@
               </div>
               
               <div class="section-cards">
-                <div 
-                  v-for="cardEntry in section.cards" 
-                  :key="cardEntry.card.id"
-                  class="magic-card-entry"
-                >
+                  <div 
+                    v-for="cardEntry in section.cards" 
+                    :key="cardEntry.card.id"
+                    class="magic-card-entry"
+                    @mouseenter="(e) => handleCardHover(cardEntry, e)"
+                    @mousemove="updateMousePosition"
+                    @mouseleave="handleCardLeave"
+                  >
                   <div class="card-cmc-badge">{{ cardEntry.card.cmc || 0 }}</div>
                   <div class="card-info-magic">
                     <span class="card-name" :class="{ 'legendary': cardEntry.card.isLegendary }">
@@ -153,9 +148,10 @@
             <Button 
               v-if="showLike"
               :icon="isLiked ? 'pi pi-heart-fill' : 'pi pi-heart'"
-              :class="['action-btn', 'like-btn', { 'liked': isLiked }]"
-              @click="toggleLike"
+              :class="['action-btn', 'like-btn', { 'liked': isLiked, 'loading': isLikeLoading }]"
+              @click.stop.prevent="toggleLike"
               :label="likesCount.toString()"
+              :disabled="isLikeLoading"
               v-tooltip="isLiked ? 'Ne plus aimer' : 'Aimer ce deck'"
               size="small"
             />
@@ -192,12 +188,29 @@
         </div>
 
       </div>
+      
+      <!-- Preview simple d'image qui suit le curseur -->
+      <div 
+        v-if="hoveredCard" 
+        class="card-image-preview"
+        :style="{ 
+          left: mousePosition.x + 20 + 'px', 
+          top: mousePosition.y - 200 + 'px' 
+        }"
+      >
+        <img 
+          :src="hoveredCard.imageUrl" 
+          :alt="hoveredCard.name"
+          class="card-image-only"
+          @error="handleImageError"
+        />
+      </div>
     </template>
   </Card>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
@@ -220,16 +233,50 @@ const props = defineProps({
   }
 })
 
+const hoveredCard = ref(null)
+const mousePosition = ref({ x: 0, y: 0 })
+
+// Méthodes pour hover avec position souris
+const handleCardHover = (cardEntry, event) => {
+  if (cardEntry && cardEntry.card) {
+    hoveredCard.value = cardEntry.card
+    updateMousePosition(event)
+  }
+}
+
+const handleCardLeave = () => {
+  hoveredCard.value = null
+}
+
+const updateMousePosition = (event) => {
+  mousePosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  }
+}
+
+const handleImageError = (event) => {
+  event.target.style.display = 'none'
+}
+
 // Emits
-const emit = defineEmits(['edit', 'delete', 'copyDeckcode', 'like'])
+const emit = defineEmits(['edit', 'delete', 'copyDeckcode'])
 
 // Composables
 const toast = useToast()
 
-// State
+// State réactif
 const isExpanded = ref(false)
-const isLiked = ref(props.deck.isLiked || false)
-const likesCount = ref(props.deck.likesCount || 0)
+const isLiked = ref(false)
+const likesCount = ref(0)
+
+// Synchroniser avec les props
+watch(() => props.deck, (newDeck) => {
+  if (newDeck) {
+    isLiked.value = newDeck.isLiked || false
+    likesCount.value = newDeck.likesCount || 0
+  }
+}, { immediate: true })
 
 // Computed - Permissions
 const canEdit = computed(() => {
@@ -413,7 +460,17 @@ const toggleExpand = () => {
   isExpanded.value = !isExpanded.value
 }
 
+// Dans le script setup, ajouter un état de loading
+const isLikeLoading = ref(false)
+
+// Remplacer la fonction toggleLike existante par :
 const toggleLike = async () => {
+  // Protection contre les clics multiples
+  if (isLikeLoading.value) {
+    console.log('Like en cours, clic ignoré')
+    return
+  }
+
   if (!props.currentUser) {
     toast.add({
       severity: 'warn',
@@ -424,33 +481,50 @@ const toggleLike = async () => {
     return
   }
 
+  // Bloquer les clics pendant la requête
+  isLikeLoading.value = true
+
   try {
+    // console.log('Envoi requête like pour deck:', props.deck.id)
     const response = await api.post(`/api/decks/${props.deck.id}/like`)
     
     if (response.data.success) {
-      isLiked.value = response.data.isLiked
-      likesCount.value = response.data.likesCount
+      // console.log('Réponse serveur:', response.data)
       
-      toast.add({
-        severity: 'success',
-        summary: response.data.message,
-        life: 2000
-      })
+      // Mise à jour immédiate de l'état local
+      const newIsLiked = response.data.isLiked
+      const newLikesCount = response.data.likesCount
       
-      emit('like', {
-        deck: props.deck,
-        isLiked: isLiked.value,
-        likesCount: likesCount.value
-      })
+      // Vérification que l'état a vraiment changé
+      if (isLiked.value !== newIsLiked) {
+        isLiked.value = newIsLiked
+        likesCount.value = newLikesCount
+        
+        // console.log(`Like mis à jour: ${newIsLiked ? 'Liké' : 'Déliké'}, count: ${newLikesCount}`)
+        
+        toast.add({
+          severity: 'success',
+          summary: response.data.message,
+          life: 2000
+        })
+        
+      } else {
+        console.warn('État like inchangé côté serveur')
+      }
     }
   } catch (error) {
-    console.error('Erreur lors du like:', error)
+    // console.error('Erreur lors du like:', error)
     toast.add({
       severity: 'error',
       summary: 'Erreur',
       detail: 'Impossible de modifier le like',
       life: 3000
     })
+  } finally {
+    // Débloquer les clics après un délai minimal
+    setTimeout(() => {
+      isLikeLoading.value = false
+    }, 500)
   }
 }
 
@@ -722,18 +796,6 @@ const copyDeckcode = () => {
   font-style: italic;
 }
 
-.likes-display {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: #e11d48;
-  font-weight: 600;
-}
-
-.likes-display i {
-  font-size: 0.8rem;
-}
-
 /* === SECTION CARTES === */
 .cards-section {
   background: var(--surface-50);
@@ -742,6 +804,10 @@ const copyDeckcode = () => {
   margin: 1rem 0;
   border: 1px solid var(--surface-200);
   animation: expandIn 0.3s ease-out;
+  max-height: 350px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .cards-header {
@@ -766,6 +832,10 @@ const copyDeckcode = () => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  overflow-y: auto;
+  flex: 1;
+  max-height: 280px;
+  padding-right: 0.5rem;
 }
 
 .magic-card-section {
@@ -773,6 +843,24 @@ const copyDeckcode = () => {
   border-radius: 6px;
   padding: 0.75rem;
   border: 1px solid var(--surface-200);
+}
+
+.magic-cards-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.magic-cards-list::-webkit-scrollbar-track {
+  background: var(--surface-200);
+  border-radius: 3px;
+}
+
+.magic-cards-list::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 3px;
+}
+
+.magic-cards-list::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-dark);
 }
 
 .section-header {
@@ -807,8 +895,11 @@ const copyDeckcode = () => {
 }
 
 .magic-card-entry:hover {
-  background: var(--surface-100);
-  border-color: var(--primary);
+  background: rgba(38, 166, 154, 0.1) !important;
+  border-color: var(--primary) !important;
+  transform: translateX(4px);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .card-cmc-badge {
@@ -921,16 +1012,32 @@ const copyDeckcode = () => {
   font-size: 0.85rem !important;
 }
 
-/* === BOUTONS D'ACTION === */
+/* === BOUTON LIKE CORRIGÉ === */
 :deep(.like-btn) {
   background: white !important;
   border: 2px solid var(--surface-300) !important;
   color: var(--text-secondary) !important;
+  min-width: 60px !important;
+  padding: 0.5rem !important;
+}
+
+:deep(.like-btn .p-button-content) {
   display: flex !important;
   align-items: center !important;
-  gap: 0.25rem !important;
-  min-width: 50px !important;
   justify-content: center !important;
+  gap: 0.375rem !important;
+  width: 100% !important;
+}
+
+:deep(.like-btn .p-button-icon) {
+  margin: 0 !important;
+  order: 1 !important;
+}
+
+:deep(.like-btn .p-button-label) {
+  margin: 0 !important;
+  order: 2 !important;
+  font-weight: 600 !important;
 }
 
 :deep(.like-btn:hover) {
@@ -948,6 +1055,7 @@ const copyDeckcode = () => {
 :deep(.like-btn.liked:hover) {
   background: #be185d !important;
   border-color: #be185d !important;
+  color: white !important;
 }
 
 :deep(.like-btn .pi-heart-fill) {
@@ -993,6 +1101,24 @@ const copyDeckcode = () => {
   background: var(--accent) !important;
   border-color: var(--accent) !important;
   color: white !important;
+}
+
+/* === PREVIEW IMAGE SIMPLE === */
+.card-image-preview {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+
+.card-image-only {
+  width: 180px;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 2px solid var(--primary);
+  background: white;
+  object-fit: contain;
 }
 
 /* === ANIMATIONS === */
@@ -1058,6 +1184,11 @@ const copyDeckcode = () => {
   :deep(.toggle-cards-btn) {
     width: 100% !important;
     justify-content: center !important;
+  }
+  
+  /* Masquer preview sur mobile */
+  .card-image-preview {
+    display: none !important;
   }
 }
 

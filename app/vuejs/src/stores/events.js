@@ -679,6 +679,111 @@ const uploadEventImage = async (eventId, file) => {
     isUpdating.value = false
   }
 
+  /**
+ * Charge les événements en attente de validation (admin)
+ */
+const loadPendingEvents = async (params = {}) => {
+  if (!authStore.user?.roles?.includes('ROLE_ADMIN')) {
+    throw new Error('Accès admin requis')
+  }
+  
+  try {
+    const response = await api.get('/api/admin/events/pending-review', { params })
+    return response.data
+  } catch (error) {
+    console.error('❌ Erreur chargement événements admin:', error)
+    throw error
+  }
+}
+
+/**
+ * Approuve un événement (admin)
+ */
+const approveEvent = async (eventId, comment = null) => {
+  if (!authStore.user?.roles?.includes('ROLE_ADMIN')) {
+    throw new Error('Accès admin requis')
+  }
+  
+  try {
+    const response = await api.post(`/api/admin/events/${eventId}/approve`, {
+      comment
+    })
+    
+    // Invalider le cache
+    cache.value.lastFetch = null
+    
+    console.log('✅ Événement approuvé:', eventId)
+    return response.data
+  } catch (error) {
+    console.error('❌ Erreur approbation événement:', error)
+    throw error
+  }
+}
+
+/**
+ * Rejette un événement (admin)
+ */
+const rejectEvent = async (eventId, reason) => {
+  if (!authStore.user?.roles?.includes('ROLE_ADMIN')) {
+    throw new Error('Accès admin requis')
+  }
+  
+  if (!reason?.trim()) {
+    throw new Error('Motif de rejet requis')
+  }
+  
+  try {
+    const response = await api.post(`/api/admin/events/${eventId}/reject`, {
+      reason: reason.trim()
+    })
+    
+    // Invalider le cache
+    cache.value.lastFetch = null
+    
+    console.log('✅ Événement rejeté:', eventId)
+    return response.data
+  } catch (error) {
+    console.error('❌ Erreur rejet événement:', error)
+    throw error
+  }
+}
+
+/**
+ * Supprime définitivement un événement (admin)
+ */
+const deleteEventAdmin = async (eventId, reason) => {
+  if (!authStore.user?.roles?.includes('ROLE_ADMIN')) {
+    throw new Error('Accès admin requis')
+  }
+  
+  if (!reason?.trim()) {
+    throw new Error('Motif de suppression requis')
+  }
+  
+  try {
+    const response = await api.delete(`/api/admin/events/${eventId}`, {
+      data: { reason: reason.trim() }
+    })
+    
+    // Retirer de toutes les listes locales
+    events.value = events.value.filter(e => e.id !== eventId)
+    myEvents.value = myEvents.value.filter(e => e.id !== eventId)
+    
+    if (currentEvent.value?.id === eventId) {
+      currentEvent.value = null
+    }
+    
+    // Invalider le cache
+    cache.value.lastFetch = null
+    
+    console.log('✅ Événement supprimé définitivement:', eventId)
+    return response.data
+  } catch (error) {
+    console.error('❌ Erreur suppression admin événement:', error)
+    throw error
+  }
+}
+
   // ============= RETURN =============
   
   return {
@@ -735,6 +840,10 @@ const uploadEventImage = async (eventId, file) => {
     
     // Actions - Utilitaires
     refresh,
+    loadPendingEvents,
+    approveEvent,
+    rejectEvent,
+    deleteEventAdmin,
     cleanup
   }
 })
