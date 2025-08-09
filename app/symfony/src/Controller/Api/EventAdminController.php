@@ -243,6 +243,67 @@ class EventAdminController extends AbstractController
     }
 
     /**
+ * ✅ NOUVEAU: Annuler un événement (admin)
+ * POST /api/admin/events/{id}/cancel
+ */
+#[Route('/{id}/cancel', name: 'cancel', methods: ['POST'])]
+public function cancelEvent(int $id, Request $request): JsonResponse
+{
+    $event = $this->eventRepository->find($id);
+
+    if (!$event) {
+        return $this->json(['error' => 'Événement non trouvé'], 404);
+    }
+
+    if ($event->isFinished()) {
+        return $this->json(['error' => 'Un événement terminé ne peut pas être annulé'], 400);
+    }
+
+    if ($event->isCancelled()) {
+        return $this->json(['error' => 'Cet événement est déjà annulé'], 400);
+    }
+
+    $data = json_decode($request->getContent(), true);
+
+    if (!isset($data['reason']) || strlen(trim($data['reason'])) < 30) {
+        return $this->json(['error' => 'Motif d\'annulation requis (minimum 30 caractères)'], 400);
+    }
+
+    $reason = trim($data['reason']);
+
+    try {
+        /** @var User $admin */
+        $admin = $this->getUser();
+        
+        // Transition vers CANCELLED au lieu de suppression
+        $event->cancel();
+        $event->setReviewedBy($admin);
+        $event->setReviewedAt(new \DateTimeImmutable());
+        $event->setReviewComment('[ANNULATION ADMIN] ' . $reason);
+
+        // Annuler toutes les inscriptions actives
+        $activeRegistrations = $this->registrationRepository->findActiveByEvent($event);
+        foreach ($activeRegistrations as $registration) {
+            $registration->cancel();
+        }
+
+        $this->em->flush();
+
+        // ✅ NOUVEAU: Notifier tous les participants de l'annulation
+        $this->notifyEventCancellation($event, $reason);
+
+        return $this->json([
+            'message' => 'Événement annulé avec succès',
+            'event' => $this->serializeEventForAdmin($event),
+            'cancelled_registrations' => count($activeRegistrations)
+        ]);
+
+    } catch (\Exception $e) {
+        return $this->json(['error' => 'Erreur lors de l\'annulation: ' . $e->getMessage()], 500);
+    }
+}
+
+    /**
      * Masquer/Afficher un événement
      * POST /api/admin/events/{id}/toggle-visibility
      */

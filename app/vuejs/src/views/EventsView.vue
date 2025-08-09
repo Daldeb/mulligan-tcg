@@ -21,7 +21,7 @@
               label="Créer un événement"
               icon="pi pi-plus"
               iconPos="left"
-              class="emerald-button primary create-event-btn"
+              class="emerald-button primary create-deck"
               @click="toggleCreateEventMenu"
               aria-haspopup="true"
               aria-controls="create_event_menu"

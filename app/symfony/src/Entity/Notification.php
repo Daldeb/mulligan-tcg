@@ -511,7 +511,7 @@ class Notification
     {
         return match($this->type) {
             // Admin et rôles
-            self::TYPE_ROLE_APPROVED, self::TYPE_EVENT_APPROVED => 'pi-check-circle',
+            self::TYPE_ROLE_APPROVED, self::TYPE_EVENT_APPROVED => '✅',
             self::TYPE_ROLE_REJECTED, self::TYPE_EVENT_REJECTED => 'pi-times-circle',
             self::TYPE_EVENT_DELETED => 'pi-trash',
             

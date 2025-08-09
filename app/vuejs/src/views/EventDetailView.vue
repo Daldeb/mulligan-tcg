@@ -104,7 +104,6 @@
                       </div>
                     </div>
                   </div>
-                  
                   <!-- Actions principales -->
                   <div class="event-actions">
                     <Button
@@ -140,12 +139,22 @@
                       @click="editEvent"
                     />
                     <Button
-                      v-if="canDelete"
-                      label="Supprimer"
-                      icon="pi pi-trash"
+                      v-if="canEdit && (event.status === 'DRAFT' || event.status === 'PENDING_REVIEW' || event.status === 'APPROVED')"
+                      label="Annuler l'événement"
+                      icon="pi pi-ban"
+                      severity="warning"
+                      outlined
+                      :loading="isCancelling"
+                      @click="cancelEventOwner"
+                    />
+                    <Button
+                      v-if="canCancelAsAdmin"
+                      label="Annuler (Admin)"
+                      icon="pi pi-ban"
                       severity="danger"
                       outlined
-                      @click="deleteEvent"
+                      :loading="isCancellingAdmin"
+                      @click="cancelEventAdmin"
                     />
                   </div>
                 </div>
@@ -292,6 +301,8 @@ const router = useRouter()
 const route = useRoute()
 const toast = useToast()
 const confirm = useConfirm()
+const isCancelling = ref(false)
+const isCancellingAdmin = ref(false)
 
 // State
 const isLoading = ref(true)
@@ -307,17 +318,18 @@ const canEdit = computed(() => {
   if (!authStore.isAuthenticated || !event.value) return false
   
   const userRoles = authStore.user?.roles || []
-  return userRoles.includes('ROLE_ADMIN') ||
-         event.value.created_by_id === authStore.user?.id ||
-         (event.value.organizer_type === 'SHOP' && 
-          authStore.user?.shop?.id === event.value.organizer_id)
+  const isAdmin = userRoles.includes('ROLE_ADMIN')
+  const isCreator = event.value.created_by_id === authStore.user?.id
+  const isShopOwner = event.value.organizer_type === 'SHOP' && 
+                     authStore.user?.shop?.id === event.value.organizer_id
+
+  return isCreator || isShopOwner
 })
 
 const canPost = computed(() => 
   event.value?.status === 'DRAFT' && canEdit.value
 )
 
-const canDelete = computed(() => canEdit.value)
 
 const canRegister = computed(() => {
   if (!authStore.isAuthenticated || !event.value) return false
@@ -329,6 +341,17 @@ const canRegister = computed(() => {
   return !isRegistered.value && 
          event.value?.can_register &&
          event.value?.status === 'APPROVED'
+})
+
+const canCancelAsAdmin = computed(() => {
+  if (!authStore.isAuthenticated || !event.value) return false
+  
+  const userRoles = authStore.user?.roles || []
+  const isAdmin = userRoles.includes('ROLE_ADMIN')
+  const isNotCreator = event.value.created_by_id !== authStore.user?.id
+  
+  // Admin peut annuler les événements des autres (pas les siens)
+  return isAdmin && isNotCreator && !event.value.status.includes('FINISHED')
 })
 
 const isRegistered = computed(() => {
@@ -413,32 +436,104 @@ const editEvent = () => {
   router.push({ name: 'creer-evenement', query: { id: props.eventId } })
 }
 
-const deleteEvent = () => {
+const cancelEventOwner = () => {
   confirm.require({
-    message: `Voulez-vous vraiment supprimer "${event.value?.title}" ?`,
-    header: 'Supprimer l\'événement',
+    message: `Voulez-vous vraiment annuler "${event.value?.title}" ?`,
+    header: 'Annuler l\'événement',
     icon: 'pi pi-exclamation-triangle',
-    acceptLabel: 'Oui, supprimer',
-    rejectLabel: 'Annuler',
-    acceptClass: 'p-button-danger',
+    acceptLabel: 'Oui, annuler',
+    rejectLabel: 'Non',
+    acceptClass: 'p-button-warning',
     accept: async () => {
-      try {
-        await eventStore.deleteEvent(props.eventId)
-        toast.add({
-          severity: 'success',
-          summary: 'Événement supprimé',
-          detail: 'L\'événement a été supprimé avec succès',
-          life: 3000
-        })
-        goBack()
-      } catch (err) {
-        console.error('❌ Erreur suppression:', err)
+      // Demander le motif
+      const reason = prompt('Motif d\'annulation (minimum 30 caractères) :')
+      
+      if (!reason || reason.trim().length < 30) {
         toast.add({
           severity: 'error',
-          summary: 'Erreur de suppression',
+          summary: 'Motif requis',
+          detail: 'Le motif d\'annulation doit faire au moins 30 caractères',
+          life: 3000
+        })
+        return
+      }
+      
+      isCancelling.value = true
+      try {
+        // UTILISER LE STORE au lieu de l'appel API direct
+        await eventStore.cancelEvent(props.eventId, reason.trim())
+        
+        toast.add({
+          severity: 'success',
+          summary: 'Événement annulé',
+          detail: 'Votre événement a été annulé avec succès',
+          life: 3000
+        })
+        
+        // Recharger pour voir le nouveau statut
+        await loadEvent()
+        
+      } catch (err) {
+        console.error('❌ Erreur annulation:', err)
+        toast.add({
+          severity: 'error',
+          summary: 'Erreur d\'annulation',
           detail: err.message || 'Une erreur est survenue',
           life: 5000
         })
+      } finally {
+        isCancelling.value = false
+      }
+    }
+  })
+}
+
+const cancelEventAdmin = () => {
+  confirm.require({
+    message: `Voulez-vous vraiment annuler "${event.value?.title}" en tant qu'administrateur ?`,
+    header: 'Annulation administrative',
+    icon: 'pi pi-shield',
+    acceptLabel: 'Oui, annuler',
+    rejectLabel: 'Non',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      // Demander le motif
+      const reason = prompt('Motif d\'annulation administrative (minimum 30 caractères) :')
+      
+      if (!reason || reason.trim().length < 30) {
+        toast.add({
+          severity: 'error',
+          summary: 'Motif requis',
+          detail: 'Le motif d\'annulation doit faire au moins 30 caractères',
+          life: 3000
+        })
+        return
+      }
+      
+      isCancellingAdmin.value = true
+      try {
+        await eventStore.cancelEventAdmin(props.eventId, reason.trim())
+        
+        toast.add({
+          severity: 'success',
+          summary: 'Événement annulé',
+          detail: 'L\'événement a été annulé par l\'administration',
+          life: 3000
+        })
+        
+        // Recharger pour voir le nouveau statut
+        await loadEvent()
+        
+      } catch (err) {
+        console.error('❌ Erreur annulation admin:', err)
+        toast.add({
+          severity: 'error',
+          summary: 'Erreur d\'annulation',
+          detail: err.message || 'Une erreur est survenue',
+          life: 5000
+        })
+      } finally {
+        isCancellingAdmin.value = false
       }
     }
   })

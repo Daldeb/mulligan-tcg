@@ -168,7 +168,7 @@
           <!-- Profil / Connexion -->
           <template v-if="authStore.isAuthenticated">
             <!-- Section profil avec avatar + pseudo -->
-            <div class="action-item profile-section" @click="goToProfile">
+            <div class="action-item profile-section" @click="goToPersonalProfile">
               <!-- Avatar avec photo -->
               <div class="avatar-container">
                 <img 
@@ -412,9 +412,8 @@ const goToNotifications = () => {
   router.push('/profile') 
 }
 
-// Methods existantes
-const openMessages = () => {
-  router.push('/messages')
+const goToPersonalProfile = () => {
+  router.push('/profile')
 }
 
 const handleLogout = () => {

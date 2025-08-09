@@ -13,6 +13,7 @@ use App\Entity\Address;
 use App\Repository\ShopRepository;
 use Psr\Log\LoggerInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Repository\EventRegistrationRepository;
 use App\Service\FileUploadService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -29,7 +30,8 @@ class EventController extends AbstractController
         private EventRepository $eventRepository,
         private ValidatorInterface $validator,
         private LoggerInterface $logger,
-        private \App\Service\AddressService $addressService
+        private \App\Service\AddressService $addressService,
+        private EventRegistrationRepository $registrationRepository
     ) {}
 
     /**
@@ -165,54 +167,78 @@ class EventController extends AbstractController
         }
     }
 
-    /**
-     * Modifier un événement
-     * PUT /api/events/{id}
-     */
-    #[Route('/{id}', name: 'update', methods: ['PUT'])]
-    #[IsGranted('ROLE_USER')]
-    public function update(int $id, Request $request): JsonResponse
-    {
-        $event = $this->eventRepository->find($id);
+/**
+ * Modifier un événement
+ * PUT /api/events/{id}
+ */
+#[Route('/{id}', name: 'update', methods: ['PUT'])]
+#[IsGranted('ROLE_USER')]
+public function update(int $id, Request $request): JsonResponse
+{
+    $event = $this->eventRepository->find($id);
 
-        if (!$event) {
-            return $this->json(['error' => 'Événement non trouvé'], 404);
-        }
-
-        /** @var User $user */
-        $user = $this->getUser();
-
-        // Vérifier permissions modification
-        if (!$this->canEditEvent($event, $user)) {
-            return $this->json(['error' => 'Permissions insuffisantes'], 403);
-        }
-
-        $data = json_decode($request->getContent(), true);
-
-        if (!$data) {
-            return $this->json(['error' => 'Données JSON invalides'], 400);
-        }
-
-        try {
-            $this->updateEventFromData($event, $data);
-
-            // Validation
-            $errors = $this->validator->validate($event);
-            if (count($errors) > 0) {
-                return $this->json(['errors' => $this->formatValidationErrors($errors)], 400);
-            }
-
-            $this->em->flush();
-
-            return $this->json([
-                'message' => 'Événement modifié avec succès',
-                'event' => $this->serializeEventDetailed($event)
-            ]);
-
-        } catch (\Exception $e) {
-            return $this->json(['error' => 'Erreur lors de la modification: ' . $e->getMessage()], 500);
-        }
+    if (!$event) {
+        return $this->json(['error' => 'Événement non trouvé'], 404);
     }
+
+    /** @var User $user */
+    $user = $this->getUser();
+
+    // Vérifier permissions modification
+    if (!$this->canEditEvent($event, $user)) {
+        return $this->json(['error' => 'Permissions insuffisantes'], 403);
+    }
+
+    $data = json_decode($request->getContent(), true);
+
+    if (!$data) {
+        return $this->json(['error' => 'Données JSON invalides'], 400);
+    }
+
+    try {
+        // ✅ AUTO-TRANSITIONS POUR RE-VALIDATION
+        $wasRejected = $event->getStatus() === Event::STATUS_REJECTED;
+        $wasApproved = $event->getStatus() === Event::STATUS_APPROVED;
+        
+        $this->updateEventFromData($event, $data);
+        
+        // Si l'événement était rejeté OU approuvé et qu'on le modifie, le remettre en validation
+        if ($wasRejected || $wasApproved) {
+            $event->setStatus(Event::STATUS_PENDING_REVIEW);
+            $event->setReviewedBy(null);
+            $event->setReviewedAt(null);
+            $event->setReviewComment(null);
+            
+            // Log pour traçabilité
+            $previousStatus = $wasRejected ? 'REJECTED' : 'APPROVED';
+            error_log("Event {$event->getId()} auto-transitioned from {$previousStatus} to PENDING_REVIEW after modification");
+        }
+
+        // Validation
+        $errors = $this->validator->validate($event);
+        if (count($errors) > 0) {
+            return $this->json(['errors' => $this->formatValidationErrors($errors)], 400);
+        }
+
+        $this->em->flush();
+
+        // Message contextuel
+        $message = match(true) {
+            $wasRejected => 'Événement modifié et re-soumis pour validation',
+            $wasApproved => 'Événement modifié - soumis pour re-validation',
+            default => 'Événement modifié avec succès'
+        };
+
+        return $this->json([
+            'message' => $message,
+            'event' => $this->serializeEventDetailed($event),
+            'status_changed' => ($wasRejected || $wasApproved) // Info pour le frontend
+        ]);
+
+    } catch (\Exception $e) {
+        return $this->json(['error' => 'Erreur lors de la modification: ' . $e->getMessage()], 500);
+    }
+}
 
     /**
      * Supprimer un événement
@@ -292,6 +318,96 @@ class EventController extends AbstractController
             return $this->json(['error' => 'Erreur lors de la soumission: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+ * Annuler son propre événement (créateur)
+ * POST /api/events/{id}/cancel
+ */
+#[Route('/{id}/cancel', name: 'cancel', methods: ['POST'])]
+#[IsGranted('ROLE_USER')]
+public function cancelEvent(int $id, Request $request): JsonResponse
+{
+    $event = $this->eventRepository->find($id);
+
+    if (!$event) {
+        return $this->json(['error' => 'Événement non trouvé'], 404);
+    }
+
+    /** @var User $user */
+    $user = $this->getUser();
+
+    // Vérifier permissions - Seul le créateur ou propriétaire boutique peut annuler
+    if (!$this->canEditEvent($event, $user)) {
+        return $this->json(['error' => 'Permissions insuffisantes'], 403);
+    }
+
+    // Vérifier que l'événement peut être annulé
+    if ($event->isFinished()) {
+        return $this->json(['error' => 'Un événement terminé ne peut pas être annulé'], 400);
+    }
+
+    if ($event->isCancelled()) {
+        return $this->json(['error' => 'Cet événement est déjà annulé'], 400);
+    }
+
+    $data = json_decode($request->getContent(), true);
+
+    if (!isset($data['reason']) || strlen(trim($data['reason'])) < 30) {
+        return $this->json(['error' => 'Motif d\'annulation requis (minimum 30 caractères)'], 400);
+    }
+
+    $reason = trim($data['reason']);
+
+    try {
+        // Transition vers CANCELLED
+        $event->cancel();
+        $event->setReviewedBy($user); // Le créateur annule lui-même
+        $event->setReviewedAt(new \DateTimeImmutable());
+        $event->setReviewComment('[ANNULATION CRÉATEUR] ' . $reason);
+
+        // Annuler toutes les inscriptions actives
+        $activeRegistrations = $this->registrationRepository->findActiveByEvent($event);
+        foreach ($activeRegistrations as $registration) {
+            $registration->cancel();
+        }
+
+        $this->em->flush();
+
+        // Notifier les participants de l'annulation
+        $this->notifyEventCancellation($event, $reason);
+
+        return $this->json([
+            'message' => 'Événement annulé avec succès',
+            'event' => $this->serializeEventDetailed($event),
+            'cancelled_registrations' => count($activeRegistrations)
+        ]);
+
+    } catch (\Exception $e) {
+        return $this->json(['error' => 'Erreur lors de l\'annulation: ' . $e->getMessage()], 500);
+    }
+}
+
+/**
+ * Notifie l'annulation d'événement à tous les participants
+ */
+private function notifyEventCancellation(Event $event, string $reason): void
+{
+    try {
+        // Récupérer toutes les inscriptions actives
+        $activeRegistrations = $this->registrationRepository->findActiveByEvent($event);
+        
+        foreach ($activeRegistrations as $registration) {
+            $participant = $registration->getUser();
+            
+            // TODO: Implémenter le système de notifications
+            // Pour l'instant, on log juste
+            error_log("Notification annulation événement {$event->getId()} pour utilisateur {$participant->getId()}");
+        }
+        
+    } catch (\Exception $e) {
+        error_log("Erreur notification annulation événement {$event->getId()}: " . $e->getMessage());
+    }
+}
 
     /**
      * Recherche d'événements
@@ -622,52 +738,61 @@ $this->logger->info('🔍 php://input size: ' . strlen(file_get_contents('php://
         }
 
                 // Gestion de l'adresse
-        if (isset($data['address']) && !$data['is_online']) {
-            $addressData = $data['address'];
-            
-            // Si address_id fourni, utiliser l'adresse existante
-            if (isset($addressData['id']) && $addressData['id']) {
-                $addressRepository = $this->em->getRepository(Address::class);
-                $address = $addressRepository->find($addressData['id']);
-                if ($address) {
-                    $event->setAddress($address);
+                // ✅ CORRECTION COMPLÈTE: Gestion cohérente de l'adresse
+                if (isset($data['address']) && !($data['is_online'] ?? false)) {
+                    $addressData = $data['address'];
+                    
+                    // ✅ Validation des champs requis
+                    if (isset($addressData['streetAddress'], $addressData['city'], $addressData['postalCode'])) {
+                        
+                        // ✅ Validation via AddressService si disponible
+                        if ($this->addressService) {
+                            $addressErrors = $this->addressService->validateFrenchAddress(
+                                $addressData['streetAddress'],
+                                $addressData['city'],
+                                $addressData['postalCode']
+                            );
+
+                            if (!empty($addressErrors)) {
+                                throw new \InvalidArgumentException('Adresse invalide: ' . implode(', ', $addressErrors));
+                            }
+                        }
+
+                        // ✅ Rechercher ou créer l'adresse (avec flush automatique)
+                        $addressRepository = $this->em->getRepository(Address::class);
+                        $address = $addressRepository->findOrCreateSimilar(
+                            $addressData['streetAddress'],
+                            $addressData['city'],
+                            $addressData['postalCode'],
+                            $addressData['country'] ?? 'France'
+                        );
+
+                        // ✅ Enrichir avec coordonnées si disponibles
+                        if (isset($addressData['latitude'], $addressData['longitude']) && 
+                            $addressData['latitude'] && $addressData['longitude']) {
+                            $address->setLatitude($addressData['latitude']);
+                            $address->setLongitude($addressData['longitude']);
+                        }
+                        
+                        // ✅ Enrichir automatiquement si pas de coordonnées et service disponible
+                        if (!$address->hasCoordinates() && $this->addressService) {
+                            try {
+                                $this->addressService->enrichAddressWithCoordinates($address);
+                            } catch (\Exception $e) {
+                                // Log mais ne pas bloquer
+                                error_log("Erreur enrichissement coordonnées: " . $e->getMessage());
+                            }
+                        }
+
+                        $event->setAddress($address);
+                    } else {
+                        throw new \InvalidArgumentException('Données d\'adresse incomplètes (streetAddress, city, postalCode requis)');
+                    }
+                    
+                } elseif ($data['is_online'] ?? false) {
+                    // ✅ Si événement en ligne, supprimer l'adresse
+                    $event->setAddress(null);
                 }
-            }
-            // Sinon, créer/trouver une adresse similaire
-            elseif (isset($addressData['streetAddress'], $addressData['city'], $addressData['postalCode'])) {
-                $addressRepository = $this->em->getRepository(Address::class);
-                
-                // Validation de l'adresse via AddressService
-                $addressService = $this->addressService ?? $this->container->get(AddressService::class);
-                $addressErrors = $addressService->validateFrenchAddress(
-                    $addressData['streetAddress'],
-                    $addressData['city'],
-                    $addressData['postalCode']
-                );
-
-                if (!empty($addressErrors)) {
-                    throw new \InvalidArgumentException('Adresse invalide: ' . implode(', ', $addressErrors));
-                }
-
-                // Rechercher ou créer l'adresse
-                $address = $addressRepository->findOrCreateSimilar(
-                    $addressData['streetAddress'],
-                    $addressData['city'],
-                    $addressData['postalCode'],
-                    $addressData['country'] ?? 'France'
-                );
-
-                // Enrichir avec coordonnées si nécessaire
-                if (!$address->hasCoordinates()) {
-                    $addressService->enrichAddressWithCoordinates($address);
-                }
-
-                $event->setAddress($address);
-            }
-        } elseif ($data['is_online'] ?? false) {
-            // Si événement en ligne, supprimer l'adresse
-            $event->setAddress(null);
-        }
 
         // Contenu
         if (isset($data['tags'])) {

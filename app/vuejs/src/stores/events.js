@@ -434,6 +434,49 @@ const uploadEventImage = async (eventId, file) => {
     }
   }
 
+  /**
+ * Annule son propre événement (créateur)
+ */
+const cancelEvent = async (eventId, reason) => {
+  if (!authStore.isAuthenticated) {
+    throw new Error('Authentification requise')
+  }
+  
+  if (!reason?.trim() || reason.trim().length < 30) {
+    throw new Error('Motif d\'annulation requis (minimum 30 caractères)')
+  }
+  
+  try {
+    const response = await api.post(`/api/events/${eventId}/cancel`, {
+      reason: reason.trim()
+    })
+    
+    // Mettre à jour dans les listes locales
+    const updateStatus = (eventsList) => {
+      const index = eventsList.findIndex(e => e.id === eventId)
+      if (index !== -1) {
+        eventsList[index].status = 'CANCELLED'
+      }
+    }
+    
+    updateStatus(events.value)
+    updateStatus(myEvents.value)
+    
+    if (currentEvent.value?.id === eventId) {
+      currentEvent.value.status = 'CANCELLED'
+    }
+    
+    // Invalider le cache
+    cache.value.lastFetch = null
+    
+    console.log('✅ Événement annulé par le créateur:', eventId)
+    return response.data
+  } catch (error) {
+    console.error('❌ Erreur annulation événement:', error)
+    throw error
+  }
+}
+
   // ============= ACTIONS - MES ÉVÉNEMENTS =============
   
   /**
@@ -784,6 +827,49 @@ const deleteEventAdmin = async (eventId, reason) => {
   }
 }
 
+/**
+ * Annule un événement (admin)
+ */
+const cancelEventAdmin = async (eventId, reason) => {
+  if (!authStore.user?.roles?.includes('ROLE_ADMIN')) {
+    throw new Error('Accès admin requis')
+  }
+  
+  if (!reason?.trim() || reason.trim().length < 30) {
+    throw new Error('Motif d\'annulation requis (minimum 30 caractères)')
+  }
+  
+  try {
+    const response = await api.post(`/api/admin/events/${eventId}/cancel`, {
+      reason: reason.trim()
+    })
+    
+    // Mettre à jour dans les listes locales (statut CANCELLED)
+    const updateStatus = (eventsList) => {
+      const index = eventsList.findIndex(e => e.id === eventId)
+      if (index !== -1) {
+        eventsList[index].status = 'CANCELLED'
+      }
+    }
+    
+    updateStatus(events.value)
+    updateStatus(myEvents.value)
+    
+    if (currentEvent.value?.id === eventId) {
+      currentEvent.value.status = 'CANCELLED'
+    }
+    
+    // Invalider le cache
+    cache.value.lastFetch = null
+    
+    console.log('✅ Événement annulé par admin:', eventId)
+    return response.data
+  } catch (error) {
+    console.error('❌ Erreur annulation admin événement:', error)
+    throw error
+  }
+}
+
   // ============= RETURN =============
   
   return {
@@ -824,6 +910,7 @@ const deleteEventAdmin = async (eventId, reason) => {
     uploadEventImage,
     deleteEventImage,
     submitForReview,
+    cancelEvent,
     
     // Actions - Mes événements
     loadMyEvents,
@@ -844,6 +931,7 @@ const deleteEventAdmin = async (eventId, reason) => {
     approveEvent,
     rejectEvent,
     deleteEventAdmin,
+    cancelEventAdmin,
     cleanup
   }
 })

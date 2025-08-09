@@ -96,12 +96,12 @@
                     @click="rejectEvent(event)"
                   />
                   <Button
-                    icon="pi pi-trash"
-                    label="Supprimer"
+                    icon="pi pi-ban"
+                    label="Annuler"
                     size="small"
-                    severity="danger"
+                    severity="warning"
                     outlined
-                    @click="deleteEventAdmin(event)"
+                    @click="cancelEvent(event)"
                   />
                 </div>
               </div>
@@ -208,18 +208,25 @@
       <div class="admin-action-content">
         <p class="mb-4">{{ adminActionMessage }}</p>
         
-        <div v-if="adminAction === 'reject' || adminAction === 'delete'" class="form-group">
-          <label for="adminReason" class="form-label">Motif (obligatoire) :</label>
+        <div v-if="adminAction === 'reject' || adminAction === 'delete' || adminAction === 'cancel'" class="form-group">
+          <label for="adminReason" class="form-label">
+            Motif (obligatoire{{ adminAction === 'cancel' ? ' - min. 30 caractères' : '' }}) :
+          </label>
           <Textarea
             id="adminReason"
             v-model="adminActionReason"
-            placeholder="Expliquez la raison du refus/suppression..."
+            :placeholder="adminAction === 'cancel' 
+              ? 'Expliquez pourquoi cet événement doit être annulé...' 
+              : 'Expliquez la raison du refus/suppression...'"
             rows="4"
             class="w-full"
-            :class="{ 'p-invalid': !adminActionReason.trim() }"
+            :class="{ 'p-invalid': !adminActionReason.trim() || (adminAction === 'cancel' && adminActionReason.trim().length < 30) }"
           />
           <small v-if="!adminActionReason.trim()" class="text-red-500">
             Un motif est requis pour cette action
+          </small>
+          <small v-else-if="adminAction === 'cancel' && adminActionReason.trim().length < 30" class="text-red-500">
+            Le motif d'annulation doit faire au moins 30 caractères ({{ adminActionReason.trim().length }}/30)
           </small>
         </div>
 
@@ -246,7 +253,8 @@
           :label="adminActionConfirmLabel"
           :icon="adminActionIcon"
           :severity="adminActionSeverity"
-          :disabled="(adminAction === 'reject' || adminAction === 'delete') && !adminActionReason.trim()"
+          :disabled="(adminAction === 'reject' || adminAction === 'delete') && !adminActionReason.trim() || 
+                    (adminAction === 'cancel' && adminActionReason.trim().length < 30)"
           @click="confirmAdminAction"
         />
       </template>
@@ -305,6 +313,7 @@ const adminActionTitle = computed(() => {
     case 'approve': return 'Approuver l\'événement'
     case 'reject': return 'Refuser l\'événement'
     case 'delete': return 'Supprimer l\'événement'
+    case 'cancel': return 'Annuler l\'événement'
     default: return 'Action admin'
   }
 })
@@ -320,6 +329,8 @@ const adminActionMessage = computed(() => {
       return `Refuser "${title}" ? Le créateur pourra le modifier et le re-soumettre.`
     case 'delete': 
       return `Supprimer définitivement "${title}" ? Cette action est irréversible.`
+    case 'cancel': 
+      return `Annuler "${title}" ? L'événement sera annulé et tous les participants seront notifiés.`
     default: return ''
   }
 })
@@ -329,6 +340,7 @@ const adminActionConfirmLabel = computed(() => {
     case 'approve': return 'Approuver'
     case 'reject': return 'Refuser'
     case 'delete': return 'Supprimer définitivement'
+    case 'cancel': return 'Annuler l\'événement'
     default: return 'Confirmer'
   }
 })
@@ -338,6 +350,7 @@ const adminActionIcon = computed(() => {
     case 'approve': return 'pi pi-check'
     case 'reject': return 'pi pi-times'
     case 'delete': return 'pi pi-trash'
+    case 'cancel': return 'pi pi-ban' 
     default: return 'pi pi-check'
   }
 })
@@ -347,6 +360,7 @@ const adminActionSeverity = computed(() => {
     case 'approve': return 'success'
     case 'reject': return 'warning'
     case 'delete': return 'danger'
+    case 'cancel': return 'warning'
     default: return undefined
   }
 })
@@ -397,6 +411,13 @@ const loadFollowedEvents = async () => {
   } catch (error) {
     console.error('❌ Erreur chargement événements suivis:', error)
   }
+}
+
+const cancelEvent = (event) => {
+  adminActionEvent.value = event
+  adminAction.value = 'cancel'
+  adminActionReason.value = ''
+  adminActionDialog.value = true
 }
 
 const loadParticipatingEvents = async () => {
@@ -459,11 +480,22 @@ const confirmAdminAction = async () => {
   const reason = adminActionReason.value.trim()
   
   // Validation
-  if ((adminAction.value === 'reject' || adminAction.value === 'delete') && !reason) {
+  if ((adminAction.value === 'reject' || adminAction.value === 'delete' || adminAction.value === 'cancel') && !reason) {
     toast.add({
       severity: 'error',
       summary: 'Erreur',
       detail: 'Un motif est requis pour cette action',
+      life: 3000
+    })
+    return
+  }
+  
+  // Validation longueur pour annulation
+  if (adminAction.value === 'cancel' && reason.length < 30) {
+    toast.add({
+      severity: 'error',
+      summary: 'Motif trop court',
+      detail: 'Le motif d\'annulation doit faire au moins 30 caractères',
       life: 3000
     })
     return
@@ -486,6 +518,11 @@ const confirmAdminAction = async () => {
       case 'delete':
         await eventStore.deleteEventAdmin(eventId, reason)
         successMessage = 'Événement supprimé définitivement'
+        break
+        
+      case 'cancel':  // ✅ NOUVEAU
+        await eventStore.cancelEventAdmin(eventId, reason)
+        successMessage = 'Événement annulé. Tous les participants ont été notifiés.'
         break
     }
     

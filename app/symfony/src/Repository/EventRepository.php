@@ -131,15 +131,17 @@ class EventRepository extends ServiceEntityRepository
     {
         $qb = $this->createQueryBuilder('e');
 
-            $qb->where('e.status != :cancelled')
-       ->setParameter('cancelled', Event::STATUS_CANCELLED);
-
-        // Filtre par visibilité (défaut: visible uniquement)
+        // ✅ CORRECTION: Logique WHERE cohérente
         if (!isset($filters['include_hidden']) || !$filters['include_hidden']) {
+            // Vue publique: seulement les événements approuvés et visibles
             $qb->where('e.status = :approved')
-               ->andWhere('e.visibility = :visible')
-               ->setParameter('approved', Event::STATUS_APPROVED)
-               ->setParameter('visible', Event::VISIBILITY_VISIBLE);
+            ->andWhere('e.visibility = :visible')
+            ->setParameter('approved', Event::STATUS_APPROVED)
+            ->setParameter('visible', Event::VISIBILITY_VISIBLE);
+        } else {
+            // Vue admin: exclure seulement les annulés
+            $qb->where('e.status != :cancelled')
+            ->setParameter('cancelled', Event::STATUS_CANCELLED);
         }
 
         // Filtre par type d'événement
@@ -214,70 +216,73 @@ class EventRepository extends ServiceEntityRepository
         return $qb->getQuery()->getResult();
     }
 
-    /**
-     * Compte les événements avec filtres
-     */
-    public function countWithFilters(array $filters = []): int
-    {
-        $qb = $this->createQueryBuilder('e')
-            ->select('COUNT(e.id)');
+/**
+ * Compte les événements avec filtres
+ */
+public function countWithFilters(array $filters = []): int
+{
+    $qb = $this->createQueryBuilder('e')
+        ->select('COUNT(e.id)');
 
-                $qb->where('e.status != :cancelled')
-       ->setParameter('cancelled', Event::STATUS_CANCELLED);
-
-        // Applique les mêmes filtres que findWithFilters (sans pagination)
-        if (!isset($filters['include_hidden']) || !$filters['include_hidden']) {
-            $qb->where('e.status = :approved')
-               ->andWhere('e.visibility = :visible')
-               ->setParameter('approved', Event::STATUS_APPROVED)
-               ->setParameter('visible', Event::VISIBILITY_VISIBLE);
-        }
-
-        if (isset($filters['event_type'])) {
-            $qb->andWhere('e.eventType = :eventType')
-               ->setParameter('eventType', $filters['event_type']);
-        }
-
-        if (isset($filters['game_id'])) {
-            $qb->join('e.games', 'g')
-               ->andWhere('g.id = :gameId')
-               ->setParameter('gameId', $filters['game_id']);
-        }
-
-        if (isset($filters['start_date'])) {
-            $qb->andWhere('e.startDate >= :startDate')
-               ->setParameter('startDate', $filters['start_date']);
-        }
-
-        if (isset($filters['end_date'])) {
-            $qb->andWhere('e.startDate <= :endDate')
-               ->setParameter('endDate', $filters['end_date']);
-        }
-
-        if (isset($filters['status'])) {
-            $qb->andWhere('e.status = :status')
-               ->setParameter('status', $filters['status']);
-        }
-
-        if (isset($filters['organizer_type']) && isset($filters['organizer_id'])) {
-            $qb->andWhere('e.organizerType = :organizerType')
-               ->andWhere('e.organizerId = :organizerId')
-               ->setParameter('organizerType', $filters['organizer_type'])
-               ->setParameter('organizerId', $filters['organizer_id']);
-        }
-
-        if (isset($filters['tag'])) {
-            $qb->andWhere('JSON_CONTAINS(e.tags, :tag) = 1')
-               ->setParameter('tag', json_encode($filters['tag']));
-        }
-
-        if (isset($filters['is_online'])) {
-            $qb->andWhere('e.isOnline = :isOnline')
-               ->setParameter('isOnline', $filters['is_online']);
-        }
-
-        return (int) $qb->getQuery()->getSingleScalarResult();
+    // ✅ CORRECTION: Même logique que findWithFilters()
+    if (!isset($filters['include_hidden']) || !$filters['include_hidden']) {
+        // Vue publique: seulement les événements approuvés et visibles
+        $qb->where('e.status = :approved')
+           ->andWhere('e.visibility = :visible')
+           ->setParameter('approved', Event::STATUS_APPROVED)
+           ->setParameter('visible', Event::VISIBILITY_VISIBLE);
+    } else {
+        // Vue admin: exclure seulement les annulés
+        $qb->where('e.status != :cancelled')
+           ->setParameter('cancelled', Event::STATUS_CANCELLED);
     }
+
+    // Applique les mêmes filtres que findWithFilters (sans pagination)
+    if (isset($filters['event_type'])) {
+        $qb->andWhere('e.eventType = :eventType')
+           ->setParameter('eventType', $filters['event_type']);
+    }
+
+    if (isset($filters['game_id'])) {
+        $qb->join('e.games', 'g')
+           ->andWhere('g.id = :gameId')
+           ->setParameter('gameId', $filters['game_id']);
+    }
+
+    if (isset($filters['start_date'])) {
+        $qb->andWhere('e.startDate >= :startDate')
+           ->setParameter('startDate', $filters['start_date']);
+    }
+
+    if (isset($filters['end_date'])) {
+        $qb->andWhere('e.startDate <= :endDate')
+           ->setParameter('endDate', $filters['end_date']);
+    }
+
+    if (isset($filters['status'])) {
+        $qb->andWhere('e.status = :status')
+           ->setParameter('status', $filters['status']);
+    }
+
+    if (isset($filters['organizer_type']) && isset($filters['organizer_id'])) {
+        $qb->andWhere('e.organizerType = :organizerType')
+           ->andWhere('e.organizerId = :organizerId')
+           ->setParameter('organizerType', $filters['organizer_type'])
+           ->setParameter('organizerId', $filters['organizer_id']);
+    }
+
+    if (isset($filters['tag'])) {
+        $qb->andWhere('JSON_CONTAINS(e.tags, :tag) = 1')
+           ->setParameter('tag', json_encode($filters['tag']));
+    }
+
+    if (isset($filters['is_online'])) {
+        $qb->andWhere('e.isOnline = :isOnline')
+           ->setParameter('isOnline', $filters['is_online']);
+    }
+
+    return (int) $qb->getQuery()->getSingleScalarResult();
+}
 
     /**
      * Trouve les événements populaires (avec le plus d'inscriptions)

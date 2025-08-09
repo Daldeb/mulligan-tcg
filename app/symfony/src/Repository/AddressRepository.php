@@ -50,6 +50,8 @@ class AddressRepository extends ServiceEntityRepository
         $address->setCountry($country);
 
         $this->getEntityManager()->persist($address);
+        // ✅ CORRECTION CRITIQUE : Ajouter le flush pour sauvegarder immédiatement
+        $this->getEntityManager()->flush();
         
         return $address;
     }

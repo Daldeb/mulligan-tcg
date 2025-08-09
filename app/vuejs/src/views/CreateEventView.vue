@@ -805,20 +805,18 @@ const prepareEventData = (status) => {
     data.organizer_type = 'USER'
   }
   
-  // ✅ CORRECTION: Adresse ou URL selon le type
   if (formData.value.is_online) {
     data.stream_url = formData.value.stream_url?.trim() || null
   } else {
-    // ✅ NOUVEAU: Envoyer les données d'adresse complètes au lieu de juste l'ID
     if (formData.value.address) {
-      data.address_data = {
-        street_address: formData.value.address.streetAddress,
+      data.address = {
+        streetAddress: formData.value.address.streetAddress,
         city: formData.value.address.city,
-        postal_code: formData.value.address.postalCode,
+        postalCode: formData.value.address.postalCode,
         country: formData.value.address.country || 'France',
         latitude: formData.value.address.latitude || null,
         longitude: formData.value.address.longitude || null,
-        full_address: formData.value.address.fullAddress
+        fullAddress: formData.value.address.fullAddress
       }
     }
   }
