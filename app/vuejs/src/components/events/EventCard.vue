@@ -174,23 +174,26 @@
         outlined
       />
 
-      <!-- Boutons principaux -->
+      <!-- Boutons principaux d'inscription -->
       <Button
         v-if="canRegister"
         label="S'inscrire"
         icon="pi pi-user-plus"
         class="event-register-btn"
-        :disabled="eventIsFull || isPast"
-        @click.stop="register"
+        :disabled="eventIsFull || isPast || isRegistering"
+        :loading="isRegistering"
+        @click.stop="handleRegister"
         size="small"
       />
       
       <Button
         v-if="isRegistered"
-        label="Inscrit"
-        icon="pi pi-check"
-        class="event-registered-btn"
-        @click.stop="unregister"
+        label="Se retirer"
+        icon="pi pi-user-minus"
+        class="event-unregister-btn"
+        :disabled="isUnregistering"
+        :loading="isUnregistering"
+        @click.stop="handleUnregister"
         size="small"
         severity="success"
       />
@@ -239,78 +242,13 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from 'primevue/usetoast'
 import api from '@/services/api'
 import Button from 'primevue/button'
 import { useProfileNavigation } from '@/composables/useProfileNavigation'
 
-
 // Ajouter après les autres imports
 const { goToProfile, canNavigateToProfile, getProfileTooltip } = useProfileNavigation()
-
-// Ajouter temporairement dans les computed pour debug
-const creatorDisplayName = computed(() => {
-  console.log('🔍 Event data:', {
-    organizerType: props.event.organizer_type,
-    createdBy: props.event.created_by,
-    organizerName: props.event.organizer_name
-  })
-  
-  // Si l'organisateur est une boutique ET que le créateur a une boutique active
-  if (props.event.organizer_type === 'SHOP' && 
-      props.event.created_by?.shop?.name && 
-      props.event.created_by?.shop?.isActive) {
-    return props.event.created_by.shop.name
-  }
-  
-  // Sinon, utiliser le pseudo du créateur
-  return props.event.created_by?.pseudo || 
-         props.event.organizer_name || 
-         'Organisateur'
-})
-
-const creatorAvatar = computed(() => {
-  // Si organisateur boutique et boutique active avec logo
-  if (props.event.organizer_type === 'SHOP' && 
-      props.event.created_by?.shop?.logo && 
-      props.event.created_by?.shop?.isActive) {
-    return getImageUrl(props.event.created_by.shop.logo)
-  }
-  
-  // Sinon, utiliser l'avatar du créateur
-  if (props.event.created_by?.avatar) {
-    return getImageUrl(props.event.created_by.avatar)
-  }
-  
-  return null
-})
-
-const creatorTypeLabel = computed(() => {
-  if (props.event.organizer_type === 'SHOP') {
-    return 'Boutique'
-  }
-  return 'Créateur'
-})
-
-const creatorTypeIcon = computed(() => {
-  if (props.event.organizer_type === 'SHOP') {
-    return 'pi pi-shop'
-  }
-  return 'pi pi-user'
-})
-
-const creatorUserId = computed(() => {
-  return props.event.created_by?.id || props.event.created_by_id
-})
-
-const goToCreatorProfile = (event) => {
-  event?.stopPropagation()
-  
-  if (!creatorUserId.value) return
-  
-  if (canNavigateToProfile(creatorUserId.value)) {
-    goToProfile(creatorUserId.value, creatorDisplayName.value)
-  }
-}
 
 // Props
 const props = defineProps({
@@ -323,10 +261,15 @@ const props = defineProps({
   onUnregister: { type: Function }
 })
 
-const emit = defineEmits(['followChanged', 'statusChanged'])
+const emit = defineEmits(['followChanged', 'statusChanged', 'registrationChanged'])
 const router = useRouter()
 const authStore = useAuthStore()
+const toast = useToast()
 const isPosting = ref(false)
+
+// Variables réactives pour l'inscription
+const isRegistering = ref(false)
+const isUnregistering = ref(false)
 
 // ============= COUNTDOWN SYSTEM =============
 
@@ -392,7 +335,7 @@ const timeRemaining = computed(() => {
   return { days, hours, minutes, seconds }
 })
 
-// ============= COMPUTED STATES (existants) =============
+// ============= COMPUTED STATES =============
 
 const canEdit = computed(() => {
   const result = authStore.user?.id === props.event.created_by_id
@@ -415,6 +358,35 @@ const creatorIcon = computed(() => {
   return 'pi pi-user'
 })
 
+// Mise à jour du computed isRegistered pour être plus fiable
+// Ajouter temporairement dans EventCard.vue, dans le computed isRegistered :
+
+const isRegistered = computed(() => {
+  if (!authStore.user?.id || !props.event.participants) {
+    console.log('🔍 IsRegistered - pas d\'user ou pas de participants:', {
+      hasUser: !!authStore.user?.id,
+      hasParticipants: !!props.event.participants,
+      participants: props.event.participants
+    })
+    return false
+  }
+  
+  const registration = props.event.participants.find(participant => 
+    participant.user?.id === authStore.user.id &&
+    ['REGISTERED', 'CONFIRMED'].includes(participant.status)
+  )
+  
+  console.log('🔍 IsRegistered check:', {
+    eventId: props.event.id,
+    userId: authStore.user.id,
+    participants: props.event.participants,
+    foundRegistration: registration,
+    result: !!registration
+  })
+  
+  return !!registration
+})
+
 const canRegister = computed(() =>
   !isRegistered.value && 
   !eventIsFull.value && 
@@ -422,10 +394,6 @@ const canRegister = computed(() =>
   (props.event.status === 'APPROVED' || props.event.status === 'VALIDATED') &&
   !canEdit.value &&
   authStore.isAuthenticated
-)
-
-const isRegistered = computed(() =>
-  props.event.participants?.some(p => p.user?.id === authStore.user?.id)
 )
 
 const eventIsFull = computed(() =>
@@ -484,6 +452,71 @@ const participantsPercentage = computed(() => {
   if (!props.event.max_participants) return 0
   return Math.min(100, (props.event.current_participants / props.event.max_participants) * 100)
 })
+
+// Ajouter temporairement dans les computed pour debug
+const creatorDisplayName = computed(() => {
+  console.log('🔍 Event data:', {
+    organizerType: props.event.organizer_type,
+    createdBy: props.event.created_by,
+    organizerName: props.event.organizer_name
+  })
+  
+  // Si l'organisateur est une boutique ET que le créateur a une boutique active
+  if (props.event.organizer_type === 'SHOP' && 
+      props.event.created_by?.shop?.name && 
+      props.event.created_by?.shop?.isActive) {
+    return props.event.created_by.shop.name
+  }
+  
+  // Sinon, utiliser le pseudo du créateur
+  return props.event.created_by?.pseudo || 
+         props.event.organizer_name || 
+         'Organisateur'
+})
+
+const creatorAvatar = computed(() => {
+  // Si organisateur boutique et boutique active avec logo
+  if (props.event.organizer_type === 'SHOP' && 
+      props.event.created_by?.shop?.logo && 
+      props.event.created_by?.shop?.isActive) {
+    return getImageUrl(props.event.created_by.shop.logo)
+  }
+  
+  // Sinon, utiliser l'avatar du créateur
+  if (props.event.created_by?.avatar) {
+    return getImageUrl(props.event.created_by.avatar)
+  }
+  
+  return null
+})
+
+const creatorTypeLabel = computed(() => {
+  if (props.event.organizer_type === 'SHOP') {
+    return 'Boutique'
+  }
+  return 'Créateur'
+})
+
+const creatorTypeIcon = computed(() => {
+  if (props.event.organizer_type === 'SHOP') {
+    return 'pi pi-shop'
+  }
+  return 'pi pi-user'
+})
+
+const creatorUserId = computed(() => {
+  return props.event.created_by?.id || props.event.created_by_id
+})
+
+const goToCreatorProfile = (event) => {
+  event?.stopPropagation()
+  
+  if (!creatorUserId.value) return
+  
+  if (canNavigateToProfile(creatorUserId.value)) {
+    goToProfile(creatorUserId.value, creatorDisplayName.value)
+  }
+}
 
 // ============= GAME & TYPE STYLING =============
 
@@ -605,6 +638,130 @@ async function toggleFollow(e) {
   }
 }
 
+// ============= INSCRIPTION/DÉSINSCRIPTION =============
+
+/**
+ * Gestion de l'inscription à un événement
+ */
+async function handleRegister() {
+  if (!authStore.isAuthenticated) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Connexion requise',
+      detail: 'Vous devez être connecté pour vous inscrire',
+      life: 3000
+    })
+    return
+  }
+
+  if (isRegistering.value) return
+
+  isRegistering.value = true
+  
+  try {
+    const response = await api.events.register(props.event.id)
+    
+    // Mettre à jour localement les participants
+    if (!props.event.participants) {
+      props.event.participants = []
+    }
+    
+    props.event.participants.push({
+      id: response.data.registration.id,
+      status: 'REGISTERED',
+      user: {
+        id: authStore.user.id,
+        pseudo: authStore.user.pseudo
+      },
+      registered_at: response.data.registration.registered_at
+    })
+    
+    // Mettre à jour le compteur
+    props.event.current_participants = (props.event.current_participants || 0) + 1
+    
+    toast.add({
+      severity: 'success',
+      summary: 'Inscription réussie',
+      detail: `Vous êtes maintenant inscrit à "${props.event.title}"`,
+      life: 4000
+    })
+    
+    // Émettre événement pour notifier le parent si nécessaire
+    emit('registrationChanged', { 
+      event: props.event, 
+      isRegistered: true 
+    })
+    
+  } catch (error) {
+    console.error('❌ Erreur inscription:', error)
+    
+    const errorMessage = error.response?.data?.error || 
+                        error.response?.data?.message || 
+                        'Une erreur est survenue lors de l\'inscription'
+    
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur d\'inscription',
+      detail: errorMessage,
+      life: 5000
+    })
+  } finally {
+    isRegistering.value = false
+  }
+}
+
+/**
+ * Gestion de la désinscription d'un événement
+ */
+async function handleUnregister() {
+  if (isUnregistering.value) return
+
+  isUnregistering.value = true
+  
+  try {
+    await api.events.unregister(props.event.id)
+    
+    // Retirer l'utilisateur de la liste des participants
+    if (props.event.participants) {
+      props.event.participants = props.event.participants.filter(participant => 
+        participant.user?.id !== authStore.user.id
+      )
+    }
+    
+    // Mettre à jour le compteur
+    props.event.current_participants = Math.max(0, (props.event.current_participants || 0) - 1)
+    
+    toast.add({
+      severity: 'info',
+      summary: 'Désinscription réussie',
+      detail: `Vous n'êtes plus inscrit à "${props.event.title}"`,
+      life: 4000
+    })
+    
+    // Émettre événement pour notifier le parent si nécessaire
+    emit('registrationChanged', { 
+      event: props.event, 
+      isRegistered: false 
+    })
+    
+  } catch (error) {
+    console.error('❌ Erreur désinscription:', error)
+    
+    const errorMessage = error.response?.data?.error || 
+                        error.response?.data?.message || 
+                        'Une erreur est survenue lors de la désinscription'
+    
+    toast.add({
+      severity: 'error',
+      summary: 'Erreur de désinscription',
+      detail: errorMessage,
+      life: 5000
+    })
+  } finally {
+    isUnregistering.value = false
+  }
+}
+
 // ============= UTILITY FUNCTIONS =============
 
 const getImageUrl = (imagePath) => {
@@ -663,12 +820,20 @@ function deleteEvent(e) {
 
 function register(e) {
   e?.stopPropagation()
-  props.onRegister && props.onRegister(props.event)
+  if (props.onRegister) {
+    props.onRegister(props.event)
+  } else {
+    handleRegister()
+  }
 }
 
 function unregister(e) {
   e?.stopPropagation()
-  props.onUnregister && props.onUnregister(props.event)
+  if (props.onUnregister) {
+    props.onUnregister(props.event)
+  } else {
+    handleUnregister()
+  }
 }
 </script>
 
@@ -1233,16 +1398,47 @@ function unregister(e) {
   box-shadow: 0 4px 12px rgba(38, 166, 154, 0.4) !important;
 }
 
-.event-registered-btn {
-  flex: 1;
-  background: #22c55e !important;
-  border-color: #22c55e !important;
-}
-
-.event-registered-btn:hover {
+.event-unregister-btn {
   background: #16a34a !important;
   border-color: #16a34a !important;
+  color: white !important;
+  font-weight: 600 !important;
+  flex: 1;
+  transition: all var(--transition-fast) !important;
+}
+
+.event-unregister-btn:hover:not(:disabled) {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  color: white !important;
   transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4) !important;
+}
+
+.event-unregister-btn:disabled {
+  background: var(--surface-300) !important;
+  border-color: var(--surface-300) !important;
+  color: var(--text-secondary) !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  transform: none !important;
+}
+
+.event-unregister-btn.p-button-loading {
+  pointer-events: none !important;
+}
+
+/* État de chargement pour le bouton d'inscription */
+.event-register-btn:disabled.p-button-loading {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  opacity: 0.8 !important;
+  color: white !important;
+}
+
+/* Animation pour les changements d'état */
+.event-actions .p-button {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .owner-actions {
@@ -1297,6 +1493,45 @@ function unregister(e) {
 
 .event-card.event-full .progress-fill {
   background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+/* Styles cliquables pour navigation profil */
+.clickable-avatar {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-radius: 50%;
+  position: relative;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.3);
+}
+
+.clickable-name {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  text-decoration: none;
+  border-radius: var(--border-radius-small);
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+}
+
+.clickable-name:hover {
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1);
+}
+
+.clickable-avatar:hover::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  opacity: 0.6;
 }
 
 /* ============= ANIMATIONS ============= */
@@ -1373,9 +1608,11 @@ function unregister(e) {
     order: 2;
   }
   
-  .event-register-btn, .event-registered-btn {
+  .event-register-btn, .event-unregister-btn {
     order: 1;
     flex: 1;
+    font-size: 0.875rem !important;
+    padding: 0.75rem 1rem !important;
   }
 }
 
@@ -1417,13 +1654,21 @@ function unregister(e) {
     gap: 0.75rem;
   }
   
-  .follow-btn, .event-register-btn, .event-registered-btn {
+  .follow-btn, .event-register-btn, .event-unregister-btn {
     width: 100%;
   }
   
   .owner-actions {
     align-self: stretch;
     justify-content: space-between;
+  }
+  
+  .clickable-avatar:hover {
+    transform: scale(1.02);
+  }
+  
+  .clickable-avatar:hover::after {
+    display: none;
   }
 }
 
@@ -1442,55 +1687,5 @@ function unregister(e) {
 .event-card.gaming-pokemon .countdown-container.countdown-starting {
   border-color: #dc2626;
   background: linear-gradient(135deg, rgba(220, 38, 38, 0.05), rgba(220, 38, 38, 0.02));
-}
-
-/* Styles cliquables pour navigation profil */
-.clickable-avatar {
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  border-radius: 50%;
-  position: relative;
-}
-
-.clickable-avatar:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.3);
-}
-
-.clickable-name {
-  cursor: pointer;
-  transition: color var(--transition-fast);
-  text-decoration: none;
-  border-radius: var(--border-radius-small);
-  padding: 0.125rem 0.25rem;
-  margin: -0.125rem -0.25rem;
-}
-
-.clickable-name:hover {
-  color: var(--primary) !important;
-  background: rgba(38, 166, 154, 0.1);
-}
-
-.clickable-avatar:hover::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  border: 2px solid var(--primary);
-  border-radius: 50%;
-  opacity: 0.6;
-}
-
-/* Responsive pour les avatars cliquables */
-@media (max-width: 768px) {
-  .clickable-avatar:hover {
-    transform: scale(1.02);
-  }
-  
-  .clickable-avatar:hover::after {
-    display: none;
-  }
 }
 </style>

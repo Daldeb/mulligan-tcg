@@ -399,6 +399,23 @@ public function countWithFilters(array $filters = []): int
     }
 
     /**
+     * Trouve les événements par leurs IDs
+     */
+    public function findByIds(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('e')
+            ->where('e.id IN (:ids)')
+            ->setParameter('ids', $ids)
+            ->orderBy('e.startDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Trouve les événements par tags
      */
     public function findByTags(array $tags, bool $onlyVisible = true): array

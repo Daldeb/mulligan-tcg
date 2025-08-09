@@ -463,6 +463,34 @@ private function notifyEventCancellation(Event $event, string $reason): void
     }
 
     /**
+     * Événements suivis par l'utilisateur connecté
+     * GET /api/events/user/followed
+     */
+    #[Route('/user/followed', name: 'user_followed', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function userFollowedEvents(): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        // Récupérer les IDs des événements suivis
+        $followedEventIds = $user->getFollowedEvents() ?? [];
+        
+        if (empty($followedEventIds)) {
+            return $this->json([
+                'events' => []
+            ]);
+        }
+
+        // Récupérer les événements complets
+        $events = $this->eventRepository->findByIds($followedEventIds);
+
+        return $this->json([
+            'events' => array_map([$this, 'serializeEvent'], $events)
+        ]);
+    }
+
+    /**
      * Événements par jeu
      * GET /api/events/by-game/{gameId}
      */
@@ -883,6 +911,8 @@ $this->logger->info('🔍 php://input size: ' . strlen(file_get_contents('php://
         }
     }
 
+    // Dans EventController.php, modifier la méthode serializeEvent pour inclure les participants :
+
     private function serializeEvent(Event $event): array
     {
         $data = [
@@ -910,6 +940,50 @@ $this->logger->info('🔍 php://input size: ' . strlen(file_get_contents('php://
             'is_full' => $event->isFull(),
             'remaining_slots' => $event->getRemainingSlots()
         ];
+
+        // NOUVEAU : Ajouter les participants avec leurs statuts pour EventCard
+        $participants = [];
+        foreach ($event->getRegistrations() as $registration) {
+            if ($registration->isActive()) { // Seulement les inscriptions actives
+                $participants[] = [
+                    'id' => $registration->getId(),
+                    'status' => $registration->getStatus(),
+                    'user' => [
+                        'id' => $registration->getUser()->getId(),
+                        'pseudo' => $registration->getUser()->getPseudo()
+                    ],
+                    'registered_at' => $registration->getRegisteredAt()?->format('c'),
+                    'checked_in' => $registration->isCheckedIn()
+                ];
+            }
+        }
+        $data['participants'] = $participants;
+
+        // Ajouter les jeux
+        $data['games'] = [];
+        foreach ($event->getGames() as $game) {
+            $data['games'][] = [
+                'id' => $game->getId(),
+                'name' => $game->getName(),
+                'slug' => $game->getSlug(),
+                'logo' => $game->getLogo()
+            ];
+        }
+
+        // Ajouter l'adresse si présente
+        if ($event->getAddress()) {
+            $address = $event->getAddress();
+            $data['address'] = [
+                'id' => $address->getId(),
+                'street_address' => $address->getStreetAddress(),
+                'city' => $address->getCity(),
+                'postal_code' => $address->getPostalCode(),
+                'country' => $address->getCountry(),
+                'full_address' => $address->getFullAddress(),
+                'latitude' => $address->getLatitude(),
+                'longitude' => $address->getLongitude()
+            ];
+        }
 
         // Données spécifiques aux tournois
         if ($event instanceof Tournament) {
@@ -961,7 +1035,9 @@ $this->logger->info('🔍 php://input size: ' . strlen(file_get_contents('php://
                 'city' => $address->getCity(),
                 'postal_code' => $address->getPostalCode(),
                 'country' => $address->getCountry(),
-                'full_address' => $address->getFullAddress()
+                'full_address' => $address->getFullAddress(),
+                'latitude' => $address->getLatitude(),   
+                'longitude' => $address->getLongitude() 
             ];
         }
 

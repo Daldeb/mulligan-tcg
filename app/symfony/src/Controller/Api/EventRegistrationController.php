@@ -27,84 +27,103 @@ class EventRegistrationController extends AbstractController
         private ValidatorInterface $validator
     ) {}
 
-    /**
-     * S'inscrire à un événement
-     * POST /api/events/{id}/register
-     */
-    #[Route('/events/{id}/register', name: 'register', methods: ['POST'])]
-    #[IsGranted('ROLE_USER')]
-    public function register(int $id, Request $request): JsonResponse
-    {
-        $event = $this->eventRepository->find($id);
+/**
+ * S'inscrire à un événement
+ * POST /api/events/{id}/register
+ */
+#[Route('/events/{id}/register', name: 'register', methods: ['POST'])]
+#[IsGranted('ROLE_USER')]
+public function register(int $id, Request $request): JsonResponse
+{
+    $event = $this->eventRepository->find($id);
 
-        if (!$event) {
-            return $this->json(['error' => 'Événement non trouvé'], 404);
-        }
+    if (!$event) {
+        return $this->json(['error' => 'Événement non trouvé'], 404);
+    }
 
-        /** @var User $user */
-        $user = $this->getUser();
+    /** @var User $user */
+    $user = $this->getUser();
 
-        // Vérifier si inscription possible
-        if (!$event->canRegister()) {
-            return $this->json(['error' => 'Les inscriptions ne sont pas ouvertes pour cet événement'], 400);
-        }
+    // Vérifier si inscription possible
+    if (!$event->canRegister()) {
+        return $this->json(['error' => 'Les inscriptions ne sont pas ouvertes pour cet événement'], 400);
+    }
 
-        // Vérifier si déjà inscrit
-        if ($this->registrationRepository->isUserRegistered($user, $event)) {
-            return $this->json(['error' => 'Vous êtes déjà inscrit à cet événement'], 400);
-        }
+    // CORRECTION : Vérifier s'il existe une inscription active (pas annulée)
+    $existingActiveRegistration = $this->registrationRepository->findActiveUserRegistration($user, $event);
+    
+    if ($existingActiveRegistration) {
+        return $this->json(['error' => 'Vous êtes déjà inscrit à cet événement'], 400);
+    }
 
-        $data = json_decode($request->getContent(), true) ?? [];
+    $data = json_decode($request->getContent(), true) ?? [];
 
-        try {
+    try {
+        // CORRECTION : Chercher une inscription annulée existante pour la réactiver
+        $existingCancelledRegistration = $this->registrationRepository->findCancelledUserRegistration($user, $event);
+        
+        if ($existingCancelledRegistration) {
+            // Réactiver l'inscription existante
+            $registration = $existingCancelledRegistration;
+            $registration->setStatus(EventRegistration::STATUS_REGISTERED);
+            $registration->setRegisteredAt(new \DateTimeImmutable());
+            $registration->setConfirmedAt(null);
+            $registration->setCancelledAt(null);
+            
+            // Réinitialiser les données de tournoi si nécessaire
+            $registration->setCheckedIn(false);
+            $registration->setCheckedInAt(null);
+            
+        } else {
+            // Créer une nouvelle inscription
             $registration = new EventRegistration();
             $registration->setEvent($event);
             $registration->setUser($user);
-
-            // Données optionnelles
-            if (isset($data['notes'])) {
-                $registration->setNotes($data['notes']);
-            }
-
-            // Pour les tournois, gérer la decklist si fournie
-            if ($event instanceof Tournament && isset($data['deck_list'])) {
-                if ($event->isAllowDecklist()) {
-                    $registration->submitDeckList($data['deck_list']);
-                }
-            }
-
-            // Gérer deck_id si fourni
-            if (isset($data['deck_id']) && $event instanceof Tournament && $event->isAllowDecklist()) {
-                $deckRepository = $this->em->getRepository(\App\Entity\Deck::class);
-                $deck = $deckRepository->find($data['deck_id']);
-                
-                if ($deck && $deck->getUser() === $user) {
-                    $registration->setDeck($deck);
-                }
-            }
-
-            // Validation
-            $errors = $this->validator->validate($registration);
-            if (count($errors) > 0) {
-                return $this->json(['errors' => $this->formatValidationErrors($errors)], 400);
-            }
-
             $this->em->persist($registration);
-            
-            // Mettre à jour le compteur de participants
-            $event->setCurrentParticipants($event->getCurrentParticipants() + 1);
-            
-            $this->em->flush();
-
-            return $this->json([
-                'message' => 'Inscription réussie',
-                'registration' => $this->serializeRegistration($registration)
-            ], 201);
-
-        } catch (\Exception $e) {
-            return $this->json(['error' => 'Erreur lors de l\'inscription: ' . $e->getMessage()], 500);
         }
+
+        // Données optionnelles (communes aux deux cas)
+        if (isset($data['notes'])) {
+            $registration->setNotes($data['notes']);
+        }
+
+        // Pour les tournois, gérer la decklist si fournie
+        if ($event instanceof Tournament && isset($data['deck_list'])) {
+            if ($event->isAllowDecklist()) {
+                $registration->submitDeckList($data['deck_list']);
+            }
+        }
+
+        // Gérer deck_id si fourni
+        if (isset($data['deck_id']) && $event instanceof Tournament && $event->isAllowDecklist()) {
+            $deckRepository = $this->em->getRepository(\App\Entity\Deck::class);
+            $deck = $deckRepository->find($data['deck_id']);
+            
+            if ($deck && $deck->getUser() === $user) {
+                $registration->setDeck($deck);
+            }
+        }
+
+        // Validation
+        $errors = $this->validator->validate($registration);
+        if (count($errors) > 0) {
+            return $this->json(['errors' => $this->formatValidationErrors($errors)], 400);
+        }
+        
+        // Mettre à jour le compteur de participants
+        $event->setCurrentParticipants($event->getCurrentParticipants() + 1);
+        
+        $this->em->flush();
+
+        return $this->json([
+            'message' => 'Inscription réussie',
+            'registration' => $this->serializeRegistration($registration)
+        ], 201);
+
+    } catch (\Exception $e) {
+        return $this->json(['error' => 'Erreur lors de l\'inscription: ' . $e->getMessage()], 500);
     }
+}
 
     /**
      * Se désinscrire d'un événement
@@ -150,34 +169,6 @@ class EventRegistrationController extends AbstractController
     }
 
     /**
-     * Obtenir mes inscriptions
-     * GET /api/my-registrations
-     */
-    #[Route('/my-registrations', name: 'my_registrations', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function myRegistrations(Request $request): JsonResponse
-    {
-        /** @var User $user */
-        $user = $this->getUser();
-
-        $status = $request->query->get('status');
-        
-        if ($status) {
-            // Filtrer par statut
-            $registrations = $this->registrationRepository->findWithFilters([
-                'user_id' => $user->getId(),
-                'status' => $status
-            ]);
-        } else {
-            $registrations = $this->registrationRepository->findByUser($user);
-        }
-
-        return $this->json([
-            'registrations' => array_map([$this, 'serializeRegistrationWithEvent'], $registrations)
-        ]);
-    }
-
-    /**
      * Obtenir mes prochaines participations
      * GET /api/my-upcoming-events
      */
@@ -194,6 +185,72 @@ class EventRegistrationController extends AbstractController
             'upcoming_events' => array_map([$this, 'serializeRegistrationWithEvent'], $registrations)
         ]);
     }
+
+    /**
+ * Vérifier le statut d'inscription d'un utilisateur à un événement
+ * GET /api/events/{id}/registration-status
+ */
+#[Route('/events/{id}/registration-status', name: 'registration_status', methods: ['GET'])]
+#[IsGranted('ROLE_USER')]
+public function registrationStatus(int $id): JsonResponse
+{
+    $event = $this->eventRepository->find($id);
+
+    if (!$event) {
+        return $this->json(['error' => 'Événement non trouvé'], 404);
+    }
+
+    /** @var User $user */
+    $user = $this->getUser();
+
+    $registration = $this->registrationRepository->findUserRegistration($user, $event);
+
+    if (!$registration) {
+        return $this->json([
+            'is_registered' => false,
+            'can_register' => $event->canRegister(),
+            'registration' => null
+        ]);
+    }
+
+    return $this->json([
+        'is_registered' => $registration->isActive(),
+        'can_register' => false,
+        'registration' => $this->serializeRegistration($registration)
+    ]);
+}
+
+/**
+ * Obtenir mes inscriptions
+ * GET /api/my-registrations
+ */
+#[Route('/my-registrations', name: 'my_registrations', methods: ['GET'])]
+#[IsGranted('ROLE_USER')]
+public function myRegistrations(Request $request): JsonResponse
+{
+    /** @var User $user */
+    $user = $this->getUser();
+
+    $status = $request->query->get('status');
+    
+    if ($status) {
+        // Gérer les statuts multiples séparés par des virgules
+        $statusArray = explode(',', $status);
+        $statusArray = array_map('trim', $statusArray);
+        
+        // Filtrer par statuts multiples
+        $registrations = $this->registrationRepository->findWithFilters([
+            'user_id' => $user->getId(),
+            'status_in' => $statusArray  // Nouveau filtre pour statuts multiples
+        ]);
+    } else {
+        $registrations = $this->registrationRepository->findByUser($user);
+    }
+
+    return $this->json([
+        'registrations' => array_map([$this, 'serializeRegistrationWithEvent'], $registrations)
+    ]);
+}
 
     /**
      * Soumettre une decklist pour un tournoi
@@ -562,24 +619,134 @@ class EventRegistrationController extends AbstractController
         $data = $this->serializeRegistration($registration);
         $event = $registration->getEvent();
 
-        $data['event'] = [
-            'id' => $event->getId(),
-            'title' => $event->getTitle(),
-            'event_type' => $event->getEventType(),
-            'start_date' => $event->getStartDate()?->format('c'),
-            'end_date' => $event->getEndDate()?->format('c'),
-            'status' => $event->getStatus()
-        ];
-
-        if ($event instanceof Tournament) {
-            $data['event']['tournament'] = [
-                'current_phase' => $event->getCurrentPhase(),
-                'game_format_name' => $event->getGameFormat()?->getFullName()
-            ];
-        }
+        $data['event'] = $this->serializeEventComplete($event);
 
         return $data;
     }
+
+    /**
+ * Sérialisation complète d'un événement (copie de EventController::serializeEvent)
+ */
+private function serializeEventComplete(Event $event): array
+{
+    $data = [
+        'id' => $event->getId(),
+        'title' => $event->getTitle(),
+        'description' => $event->getDescription(),
+        'event_type' => $event->getEventType(),
+        'status' => $event->getStatus(),
+        'visibility' => $event->getVisibility(),
+        'start_date' => $event->getStartDate()?->format('c'),
+        'end_date' => $event->getEndDate()?->format('c'),
+        'registration_deadline' => $event->getRegistrationDeadline()?->format('c'),
+        'max_participants' => $event->getMaxParticipants(),
+        'current_participants' => $event->getCurrentParticipants(),
+        'created_by_id' => $event->getCreatedBy()?->getId(),
+        'created_by' => $event->getCreatedBy() ? $this->serializeEventCreator($event->getCreatedBy()) : null,
+        'is_online' => $event->isOnline(),
+        'organizer_type' => $event->getOrganizerType(),
+        'organizer_name' => $event->getOrganizerName(),
+        'tags' => $event->getTags(),
+        'image' => $event->getImage(), // ← VOICI L'IMAGE !
+        'stream_url' => $event->getStreamUrl(),
+        'created_at' => $event->getCreatedAt()?->format('c'),
+        'can_register' => $event->canRegister(),
+        'is_full' => $event->isFull(),
+        'remaining_slots' => $event->getRemainingSlots()
+    ];
+
+    // Ajouter les participants
+    $participants = [];
+    foreach ($event->getRegistrations() as $reg) {
+        if ($reg->isActive()) {
+            $participants[] = [
+                'id' => $reg->getId(),
+                'status' => $reg->getStatus(),
+                'user' => [
+                    'id' => $reg->getUser()->getId(),
+                    'pseudo' => $reg->getUser()->getPseudo()
+                ],
+                'registered_at' => $reg->getRegisteredAt()?->format('c'),
+                'checked_in' => $reg->isCheckedIn()
+            ];
+        }
+    }
+    $data['participants'] = $participants;
+
+    // Ajouter les jeux
+    $data['games'] = [];
+    foreach ($event->getGames() as $game) {
+        $data['games'][] = [
+            'id' => $game->getId(),
+            'name' => $game->getName(),
+            'slug' => $game->getSlug(),
+            'logo' => $game->getLogo()
+        ];
+    }
+
+    // Ajouter l'adresse si présente
+    if ($event->getAddress()) {
+        $address = $event->getAddress();
+        $data['address'] = [
+            'id' => $address->getId(),
+            'street_address' => $address->getStreetAddress(),
+            'city' => $address->getCity(),
+            'postal_code' => $address->getPostalCode(),
+            'country' => $address->getCountry(),
+            'full_address' => $address->getFullAddress(),
+            'latitude' => $address->getLatitude(),
+            'longitude' => $address->getLongitude()
+        ];
+    }
+
+    // Données spécifiques aux tournois
+    if ($event instanceof Tournament) {
+        $data['tournament'] = [
+            'game_format_id' => $event->getGameFormat()?->getId(),
+            'game_format_name' => $event->getGameFormat()?->getFullName(),
+            'tournament_format' => $event->getTournamentFormat(),
+            'current_phase' => $event->getCurrentPhase(),
+            'current_round' => $event->getCurrentRound(),
+            'swiss_rounds' => $event->getSwissRounds(),
+            'top_cut_size' => $event->getTopCutSize(),
+            'match_timer' => $event->getMatchTimer(),
+            'allow_decklist' => $event->isAllowDecklist(),
+            'require_decklist' => $event->isRequireDecklist(),
+            'prize_pool' => $event->getPrizePool(),
+            'progress' => $event->getProgress()
+        ];
+    }
+
+    return $data;
+}
+
+/**
+ * Sérialisation du créateur d'événement
+ */
+private function serializeEventCreator(User $creator): array
+{
+    $data = [
+        'id' => $creator->getId(),
+        'pseudo' => $creator->getPseudo(),
+        'avatar' => $creator->getAvatar(),
+        'full_name' => $creator->getFullName(),
+        'display_name' => $creator->getDisplayName(), 
+        'entity_type' => $creator->getEntityType()    
+    ];
+
+    if ($creator->hasShop()) {
+        $shop = $creator->getShop();
+        $data['shop'] = [
+            'id' => $shop->getId(),
+            'name' => $shop->getName(),
+            'logo' => $shop->getLogo(),
+            'isActive' => $shop->isActive(),   
+            'isVerified' => $shop->isVerified() 
+        ];
+    }
+
+    return $data;
+}
 
     private function serializeRegistrationForOrganizer(EventRegistration $registration): array
     {

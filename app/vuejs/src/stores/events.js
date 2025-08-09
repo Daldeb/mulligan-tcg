@@ -14,7 +14,10 @@ export const useEventStore = defineStore('events', () => {
   const myRegistrations = ref([])
   const upcomingEvents = ref([])
   const popularEvents = ref([])
-  
+  const eventParticipants = ref([])
+  const eventRegistrationStats = ref(null)
+  const userRegistrationStatus = ref(null)
+  const isLoadingParticipants = ref(false)
   // Événement actuel (détail)
   const currentEvent = ref(null)
   
@@ -54,6 +57,88 @@ export const useEventStore = defineStore('events', () => {
   
   const authStore = useAuthStore()
   const gameFilterStore = useGameFilterStore()
+
+
+  const isUserRegistered = computed(() => {
+  return userRegistrationStatus.value?.status === 'REGISTERED' || 
+         userRegistrationStatus.value?.status === 'CONFIRMED'
+})
+
+const canUserUnregister = computed(() => {
+  if (!isUserRegistered.value || !userRegistrationStatus.value) return false
+  
+  const registration = userRegistrationStatus.value
+  const event = currentEvent.value
+  
+  // Ne peut pas se désinscrire si check-in effectué
+  if (registration.checked_in) return false
+  
+  // Ne peut pas se désinscrire si événement démarré
+  if (event?.status === 'IN_PROGRESS' || event?.status === 'FINISHED') return false
+  
+  return true
+})
+
+/**
+ * Charge le statut d'inscription de l'utilisateur connecté pour un événement
+ */
+const loadUserRegistrationStatus = async (eventId) => {
+  if (!authStore.isAuthenticated) {
+    userRegistrationStatus.value = null
+    return
+  }
+  
+  try {
+    // Vérifier dans mes inscriptions
+    const response = await api.events.getMyRegistrations()
+    const registration = response.data.registrations.find(r => r.event.id === eventId)
+    
+    userRegistrationStatus.value = registration || null
+    
+    return registration
+  } catch (error) {
+    console.error('❌ Erreur chargement statut inscription:', error)
+    userRegistrationStatus.value = null
+  }
+}
+
+/**
+ * Charge la liste des participants d'un événement
+ */
+const loadEventParticipants = async (eventId, filters = {}) => {
+  isLoadingParticipants.value = true
+  
+  try {
+    const response = await api.events.getParticipants(eventId, filters)
+    eventParticipants.value = response.data.participants || []
+    eventRegistrationStats.value = response.data.stats || null
+    
+    console.log('👥 Participants chargés:', eventParticipants.value.length)
+    return response.data
+  } catch (error) {
+    console.error('❌ Erreur chargement participants:', error)
+    eventParticipants.value = []
+    eventRegistrationStats.value = null
+    throw error
+  } finally {
+    isLoadingParticipants.value = false
+  }
+}
+
+/**
+ * Charge les statistiques d'inscription d'un événement
+ */
+const loadRegistrationStats = async (eventId) => {
+  try {
+    const response = await api.events.getRegistrationStats(eventId)
+    eventRegistrationStats.value = response.data.stats
+    
+    return response.data.stats
+  } catch (error) {
+    console.error('❌ Erreur chargement stats inscriptions:', error)
+    throw error
+  }
+}
   
   // PERMISSIONS CORRIGÉES - Seuls organisateurs et boutiques
   const canCreateEvent = computed(() => {
@@ -522,88 +607,187 @@ const cancelEvent = async (eventId, reason) => {
   }
 
   // ============= ACTIONS - INSCRIPTIONS =============
+
+
+/**
+ * S'inscrire à un événement
+ */
+const registerToEvent = async (eventId, data = {}) => {
+  if (!authStore.isAuthenticated) {
+    throw new Error('Vous devez être connecté pour vous inscrire')
+  }
   
-  /**
-   * S'inscrire à un événement
-   */
-  const registerToEvent = async (eventId, data = {}) => {
-    if (!authStore.isAuthenticated) {
-      throw new Error('Vous devez être connecté pour vous inscrire')
+  try {
+    const response = await api.events.register(eventId, data)
+    
+    // Mettre à jour le statut d'inscription
+    userRegistrationStatus.value = response.data.registration
+    
+    // Mettre à jour le compteur de participants dans l'événement actuel
+    if (currentEvent.value?.id === eventId) {
+      currentEvent.value.current_participants++
+      currentEvent.value.can_register = currentEvent.value.current_participants < currentEvent.value.max_participants
     }
     
-    try {
-      const response = await api.events.register(eventId, data)
-      
-      // Mettre à jour le compteur de participants dans les listes
-      const updateParticipants = (eventsList) => {
-        const index = eventsList.findIndex(e => e.id === eventId)
-        if (index !== -1) {
-          eventsList[index].current_participants++
-          eventsList[index].can_register = eventsList[index].current_participants < eventsList[index].max_participants
-        }
+    // Mettre à jour dans les listes locales
+    const updateParticipants = (eventsList) => {
+      const index = eventsList.findIndex(e => e.id === eventId)
+      if (index !== -1) {
+        eventsList[index].current_participants++
+        eventsList[index].can_register = eventsList[index].current_participants < eventsList[index].max_participants
       }
-      
-      updateParticipants(events.value)
-      updateParticipants(upcomingEvents.value)
-      updateParticipants(popularEvents.value)
-      
-      if (currentEvent.value?.id === eventId) {
-        currentEvent.value.current_participants++
-        currentEvent.value.can_register = currentEvent.value.current_participants < currentEvent.value.max_participants
-      }
-      
-      console.log('✅ Inscription réussie à l\'événement:', eventId)
-      return response.data.registration
-    } catch (error) {
-      console.error('❌ Erreur inscription événement:', error)
-      
-      const errorMsg = error.response?.data?.error || 'Erreur lors de l\'inscription à l\'événement'
-      throw new Error(errorMsg)
     }
+    
+    updateParticipants(events.value)
+    updateParticipants(upcomingEvents.value)
+    updateParticipants(popularEvents.value)
+    
+    console.log('✅ Inscription réussie à l\'événement:', eventId)
+    return response.data.registration
+  } catch (error) {
+    console.error('❌ Erreur inscription événement:', error)
+    
+    const errorMsg = error.response?.data?.error || 'Erreur lors de l\'inscription à l\'événement'
+    throw new Error(errorMsg)
   }
+}
   
   /**
    * Se désinscrire d'un événement
    */
-  const unregisterFromEvent = async (eventId) => {
-    if (!authStore.isAuthenticated) {
-      throw new Error('Vous devez être connecté pour vous désinscrire')
+const unregisterFromEvent = async (eventId) => {
+  if (!authStore.isAuthenticated) {
+    throw new Error('Vous devez être connecté pour vous désinscrire')
+  }
+  
+  try {
+    await api.events.unregister(eventId)
+    
+    // Nettoyer le statut d'inscription
+    userRegistrationStatus.value = null
+    
+    // Mettre à jour le compteur de participants dans l'événement actuel
+    if (currentEvent.value?.id === eventId) {
+      currentEvent.value.current_participants = Math.max(0, currentEvent.value.current_participants - 1)
+      currentEvent.value.can_register = true
     }
     
-    try {
-      await api.events.unregister(eventId)
-      
-      // Mettre à jour le compteur de participants dans les listes
-      const updateParticipants = (eventsList) => {
-        const index = eventsList.findIndex(e => e.id === eventId)
-        if (index !== -1) {
-          eventsList[index].current_participants = Math.max(0, eventsList[index].current_participants - 1)
-          eventsList[index].can_register = true
-        }
+    // Mettre à jour dans les listes locales
+    const updateParticipants = (eventsList) => {
+      const index = eventsList.findIndex(e => e.id === eventId)
+      if (index !== -1) {
+        eventsList[index].current_participants = Math.max(0, eventsList[index].current_participants - 1)
+        eventsList[index].can_register = true
       }
-      
-      updateParticipants(events.value)
-      updateParticipants(upcomingEvents.value)
-      updateParticipants(popularEvents.value)
-      
-      if (currentEvent.value?.id === eventId) {
-        currentEvent.value.current_participants = Math.max(0, currentEvent.value.current_participants - 1)
-        currentEvent.value.can_register = true
-      }
-      
-      // Retirer de mes inscriptions
-      myRegistrations.value = myRegistrations.value.filter(r => r.event.id !== eventId)
-      
-      console.log('✅ Désinscription réussie de l\'événement:', eventId)
-      return { success: true }
-    } catch (error) {
-      console.error('❌ Erreur désinscription événement:', error)
-      
-      const errorMsg = error.response?.data?.error || 'Erreur lors de la désinscription de l\'événement'
-      throw new Error(errorMsg)
     }
+    
+    updateParticipants(events.value)
+    updateParticipants(upcomingEvents.value)
+    updateParticipants(popularEvents.value)
+    
+    // Retirer de mes inscriptions
+    myRegistrations.value = myRegistrations.value.filter(r => r.event.id !== eventId)
+    
+    console.log('✅ Désinscription réussie de l\'événement:', eventId)
+    return { success: true }
+  } catch (error) {
+    console.error('❌ Erreur désinscription événement:', error)
+    
+    const errorMsg = error.response?.data?.error || 'Erreur lors de la désinscription de l\'événement'
+    throw new Error(errorMsg)
   }
+}
 
+/**
+ * Check-in d'un utilisateur (organisateur)
+ */
+const checkInUser = async (eventId, userId) => {
+  if (!canManageEvents.value) {
+    throw new Error('Permissions insuffisantes')
+  }
+  
+  try {
+    const response = await api.events.checkInUser(eventId, userId)
+    
+    // Mettre à jour dans la liste des participants
+    const participantIndex = eventParticipants.value.findIndex(p => p.user.id === userId)
+    if (participantIndex !== -1) {
+      eventParticipants.value[participantIndex] = response.data.registration
+    }
+    
+    // Mettre à jour les stats
+    if (eventRegistrationStats.value) {
+      eventRegistrationStats.value.checked_in++
+    }
+    
+    console.log('✅ Check-in effectué pour utilisateur:', userId)
+    return response.data.registration
+  } catch (error) {
+    console.error('❌ Erreur check-in utilisateur:', error)
+    throw error
+  }
+}
+
+/**
+ * Auto check-in (utilisateur se check-in lui-même)
+ */
+const selfCheckIn = async (eventId) => {
+  if (!authStore.isAuthenticated) {
+    throw new Error('Authentification requise')
+  }
+  
+  try {
+    const response = await api.events.selfCheckIn(eventId)
+    
+    // Mettre à jour le statut d'inscription
+    if (userRegistrationStatus.value) {
+      userRegistrationStatus.value.checked_in = true
+      userRegistrationStatus.value.checked_in_at = new Date().toISOString()
+      userRegistrationStatus.value.status = 'CONFIRMED'
+    }
+    
+    console.log('✅ Auto check-in effectué pour événement:', eventId)
+    return response.data.registration
+  } catch (error) {
+    console.error('❌ Erreur auto check-in:', error)
+    throw error
+  }
+}
+
+
+/**
+ * Soumettre une decklist pour un tournoi
+ */
+const submitDecklist = async (eventId, data) => {
+  if (!authStore.isAuthenticated) {
+    throw new Error('Authentification requise')
+  }
+  
+  try {
+    const response = await api.events.submitDecklist(eventId, data)
+    
+    // Mettre à jour le statut d'inscription
+    if (userRegistrationStatus.value) {
+      userRegistrationStatus.value.deck_list_submitted = true
+      userRegistrationStatus.value.deck_list_submitted_at = new Date().toISOString()
+    }
+    
+    console.log('✅ Decklist soumise pour tournoi:', eventId)
+    return response.data.registration
+  } catch (error) {
+    console.error('❌ Erreur soumission decklist:', error)
+    throw error
+  }
+}
+/**
+ * Nettoie les données d'inscription (au changement d'événement)
+ */
+const clearRegistrationData = () => {
+  eventParticipants.value = []
+  eventRegistrationStats.value = null
+  userRegistrationStatus.value = null
+  isLoadingParticipants.value = false
+}
   // ============= ACTIONS - FILTRES =============
   
   /**
@@ -692,7 +876,7 @@ const cancelEvent = async (eventId, reason) => {
     upcomingEvents.value = []
     popularEvents.value = []
     currentEvent.value = null
-    
+    clearRegistrationData()
     pagination.value = {
       page: 1,
       limit: 10,
@@ -870,6 +1054,7 @@ const cancelEventAdmin = async (eventId, reason) => {
   }
 }
 
+
   // ============= RETURN =============
   
   return {
@@ -932,6 +1117,26 @@ const cancelEventAdmin = async (eventId, reason) => {
     rejectEvent,
     deleteEventAdmin,
     cancelEventAdmin,
-    cleanup
+    cleanup,
+    // État inscriptions
+    eventParticipants,
+    eventRegistrationStats,
+    userRegistrationStatus,
+    isLoadingParticipants,
+
+    // Computed inscriptions
+    isUserRegistered,
+    canUserUnregister,
+
+    // Actions inscriptions
+    loadUserRegistrationStatus,
+    loadEventParticipants,
+    loadRegistrationStats,
+    registerToEvent,
+    unregisterFromEvent,
+    checkInUser,
+    selfCheckIn,
+    submitDecklist,
+    clearRegistrationData
   }
 })

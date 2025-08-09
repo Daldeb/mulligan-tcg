@@ -84,11 +84,11 @@ class EventRegistrationRepository extends ServiceEntityRepository
     }
 
     /**
-     * Vérifie si un utilisateur est inscrit à un événement
+     * Trouve l'inscription active d'un utilisateur à un événement (pas annulée)
      */
-    public function isUserRegistered(User $user, Event $event): bool
+    public function findActiveUserRegistration(User $user, Event $event): ?EventRegistration
     {
-        $registration = $this->createQueryBuilder('r')
+        return $this->createQueryBuilder('r')
             ->where('r.user = :user')
             ->andWhere('r.event = :event')
             ->andWhere('r.status IN (:activeStatuses)')
@@ -100,22 +100,42 @@ class EventRegistrationRepository extends ServiceEntityRepository
             ])
             ->getQuery()
             ->getOneOrNullResult();
-
-        return $registration !== null;
     }
 
     /**
-     * Trouve l'inscription d'un utilisateur à un événement
+     * Trouve l'inscription annulée d'un utilisateur à un événement
      */
-    public function findUserRegistration(User $user, Event $event): ?EventRegistration
+    public function findCancelledUserRegistration(User $user, Event $event): ?EventRegistration
     {
         return $this->createQueryBuilder('r')
             ->where('r.user = :user')
             ->andWhere('r.event = :event')
+            ->andWhere('r.status = :cancelled')
             ->setParameter('user', $user)
             ->setParameter('event', $event)
+            ->setParameter('cancelled', EventRegistration::STATUS_CANCELLED)
             ->getQuery()
             ->getOneOrNullResult();
+    }
+
+    /**
+ * Trouve l'inscription d'un utilisateur à un événement (tous statuts confondus)
+ */
+public function findUserRegistration(User $user, Event $event): ?EventRegistration
+{
+    return $this->findOneBy([
+        'user' => $user,
+        'event' => $event
+    ]);
+}
+
+    /**
+     * Vérifie si un utilisateur est inscrit à un événement (inscription active)
+     */
+    public function isUserRegistered(User $user, Event $event): bool
+    {
+        $registration = $this->findActiveUserRegistration($user, $event);
+        return $registration !== null;
     }
 
     /**
@@ -345,9 +365,8 @@ class EventRegistrationRepository extends ServiceEntityRepository
         return $stats;
     }
 
-    /**
-     * Trouve les inscriptions avec filtres
-     */
+    // Dans EventRegistrationRepository.php, modifier la méthode findWithFilters :
+
     public function findWithFilters(array $filters = [], int $limit = 50, int $offset = 0): array
     {
         $qb = $this->createQueryBuilder('r')
@@ -357,42 +376,48 @@ class EventRegistrationRepository extends ServiceEntityRepository
         // Filtre par événement
         if (isset($filters['event_id'])) {
             $qb->andWhere('e.id = :eventId')
-               ->setParameter('eventId', $filters['event_id']);
+            ->setParameter('eventId', $filters['event_id']);
         }
 
         // Filtre par utilisateur
         if (isset($filters['user_id'])) {
             $qb->andWhere('u.id = :userId')
-               ->setParameter('userId', $filters['user_id']);
+            ->setParameter('userId', $filters['user_id']);
         }
 
-        // Filtre par statut
+        // Filtre par statut unique
         if (isset($filters['status'])) {
             $qb->andWhere('r.status = :status')
-               ->setParameter('status', $filters['status']);
+            ->setParameter('status', $filters['status']);
+        }
+
+        // NOUVEAU : Filtre par statuts multiples
+        if (isset($filters['status_in']) && is_array($filters['status_in'])) {
+            $qb->andWhere('r.status IN (:statusIn)')
+            ->setParameter('statusIn', $filters['status_in']);
         }
 
         // Filtre par check-in
         if (isset($filters['checked_in'])) {
             $qb->andWhere('r.checkedIn = :checkedIn')
-               ->setParameter('checkedIn', $filters['checked_in']);
+            ->setParameter('checkedIn', $filters['checked_in']);
         }
 
         // Filtre par soumission de decklist
         if (isset($filters['deck_list_submitted'])) {
             $qb->andWhere('r.deckListSubmitted = :deckListSubmitted')
-               ->setParameter('deckListSubmitted', $filters['deck_list_submitted']);
+            ->setParameter('deckListSubmitted', $filters['deck_list_submitted']);
         }
 
         // Filtre par dates
         if (isset($filters['registered_after'])) {
             $qb->andWhere('r.registeredAt >= :registeredAfter')
-               ->setParameter('registeredAfter', $filters['registered_after']);
+            ->setParameter('registeredAfter', $filters['registered_after']);
         }
 
         if (isset($filters['registered_before'])) {
             $qb->andWhere('r.registeredAt <= :registeredBefore')
-               ->setParameter('registeredBefore', $filters['registered_before']);
+            ->setParameter('registeredBefore', $filters['registered_before']);
         }
 
         // Tri
@@ -409,7 +434,7 @@ class EventRegistrationRepository extends ServiceEntityRepository
 
         // Pagination
         $qb->setFirstResult($offset)
-           ->setMaxResults($limit);
+        ->setMaxResults($limit);
 
         return $qb->getQuery()->getResult();
     }

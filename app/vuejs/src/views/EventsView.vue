@@ -1,4 +1,6 @@
-<template>
+/* === SUPPRESSION ANCIEN CSS === */
+
+/* Anciens styles supprimés et remplacés par le nouveau système */<template>
   <div class="events-page">
     <div class="container">
       
@@ -35,140 +37,146 @@
           </div>
         </div>
         
-        <!-- Stats rapides -->
-        <div class="quick-stats">
-          <div class="stat-item">
-            <span class="stat-value">{{ eventStore.eventsStats.total }}</span>
-            <span class="stat-label">Événements</span>
+        <!-- Stats rapides avec bouton filtres -->
+        <div class="stats-and-filters">
+          <div class="quick-stats">
+            <div class="stat-item">
+              <span class="stat-value">{{ eventStore.eventsStats.total }}</span>
+              <span class="stat-label">Événements</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ eventStore.eventsStats.upcoming }}</span>
+              <span class="stat-label">À venir</span>
+            </div>
+            <div v-if="authStore.isAuthenticated" class="stat-item">
+              <span class="stat-value">{{ eventStore.eventsStats.myRegistrationsCount }}</span>
+              <span class="stat-label">Mes inscriptions</span>
+            </div>
           </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ eventStore.eventsStats.upcoming }}</span>
-            <span class="stat-label">À venir</span>
-          </div>
-          <div v-if="authStore.isAuthenticated" class="stat-item">
-            <span class="stat-value">{{ eventStore.eventsStats.myRegistrationsCount }}</span>
-            <span class="stat-label">Mes inscriptions</span>
+          
+          <!-- Bouton filtres avancés -->
+          <div class="advanced-filters">
+            <button 
+              class="filter-toggle"
+              :class="{ active: showAdvancedFilters }"
+              @click="toggleAdvancedFilters"
+            >
+              <i class="pi pi-filter"></i>
+              <span>Filtres</span>
+              <i class="pi pi-chevron-down" :class="{ 'rotated': showAdvancedFilters }"></i>
+              <span v-if="activeFiltersCount > 0" class="filters-badge">{{ activeFiltersCount }}</span>
+            </button>
           </div>
         </div>
-      </div>
-
-      <!-- Filtres -->
-      <Card class="filters-card">
-        <template #content>
-          <div class="filters-section">
-            <div class="filters-row">
-              
-              <!-- Recherche -->
-              <div class="filter-group search-group">
-                <label class="filter-label">Recherche</label>
-                <div class="search-wrapper">
+        
+        <!-- Panneau filtres étendu -->
+        <div v-if="showAdvancedFilters" class="filters-panel-extended">
+          <div class="filters-content">
+            
+            <!-- Ligne 1: Recherche + Type + Jeu -->
+            <div class="filters-line-1">
+              <div class="search-field">
+                <label>Recherche</label>
+                <div class="input-wrapper">
                   <InputText 
                     v-model="searchQuery"
                     placeholder="Rechercher un événement..."
-                    class="search-input"
                     @input="handleSearchInput"
                   />
-                  <i class="pi pi-search search-icon"></i>
+                  <i class="pi pi-search"></i>
                 </div>
               </div>
 
-              <!-- Type d'événement -->
-              <div class="filter-group">
-                <label class="filter-label">Type</label>
+              <div class="type-field">
+                <label>Type</label>
                 <Dropdown
                   v-model="filters.event_type"
                   :options="eventTypeOptions"
                   optionLabel="label"
                   optionValue="value"
                   placeholder="Tous les types"
-                  class="filter-dropdown"
                   @change="handleFilterChange"
                 />
               </div>
 
-              <!-- Jeu -->
-              <div class="filter-group">
-                <label class="filter-label">Jeu</label>
+              <div class="game-field">
+                <label>Jeu</label>
                 <Dropdown
                   v-model="filters.game_id"
                   :options="gameOptions"
                   optionLabel="name"
                   optionValue="id"
                   placeholder="Tous les jeux"
-                  class="filter-dropdown"
                   @change="handleFilterChange"
                 />
               </div>
+            </div>
 
-              <!-- Format (en ligne/physique) -->
-              <div class="filter-group">
-                <label class="filter-label">Format</label>
+            <!-- Ligne 2: Format + Dates + Tri -->
+            <div class="filters-line-2">
+              <div class="format-field">
+                <label>Format</label>
                 <Dropdown
                   v-model="filters.is_online"
                   :options="formatOptions"
                   optionLabel="label"
                   optionValue="value"
                   placeholder="Tous formats"  
-                  class="filter-dropdown"
                   @change="handleFilterChange"
                 />
               </div>
 
-            </div>
-
-            <div class="filters-row">
-              
-              <!-- Date de début -->
-              <div class="filter-group">
-                <label class="filter-label">À partir du</label>
+              <div class="start-date-field">
+                <label>À partir du</label>
                 <Calendar
                   v-model="filters.start_date"
                   placeholder="Date de début"
                   :showIcon="true"
-                  class="filter-calendar"
                   @date-select="handleFilterChange"
                 />
               </div>
 
-              <!-- Date de fin -->
-              <div class="filter-group">
-                <label class="filter-label">Jusqu'au</label>
+              <div class="end-date-field">
+                <label>Jusqu'au</label>
                 <Calendar
                   v-model="filters.end_date"
                   placeholder="Date de fin"
                   :showIcon="true"
-                  class="filter-calendar"
                   @date-select="handleFilterChange"
                 />
               </div>
 
-              <!-- Tri -->
-              <div class="filter-group">
-                <label class="filter-label">Trier par</label>
+              <div class="sort-field">
+                <label>Trier par</label>
                 <Dropdown
                   v-model="filters.order_by"
                   :options="sortOptions"
                   optionLabel="label"
                   optionValue="value"
-                  class="filter-dropdown"
                   @change="handleFilterChange"
                 />
               </div>
+            </div>
 
-              <!-- Actions filtres -->
-              <div class="filter-actions">
+            <!-- Ligne 3: Actions -->
+            <div class="filters-line-3">
+              <div class="actions-wrapper">
                 <Button 
                   label="Réinitialiser"
                   icon="pi pi-refresh"
-                  class="reset-filters-btn"
                   outlined
                   @click="resetAllFilters"
+                />
+                <Button 
+                  label="Appliquer"
+                  icon="pi pi-check"
+                  @click="applyFiltersAndClose"
                 />
               </div>
             </div>
           </div>
-        </template>
-      </Card>
+        </div>
+      </div>
 
       <!-- Résultats -->
       <div class="results-section">
@@ -182,6 +190,16 @@
             <span v-if="hasActiveFilters" class="active-filters-indicator">
               (filtré{{ hasActiveFilters > 1 ? 's' : '' }})
             </span>
+          </div>
+          
+          <!-- Filtres actifs visibles -->
+          <div v-if="activeFiltersCount > 0" class="active-filters-display">
+            <div class="active-filter-tag" v-for="filter in displayedActiveFilters" :key="filter.key">
+              <span class="filter-name">{{ filter.label }}</span>
+              <button class="remove-filter" @click="removeFilter(filter.key)">
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -277,6 +295,7 @@ import Card from 'primevue/card'
 
 // ============= SETUP =============
 const createEventMenu = ref()
+const filtersPanel = ref()
 
 const router = useRouter()
 const eventStore = useEventStore()
@@ -288,6 +307,9 @@ const gameFilterStore = useGameFilterStore()
 // Recherche avec debounce
 const searchQuery = ref('')
 let searchTimeout = null
+
+// État panneau filtres
+const showAdvancedFilters = ref(false)
 
 // Filtres locaux (synchro avec store)
 const filters = ref({
@@ -338,6 +360,65 @@ const hasActiveFilters = computed(() => {
          searchQuery.value.trim() !== ''
 })
 
+const activeFiltersCount = computed(() => {
+  let count = 0
+  if (searchQuery.value.trim()) count++
+  Object.values(filters.value).forEach(value => {
+    if (value !== null && value !== '' && value !== 'start_date') count++
+  })
+  return count
+})
+
+const displayedActiveFilters = computed(() => {
+  const active = []
+  
+  if (searchQuery.value.trim()) {
+    active.push({
+      key: 'search',
+      label: `"${searchQuery.value}"`
+    })
+  }
+  
+  if (filters.value.event_type) {
+    const type = eventTypeOptions.value.find(t => t.value === filters.value.event_type)
+    active.push({
+      key: 'event_type',
+      label: type?.label || filters.value.event_type
+    })
+  }
+  
+  if (filters.value.game_id) {
+    const game = gameOptions.value.find(g => g.id === filters.value.game_id)
+    active.push({
+      key: 'game_id',
+      label: game?.name || 'Jeu sélectionné'
+    })
+  }
+  
+  if (filters.value.is_online !== null) {
+    active.push({
+      key: 'is_online',
+      label: filters.value.is_online ? 'En ligne' : 'En présentiel'
+    })
+  }
+  
+  if (filters.value.start_date) {
+    active.push({
+      key: 'start_date',
+      label: `Depuis ${new Date(filters.value.start_date).toLocaleDateString()}`
+    })
+  }
+  
+  if (filters.value.end_date) {
+    active.push({
+      key: 'end_date',
+      label: `Jusqu'au ${new Date(filters.value.end_date).toLocaleDateString()}`
+    })
+  }
+  
+  return active
+})
+
 // ============= WATCHERS =============
 
 // Synchroniser les filtres avec le store
@@ -381,7 +462,45 @@ const createEventMenuItems = ref([
   }
 ])
 
-// ============= NAVIGATION METHODS (à ajouter) =============
+// ============= FILTRES METHODS =============
+
+/**
+ * Toggle panneau filtres
+ */
+const toggleAdvancedFilters = (event) => {
+  event.stopPropagation()
+  showAdvancedFilters.value = !showAdvancedFilters.value
+  console.log('Toggle filtres:', showAdvancedFilters.value)
+}
+
+/**
+ * Fermer panneau filtres (pas nécessaire avec le nouveau layout)
+ */
+const closeFiltersPanel = () => {
+  showAdvancedFilters.value = false
+}
+
+/**
+ * Appliquer filtres et fermer
+ */
+const applyFiltersAndClose = async () => {
+  await handleFilterChange()
+  showAdvancedFilters.value = false
+}
+
+/**
+ * Supprimer un filtre spécifique
+ */
+const removeFilter = async (filterKey) => {
+  if (filterKey === 'search') {
+    searchQuery.value = ''
+  } else {
+    filters.value[filterKey] = null
+  }
+  await handleFilterChange()
+}
+
+// ============= NAVIGATION METHODS =============
 
 /**
  * Navigation création - Action par défaut (clic principal)
@@ -416,7 +535,6 @@ const goToEventDetail = (eventId) => {
  */
 const handleFollowChanged = async (data) => {
   console.log('Suivi modifié:', data.event.title, 'Suivi:', data.isFollowing)
-  // Optionnel: recharger les événements suivis si on a une section dédiée
 }
 
 /**
@@ -440,7 +558,7 @@ const handleSearchInput = () => {
  * Gestion des filtres
  */
 const handleFilterChange = async () => {
-  paginationFirst.value = 0 // Reset pagination
+  paginationFirst.value = 0
   await eventStore.updateFilters({
     ...filters.value,
     page: 1
@@ -458,6 +576,7 @@ const resetAllFilters = async () => {
     order_by: 'start_date'
   }
   paginationFirst.value = 0
+  showAdvancedFilters.value = false
   
   await eventStore.resetFilters()
 }
@@ -475,7 +594,6 @@ const handlePageChange = async (event) => {
     limit: event.rows
   })
   
-  // Scroll vers le haut
   await nextTick()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -485,26 +603,21 @@ const handlePageChange = async (event) => {
  */
 const handleRegister = async (eventId) => {
   if (!authStore.isAuthenticated) {
-    // Afficher modal de connexion ou rediriger
     return
   }
   
   try {
     await eventStore.registerToEvent(eventId)
-    // Toast success sera géré par un composable plus tard
   } catch (error) {
     console.error('Erreur inscription:', error)
-    // Toast error
   }
 }
 
 const handleUnregister = async (eventId) => {
   try {
     await eventStore.unregisterFromEvent(eventId)
-    // Toast success
   } catch (error) {
     console.error('Erreur désinscription:', error)
-    // Toast error
   }
 }
 
@@ -513,12 +626,10 @@ const handleUnregister = async (eventId) => {
  */
 const loadInitialData = async () => {
   try {
-    // Charger les jeux si pas encore fait
     if (!gameFilterStore.isReady) {
       await gameFilterStore.loadGames()
     }
     
-    // Charger les événements avec filtres par défaut
     await eventStore.loadEvents({
       order_by: 'start_date',
       order_direction: 'ASC',
@@ -526,13 +637,28 @@ const loadInitialData = async () => {
       limit: 10
     })
     
-    // Charger mes inscriptions si connecté
     if (authStore.isAuthenticated) {
       await eventStore.loadMyRegistrations()
     }
     
   } catch (error) {
     console.error('❌ Erreur chargement initial:', error)
+  }
+}
+
+// ============= DIRECTIVE CLICK OUTSIDE =============
+
+const vClickOutside = {
+  mounted(el, binding) {
+    el.clickOutsideEvent = function(event) {
+      if (!(el === event.target || el.contains(event.target))) {
+        binding.value(event)
+      }
+    }
+    document.addEventListener('click', el.clickOutsideEvent)
+  },
+  unmounted(el) {
+    document.removeEventListener('click', el.clickOutsideEvent)
   }
 }
 
@@ -632,12 +758,19 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3) !important;
 }
 
-/* Stats rapides */
+/* === STATS ET FILTRES === */
+
+.stats-and-filters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  border-top: 1px solid var(--surface-200);
+}
+
 .quick-stats {
   display: flex;
   gap: 2rem;
-  padding: 1rem 0;
-  border-top: 1px solid var(--surface-200);
 }
 
 .stat-item {
@@ -661,112 +794,270 @@ onUnmounted(() => {
   letter-spacing: 0.5px;
 }
 
-/* === FILTRES === */
+/* === BOUTON FILTRES === */
 
-.filters-card {
-  margin-bottom: 2rem;
-  border-radius: var(--border-radius-large) !important;
-  box-shadow: var(--shadow-medium) !important;
+.advanced-filters {
+  position: relative;
 }
 
-.filters-section {
-  padding: 0.5rem;
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  background: white;
+  border: 2px solid var(--surface-300);
+  border-radius: var(--border-radius);
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-medium);
+  white-space: nowrap;
+  position: relative;
+  font-size: 0.95rem;
 }
 
-.filters-row {
+.filter-toggle:hover {
+  background: var(--surface-100);
+  color: var(--text-primary);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.filter-toggle.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3);
+}
+
+.filter-toggle .pi-chevron-down {
+  transition: transform var(--transition-medium);
+  font-size: 0.8rem;
+}
+
+.filter-toggle .pi-chevron-down.rotated {
+  transform: rotate(180deg);
+}
+
+.filters-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: var(--accent);
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 2px solid white;
+}
+
+/* === NOUVEAU SYSTÈME DE FILTRES === */
+
+.filters-panel-extended {
+  width: 100%;
+  background: white;
+  border: 1px solid var(--surface-200);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-small);
+  margin-top: 1rem;
+  animation: slideInDown 0.3s ease-out;
+}
+
+.filters-content {
+  padding: 1.25rem;
+}
+
+/* === LIGNE 1 === */
+.filters-line-1 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: 3fr 1fr 1fr;
+  gap: 1rem;
   margin-bottom: 1rem;
+  align-items: end;
 }
 
-.filters-row:last-child {
-  margin-bottom: 0;
-}
-
-.filter-group {
+.search-field {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.filter-group.search-group {
-  grid-column: 1 / -1;
-  max-width: 400px;
-}
-
-.filter-label {
+.search-field label {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 0.25rem;
 }
 
-.search-wrapper {
+.input-wrapper {
   position: relative;
 }
 
-:deep(.search-input) {
-  width: 100% !important;
-  padding: 0.75rem 1rem 0.75rem 2.5rem !important;
-  border: 2px solid var(--surface-300) !important;
-  border-radius: var(--border-radius) !important;
-  background: white !important;
-  transition: all var(--transition-fast) !important;
+.input-wrapper :deep(.p-inputtext) {
+  width: 100%;
+  padding-left: 2.5rem;
+  height: 40px;
+  border: 1px solid var(--surface-300);
+  border-radius: var(--border-radius);
 }
 
-:deep(.search-input:focus) {
-  border-color: var(--primary) !important;
-  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1) !important;
-}
-
-.search-icon {
+.input-wrapper i {
   position: absolute;
   left: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-secondary);
-  pointer-events: none;
+  font-size: 0.875rem;
 }
 
-:deep(.filter-dropdown) {
-  border: 2px solid var(--surface-300) !important;
-  border-radius: var(--border-radius) !important;
-  transition: all var(--transition-fast) !important;
-}
-
-:deep(.filter-dropdown:not(.p-disabled).p-focus) {
-  border-color: var(--primary) !important;
-  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1) !important;
-}
-
-:deep(.filter-calendar) {
-  border: 2px solid var(--surface-300) !important;
-  border-radius: var(--border-radius) !important;
-}
-
-:deep(.filter-calendar:not(.p-disabled).p-focus) {
-  border-color: var(--primary) !important;
-  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.1) !important;
-}
-
-.filter-actions {
+.type-field,
+.game-field {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.type-field label,
+.game-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.type-field :deep(.p-dropdown),
+.game-field :deep(.p-dropdown) {
+  height: 40px;
+  border: 1px solid var(--surface-300);
+  border-radius: var(--border-radius);
+}
+
+/* === LIGNE 2 === */
+.filters-line-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: end;
+  padding-top: 1rem;
+  border-top: 1px solid var(--surface-200);
+}
+
+.format-field,
+.start-date-field,
+.end-date-field,
+.sort-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.format-field label,
+.start-date-field label,
+.end-date-field label,
+.sort-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.format-field :deep(.p-dropdown),
+.sort-field :deep(.p-dropdown) {
+  height: 40px;
+  border: 1px solid var(--surface-300);
+  border-radius: var(--border-radius);
+}
+
+.start-date-field :deep(.p-calendar),
+.end-date-field :deep(.p-calendar) {
+  height: 40px;
+}
+
+.start-date-field :deep(.p-inputtext),
+.end-date-field :deep(.p-inputtext) {
+  height: 40px;
+  border: 1px solid var(--surface-300);
+  border-radius: var(--border-radius);
+}
+
+/* === LIGNE 3 === */
+.filters-line-3 {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid var(--surface-200);
+}
+
+.actions-wrapper {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.actions-wrapper :deep(.p-button) {
+  height: 40px;
+  padding: 0 1.25rem;
+  border-radius: var(--border-radius);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.actions-wrapper :deep(.p-button[outlined]) {
+  background: transparent;
+  border: 1px solid var(--surface-400);
+  color: var(--text-secondary);
+}
+
+.actions-wrapper :deep(.p-button[outlined]:hover) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(38, 166, 154, 0.1);
+}
+
+.actions-wrapper :deep(.p-button:not([outlined])) {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: white;
+}
+
+.actions-wrapper :deep(.p-button:not([outlined]):hover) {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
 }
 
 :deep(.reset-filters-btn) {
+  flex: 1;
   padding: 0.75rem 1rem !important;
   border: 2px solid var(--surface-400) !important;
   color: var(--text-secondary) !important;
   border-radius: var(--border-radius) !important;
+  background: transparent !important;
 }
 
 :deep(.reset-filters-btn:hover) {
   border-color: var(--primary) !important;
   color: var(--primary) !important;
   background: rgba(38, 166, 154, 0.1) !important;
+}
+
+:deep(.apply-filters-btn) {
+  flex: 2;
+  padding: 0.75rem 1rem !important;
+  background: var(--primary) !important;
+  border: 2px solid var(--primary) !important;
+  color: white !important;
+  border-radius: var(--border-radius) !important;
+  font-weight: 600 !important;
+}
+
+:deep(.apply-filters-btn:hover) {
+  background: var(--primary-dark) !important;
+  border-color: var(--primary-dark) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(38, 166, 154, 0.3) !important;
 }
 
 /* === RÉSULTATS === */
@@ -778,10 +1069,12 @@ onUnmounted(() => {
 .results-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--surface-200);
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .results-info {
@@ -800,6 +1093,60 @@ onUnmounted(() => {
   font-size: 0.875rem;
   color: var(--primary);
   font-style: italic;
+}
+
+/* === FILTRES ACTIFS VISIBLES === */
+
+.active-filters-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-width: 60%;
+}
+
+.active-filter-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background: rgba(38, 166, 154, 0.1);
+  border: 1px solid rgba(38, 166, 154, 0.3);
+  border-radius: 20px;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.filter-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remove-filter {
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.remove-filter:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.remove-filter .pi {
+  font-size: 0.7rem;
 }
 
 /* === GRILLE ÉVÉNEMENTS === */
@@ -896,6 +1243,8 @@ onUnmounted(() => {
 
 /* === RESPONSIVE === */
 
+/* === RESPONSIVE === */
+
 @media (max-width: 1024px) {
   .events-grid {
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -904,6 +1253,33 @@ onUnmounted(() => {
   
   .loading-grid {
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+  
+  .filters-line-1 {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+  
+  .filters-line-2 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+  }
+  
+  .format-field {
+    grid-column: 1;
+  }
+  
+  .start-date-field {
+    grid-column: 2;
+  }
+  
+  .end-date-field {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  
+  .sort-field {
+    grid-column: 2;
+    grid-row: 2;
   }
 }
 
@@ -932,9 +1308,67 @@ onUnmounted(() => {
     align-items: stretch;
   }
   
+  .stats-and-filters {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
   .quick-stats {
     justify-content: space-around;
     gap: 1rem;
+  }
+  
+  .advanced-filters {
+    align-self: flex-end;
+  }
+  
+  .filters-panel-extended {
+    padding: 1rem;
+  }
+  
+  .filters-content {
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+  
+  .filters-row-primary {
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .filters-row-secondary {
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .filters-row-actions {
+    justify-content: center;
+  }
+  
+  /* Toutes les largeurs fixes deviennent auto sur mobile */
+  .search-group,
+  .type-group,
+  .game-group,
+  .format-group,
+  .start-date-group,
+  .end-date-group,
+  .sort-group {
+    width: 100%;
+  }
+  
+  .filter-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  :deep(.reset-filters-btn),
+  :deep(.apply-filters-btn) {
+    flex: 1 !important;
+    width: auto !important;
+    max-width: 45% !important;
   }
   
   .events-grid {
@@ -945,13 +1379,13 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
   }
   
-  .filters-row {
-    grid-template-columns: 1fr;
-    gap: 1rem;
+  .results-header {
+    flex-direction: column;
+    align-items: stretch;
   }
   
-  .filter-group.search-group {
-    grid-column: 1;
+  .active-filters-display {
+    max-width: 100%;
   }
 }
 
@@ -966,6 +1400,168 @@ onUnmounted(() => {
     padding: 0.5rem;
     background: var(--surface-100);
     border-radius: var(--border-radius);
+  }
+  
+  .filter-toggle {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .active-filter-tag {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .filter-name {
+    max-width: 80px;
+  }
+}
+
+/* === ANIMATIONS === */
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* === OVERLAY POUR MOBILE === */
+
+/* Supprimé car plus nécessaire avec le nouveau layout étendu */
+
+/* === ÉTATS FOCUS ET ACCESSIBILITÉ === */
+
+.filter-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.remove-filter:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* === ANIMATIONS SUPPLÉMENTAIRES === */
+
+.active-filter-tag {
+  animation: filterTagAppear 0.3s ease-out;
+}
+
+@keyframes filterTagAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.filters-badge {
+  animation: badgeBounce 0.4s ease-out;
+}
+
+@keyframes badgeBounce {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* === ÉTATS DE CHARGEMENT === */
+
+.filter-toggle.loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.filter-toggle.loading::after {
+  content: '';
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translateY(-50%) rotate(0deg); }
+  100% { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* === TRANSITIONS DOUCES === */
+
+.filters-panel {
+  transform-origin: top right;
+}
+
+.stats-and-filters {
+  transition: all var(--transition-medium);
+}
+
+.active-filters-display {
+  transition: all var(--transition-medium);
+}
+
+/* === DARK MODE SUPPORT (préparation future) === */
+
+@media (prefers-color-scheme: dark) {
+  .filter-toggle {
+    background: #2a2a2a;
+    border-color: #4a4a4a;
+    color: #e0e0e0;
+  }
+  
+  .filter-toggle:hover {
+    background: #3a3a3a;
+    border-color: var(--primary);
+  }
+  
+  .filters-panel-extended {
+    background: #2a2a2a;
+    border-color: #4a4a4a;
+  }
+  
+  .input-wrapper :deep(.p-inputtext),
+  .type-field :deep(.p-dropdown),
+  .game-field :deep(.p-dropdown),
+  .format-field :deep(.p-dropdown),
+  .sort-field :deep(.p-dropdown),
+  .start-date-field :deep(.p-inputtext),
+  .end-date-field :deep(.p-inputtext) {
+    background: #2a2a2a;
+    border-color: #4a4a4a;
+    color: #e0e0e0;
+  }
+  
+  .active-filter-tag {
+    background: rgba(38, 166, 154, 0.2);
+    border-color: rgba(38, 166, 154, 0.4);
+  }
+}
+
+/* === PRINT STYLES === */
+
+@media print {
+  .filter-toggle,
+  .filters-panel-extended,
+  .active-filters-display {
+    display: none !important;
+  }
+  
+  .stats-and-filters {
+    border: none !important;
+    padding: 0 !important;
   }
 }
 </style>

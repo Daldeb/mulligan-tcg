@@ -65,7 +65,7 @@ api.events = {
   create: (eventData) => api.post('/api/events', eventData),
   update: (id, eventData) => api.put(`/api/events/${id}`, eventData),
   delete: (id) => api.delete(`/api/events/${id}`),
-  
+  getRegistrationStatus: (id) => api.get(`/api/events/${id}/registration-status`),
   // Soumission pour validation admin
   submitForReview: (id) => api.post(`/api/events/${id}/submit-for-review`),
   

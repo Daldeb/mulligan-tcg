@@ -187,24 +187,44 @@
               </h2>
             </div>
             
-            <!-- Tabs navigation -->
-            <div class="section-tabs">
+            <!-- Tabs navigation AMÉLIORÉS - FORMAT HORIZONTAL -->
+            <div class="section-tabs enhanced-tabs">
               <button 
-                class="tab-button"
+                class="tab-button enhanced"
                 :class="{ active: activeTab === 'created' }"
                 @click="activeTab = 'created'"
+                data-tab="created"
               >
-                <i class="pi pi-plus-circle"></i>
-                <span>Créés</span>
+                <div class="tab-content-left">
+                  <i class="pi pi-plus-circle"></i>
+                  <span class="tab-text">Créés</span>
+                </div>
                 <div class="tab-count">{{ myEvents.length }}</div>
               </button>
+              
               <button 
-                class="tab-button"
+                class="tab-button enhanced"
+                :class="{ active: activeTab === 'participating' }"
+                @click="activeTab = 'participating'"
+                data-tab="participating"
+              >
+                <div class="tab-content-left">
+                  <i class="pi pi-ticket"></i>
+                  <span class="tab-text">Participé</span>
+                </div>
+                <div class="tab-count">{{ participatingEvents.length }}</div>
+              </button>
+              
+              <button 
+                class="tab-button enhanced"
                 :class="{ active: activeTab === 'followed' }"
                 @click="activeTab = 'followed'"
+                data-tab="followed"
               >
-                <i class="pi pi-heart"></i>
-                <span>Suivis</span>
+                <div class="tab-content-left">
+                  <i class="pi pi-heart"></i>
+                  <span class="tab-text">Suivis</span>
+                </div>
                 <div class="tab-count">{{ followedEvents.length }}</div>
               </button>
             </div>
@@ -258,6 +278,48 @@
             </div>
           </div>
 
+          <!-- Tab Content: Mes participations -->
+          <div v-if="activeTab === 'participating'" class="tab-content">
+            <!-- Loading -->
+            <div v-if="loading" class="loading-section">
+              <div class="loading-grid">
+                <div v-for="n in 4" :key="n" class="event-card-skeleton loading-skeleton"></div>
+              </div>
+            </div>
+
+            <!-- Mes participations -->
+            <div v-else-if="participatingEvents.length > 0" class="events-grid">
+              <EventCard
+                v-for="event in participatingEvents"
+                :key="`participating-${event.id}`"
+                :event="event"
+                :show-follow-button="false"
+                class="participation-card"
+                @registration-changed="handleRegistrationChange"
+                @click="viewEventDetail(event)"
+              />
+            </div>
+
+            <!-- État vide participations -->
+            <div v-else class="empty-state">
+              <div class="empty-content">
+                <i class="pi pi-ticket empty-icon"></i>
+                <h3 class="empty-title">Aucune participation</h3>
+                <p class="empty-message">
+                  Vous ne participez encore à aucun événement. Découvrez les événements disponibles et inscrivez-vous !
+                </p>
+                <div class="empty-actions">
+                  <Button 
+                    label="Découvrir les événements"
+                    icon="pi pi-search"
+                    class="emerald-button primary"
+                    @click="goToEvents"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Tab Content: Événements suivis -->
           <div v-if="activeTab === 'followed'" class="tab-content">
             <!-- Événements suivis -->
@@ -269,6 +331,7 @@
                 :show-follow-button="true"
                 class="followed-card"
                 @follow-changed="loadFollowedEvents"
+                @registration-changed="handleRegistrationChange"
                 @click="viewEventDetail(event)"
               />
             </div>
@@ -295,33 +358,8 @@
         </template>
       </Card>
 
-      <!-- Section Participations (si il y en a) -->
-      <Card v-if="participatingEvents.length > 0" class="events-section-card participating-section">
-        <template #header>
-          <div class="section-header">
-            <h2 class="section-title">
-              <i class="pi pi-users"></i>
-              Mes participations
-            </h2>
-            <div class="section-count">{{ participatingEvents.length }}</div>
-          </div>
-        </template>
-        
-        <template #content>
-          <div class="events-grid">
-            <EventCard
-              v-for="event in participatingEvents"
-              :key="`participating-${event.id}`"
-              :event="event"
-              class="participation-card"
-              @click="viewEventDetail(event)"
-            />
-          </div>
-        </template>
-      </Card>
-
-      <!-- État vide global (si aucune section n'a de contenu) -->
-      <div v-if="!loading && !hasAnyEvents" class="global-empty-state">
+      <!-- État vide global (modifié) -->
+      <div v-if="!loading && !hasAnyEvents && activeTab !== 'participating'" class="global-empty-state">
         <Card class="empty-card">
           <template #content>
             <div class="empty-content">
@@ -596,8 +634,19 @@ const formatDate = (dateString) => {
   })
 }
 
-// Toutes les autres méthodes restent identiques à l'original...
-// (loadMyEvents, loadPendingEvents, etc. - garder exactement le même code)
+// NOUVELLE MÉTHODE pour gérer les changements d'inscription
+const handleRegistrationChange = async (data) => {
+  console.log('🔄 Registration changed:', data)
+  
+  // Recharger les participations pour mettre à jour les données
+  await loadParticipatingEvents()
+  
+  // Si l'utilisateur s'est désinscrit d'un événement suivi, 
+  // recharger aussi les événements suivis
+  if (!data.isRegistered) {
+    await loadFollowedEvents()
+  }
+}
 
 const loadMyEvents = async () => {
   loading.value = true
@@ -647,11 +696,50 @@ const loadFollowedEvents = async () => {
 
 const loadParticipatingEvents = async () => {
   try {
-    const response = await api.get('/api/events/user/participating')
-    participatingEvents.value = response.data.events || []
-    console.log('🎫 Participations chargées:', participatingEvents.value.length)
+    console.log('🔄 Chargement des participations...')
+    
+    const response = await api.get('/api/my-registrations')
+    console.log('📋 Réponse complète API inscriptions:', response.data)
+    
+    if (response.data.registrations && response.data.registrations.length > 0) {
+      const activeRegistrations = response.data.registrations.filter(registration => 
+        ['REGISTERED', 'CONFIRMED'].includes(registration.status)
+      )
+      
+      console.log('🔍 Inscriptions actives:', activeRegistrations)
+      
+      participatingEvents.value = activeRegistrations.map(registration => {
+        console.log('🔍 Event dans registration:', {
+          id: registration.event?.id,
+          title: registration.event?.title,
+          image: registration.event?.image,
+          created_by: registration.event?.created_by,
+          games: registration.event?.games,
+          participants: registration.event?.participants
+        })
+        
+        return {
+          ...registration.event,
+          created_by: registration.event.created_by || {},
+          participants: registration.event.participants || [],
+          games: registration.event.games || [],
+          my_registration: {
+            id: registration.id,
+            status: registration.status,
+            registered_at: registration.registered_at,
+            checked_in: registration.checked_in
+          }
+        }
+      })
+      
+      console.log('🎫 Événements finaux:', participatingEvents.value)
+    } else {
+      participatingEvents.value = []
+    }
+    
   } catch (error) {
     console.error('❌ Erreur chargement participations:', error)
+    participatingEvents.value = []
   }
 }
 
@@ -696,59 +784,6 @@ const confirmAdminAction = async () => {
   const reason = adminActionReason.value.trim()
   
   if ((adminAction.value === 'reject' || adminAction.value === 'delete' || adminAction.value === 'cancel') && !reason) {
-    toast.add({
-      severity: 'error',
-      summary: 'Erreur',
-      detail: 'Un motif est requis pour cette action',
-      life: 3000
-    })
-    return
-  }
-  
-  if (adminAction.value === 'cancel' && reason.length < 30) {
-    toast.add({
-      severity: 'error',
-      summary: 'Motif trop court',
-      detail: 'Le motif d\'annulation doit faire au moins 30 caractères',
-      life: 3000
-    })
-    return
-  }
-  
-  try {
-    let successMessage = ''
-    
-    switch (adminAction.value) {
-      case 'approve':
-        await eventStore.approveEvent(eventId, reason || null)
-        successMessage = 'Événement approuvé avec succès'
-        break
-      case 'reject':
-        await eventStore.rejectEvent(eventId, reason)
-        successMessage = 'Événement refusé. Le créateur a été notifié.'
-        break
-      case 'delete':
-        await eventStore.deleteEventAdmin(eventId, reason)
-        successMessage = 'Événement supprimé définitivement'
-        break
-      case 'cancel':
-        await eventStore.cancelEventAdmin(eventId, reason)
-        successMessage = 'Événement annulé. Tous les participants ont été notifiés.'
-        break
-    }
-    
-    toast.add({
-      severity: 'success',
-      summary: 'Action réalisée',
-      detail: successMessage,
-      life: 3000
-    })
-    
-    adminActionDialog.value = false
-    await loadPendingEvents()
-    
-  } catch (error) {
-    console.error('❌ Erreur action admin:', error)
     toast.add({
       severity: 'error',
       summary: 'Erreur',
@@ -980,6 +1015,169 @@ watch(
   border-left: 4px solid #ef4444 !important;
 }
 
+/* === ENHANCED TABS STYLES - FORMAT HORIZONTAL === */
+
+/* Conteneur des tabs amélioré */
+.section-tabs.enhanced-tabs {
+  display: flex;
+  background: var(--surface-100);
+  border-radius: 16px;
+  padding: 0.5rem;
+  gap: 0.5rem;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--surface-200);
+  min-width: 500px;
+}
+
+/* Boutons de tabs améliorés - FORMAT HORIZONTAL */
+.tab-button.enhanced {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background: white;
+  border: 2px solid var(--surface-200);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  min-height: 70px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.tab-button.enhanced:hover:not(.active) {
+  background: var(--surface-50);
+  border-color: var(--primary);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(38, 166, 154, 0.15);
+}
+
+.tab-button.enhanced.active {
+  background: var(--emerald-gradient);
+  border-color: var(--primary);
+  color: white;
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(38, 166, 154, 0.3);
+}
+
+.tab-button.enhanced.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: tabShimmer 2s infinite;
+}
+
+@keyframes tabShimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Section gauche : Icône + Texte */
+.tab-button.enhanced .tab-content-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+/* Icônes des tabs */
+.tab-button.enhanced i {
+  font-size: 1.25rem;
+  transition: all var(--transition-fast);
+}
+
+.tab-button.enhanced.active i {
+  transform: scale(1.1);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+/* Texte des tabs */
+.tab-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Compteurs améliorés - À DROITE */
+.tab-button.enhanced .tab-count {
+  background: var(--surface-300);
+  color: var(--text-secondary);
+  border-radius: 20px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  min-width: 2rem;
+  text-align: center;
+  border: 2px solid transparent;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.tab-button.enhanced.active .tab-count {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--primary);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tab-button.enhanced:hover:not(.active) .tab-count {
+  background: rgba(38, 166, 154, 0.1);
+  color: var(--primary);
+  border-color: rgba(38, 166, 154, 0.2);
+}
+
+/* Variantes par type de tab */
+.tab-button.enhanced[data-tab="created"]:hover {
+  border-color: #22c55e;
+}
+
+.tab-button.enhanced[data-tab="created"].active {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.tab-button.enhanced[data-tab="participating"]:hover {
+  border-color: #3b82f6;
+}
+
+.tab-button.enhanced[data-tab="participating"].active {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.tab-button.enhanced[data-tab="followed"]:hover {
+  border-color: #ef4444;
+}
+
+.tab-button.enhanced[data-tab="followed"].active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+/* Animation d'entrée pour les tabs */
+.enhanced-tabs {
+  animation: slideInDown 0.6s ease-out;
+}
+
+.tab-button.enhanced {
+  animation: fadeInScale 0.4s ease-out;
+}
+
+.tab-button.enhanced:nth-child(1) { animation-delay: 0s; }
+.tab-button.enhanced:nth-child(2) { animation-delay: 0.1s; }
+.tab-button.enhanced:nth-child(3) { animation-delay: 0.2s; }
+
 /* === SECTION HEADERS AVEC TABS === */
 
 .section-header-with-tabs {
@@ -994,68 +1192,12 @@ watch(
 }
 
 .section-title-area {
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 200px;
 }
 
-/* Tabs navigation */
-.section-tabs {
-  display: flex;
-  background: var(--surface-200);
-  border-radius: var(--border-radius);
-  padding: 0.25rem;
-}
-
-.tab-button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: transparent;
-  border: none;
-  border-radius: var(--border-radius-small);
-  color: var(--text-secondary);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
-  white-space: nowrap;
-}
-
-.tab-button:hover {
-  background: rgba(38, 166, 154, 0.1);
-  color: var(--primary);
-}
-
-.tab-button.active {
-  background: var(--primary);
-  color: white;
-  box-shadow: 0 2px 8px rgba(38, 166, 154, 0.3);
-}
-
-.tab-button i {
-  font-size: 0.9rem;
-}
-
-.tab-count {
-  background: rgba(255, 255, 255, 0.2);
-  color: inherit;
-  border-radius: 12px;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  min-width: 1.5rem;
-  text-align: center;
-}
-
-.tab-button.active .tab-count {
-  background: rgba(255, 255, 255, 0.3);
-  color: white;
-}
-
-.tab-button:not(.active) .tab-count {
-  background: var(--surface-300);
-  color: var(--text-secondary);
+.section-header-with-tabs .section-tabs {
+  flex: 0 0 auto;
 }
 
 /* Tab content */
@@ -1302,6 +1444,34 @@ watch(
   transform: translateY(-6px) scale(1.02) !important;
 }
 
+/* === AMÉLIORATION DES CARDS DE PARTICIPATION === */
+
+.participation-card {
+  border-left: 4px solid #3b82f6 !important;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.02), rgba(59, 130, 246, 0.01)) !important;
+}
+
+.participation-card:hover {
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Badge spécial pour les participations */
+.participation-card .event-status-badge {
+  background: rgba(59, 130, 246, 0.1) !important;
+  color: #2563eb !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Animation d'apparition des cards */
+.events-grid .participation-card {
+  animation: slideInUp 0.6s ease-out;
+}
+
+.events-grid .participation-card:nth-child(1) { animation-delay: 0s; }
+.events-grid .participation-card:nth-child(2) { animation-delay: 0.1s; }
+.events-grid .participation-card:nth-child(3) { animation-delay: 0.2s; }
+.events-grid .participation-card:nth-child(4) { animation-delay: 0.3s; }
+
 /* === LOADING STATES === */
 
 .loading-section,
@@ -1409,7 +1579,7 @@ watch(
   margin-bottom: 0.5rem;
 }
 
-/* === RESPONSIVE === */
+/* === RESPONSIVE POUR FORMAT HORIZONTAL === */
 
 @media (max-width: 1024px) {
   .events-grid {
@@ -1423,6 +1593,24 @@ watch(
   
   .loading-grid {
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+  
+  .section-tabs.enhanced-tabs {
+    min-width: 450px;
+  }
+  
+  .tab-button.enhanced {
+    padding: 0.875rem 1.25rem;
+    min-height: 65px;
+    gap: 0.5rem;
+  }
+  
+  .tab-button.enhanced i {
+    font-size: 1.125rem;
+  }
+  
+  .tab-text {
+    font-size: 0.8rem;
   }
 }
 
@@ -1477,30 +1665,38 @@ watch(
   .section-header-with-tabs {
     flex-direction: column;
     align-items: stretch;
-    gap: 1rem;
+    gap: 1.5rem;
   }
   
   .section-title-area {
     min-width: auto;
   }
   
-  .section-tabs {
+  .section-tabs.enhanced-tabs {
     width: 100%;
-    justify-content: center;
+    min-width: auto;
+    padding: 0.375rem;
+    gap: 0.375rem;
+    flex-direction: column;
   }
   
-  .tab-button {
-    flex: 1;
-    justify-content: center;
-    min-width: 0;
+  .tab-button.enhanced {
+    min-height: 60px;
+    padding: 0.75rem 1rem;
+    justify-content: space-between;
   }
   
-  .tab-button span {
-    display: none;
+  .tab-button.enhanced i {
+    font-size: 1.125rem;
   }
   
-  .tab-button i {
-    font-size: 1rem;
+  .tab-text {
+    font-size: 0.75rem;
+  }
+  
+  .tab-count {
+    font-size: 0.7rem !important;
+    padding: 0.25rem 0.5rem !important;
   }
   
   .section-title {
@@ -1514,11 +1710,6 @@ watch(
   .admin-event-info {
     flex-direction: column;
     gap: 0.5rem;
-  }
-  
-  .event-status-overlay {
-    font-size: 0.75rem;
-    padding: 0.5rem 0.75rem;
   }
 }
 
@@ -1547,6 +1738,54 @@ watch(
   .empty-actions .emerald-outline-btn {
     width: 100%;
   }
+  
+  /* Mobile : garder le format horizontal mais plus compact */
+  .section-tabs.enhanced-tabs {
+    flex-direction: row;
+    gap: 0.25rem;
+    padding: 0.25rem;
+  }
+  
+  .tab-button.enhanced {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.375rem;
+    min-height: 65px;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .tab-content-left {
+    flex-direction: column !important;
+    gap: 0.25rem !important;
+  }
+  
+  .tab-text {
+    font-size: 0.7rem;
+    text-align: center;
+  }
+  
+  .tab-count {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 !important;
+    font-size: 0.65rem !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Focus accessibilité pour les tabs */
+.tab-button.enhanced:focus-visible {
+  outline: 3px solid rgba(38, 166, 154, 0.5);
+  outline-offset: 2px;
+}
+
+.tab-button.enhanced:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* === ANIMATIONS === */
