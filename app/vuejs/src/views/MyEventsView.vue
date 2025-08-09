@@ -1,204 +1,358 @@
 <template>
-  <div class="container py-6">
-    <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
-      <i class="pi pi-calendar" /> Mes événements
-      <Button 
-        v-if="canCreateEvent"
-        class="emerald-btn ml-auto"
-        icon="pi pi-plus"
-        label="Créer un événement"
-        @click="onCreateEvent"
-      />
-    </h2>
-
-    <!-- Section Administration (pour admins uniquement) -->
-    <Card v-if="isAdmin" class="admin-section mb-6" :class="{ 'has-notifications': adminNotificationCount > 0 }">
-      <template #header>
-        <div class="admin-header" @click="toggleAdminSection">
-          <div class="admin-title">
-            <i class="pi pi-shield admin-icon"></i>
-            <span>Administration des événements</span>
-            <!-- Cloche de notification -->
-            <div v-if="adminNotificationCount > 0" class="notification-bell">
-              <i class="pi pi-bell notification-icon"></i>
-              <span class="notification-count">{{ adminNotificationCount }}</span>
-            </div>
-          </div>
-          <i class="pi" :class="adminSectionOpen ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
-        </div>
-      </template>
+  <div class="my-events-page">
+    <div class="container">
       
-      <template #content>
-        <div v-show="adminSectionOpen" class="admin-content">
-          
-          <!-- Loading admin events -->
-          <div v-if="adminLoading" class="admin-loading">
-            <div class="loading-spinner">
-              <i class="pi pi-spin pi-spinner"></i>
-              <span>Chargement des événements en attente...</span>
-            </div>
+      <!-- Header principal avec stats -->
+      <div class="page-header">
+        <div class="header-content">
+          <div class="header-info">
+            <h1 class="page-title">
+              <i class="pi pi-user title-icon"></i>
+              Mes événements
+            </h1>
+            <p class="page-description">
+              Gérez vos événements créés, participations et favoris
+            </p>
           </div>
+          
+          <!-- Bouton créer événement -->
+          <div v-if="canCreateEvent" class="header-actions">
+            <Button 
+              label="Créer un événement"
+              icon="pi pi-plus"
+              iconPos="left"
+              class="emerald-button primary create-deck"
+              @click="toggleCreateEventMenu"
+              aria-haspopup="true"
+              aria-controls="create_event_menu"
+            />
+            <Menu 
+              ref="createEventMenu"
+              id="create_event_menu"
+              :model="createEventMenuItems"
+              :popup="true"
+            />
+          </div>
+        </div>
+        
+        <!-- Stats rapides globales -->
+        <div class="quick-stats">
+          <div class="stat-item">
+            <span class="stat-value">{{ myEvents.length }}</span>
+            <span class="stat-label">Mes créations</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ participatingEvents.length }}</span>
+            <span class="stat-label">Participations</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ followedEvents.length }}</span>
+            <span class="stat-label">Suivis</span>
+          </div>
+          <div v-if="isAdmin" class="stat-item admin-stat">
+            <span class="stat-value">{{ pendingEvents.length }}</span>
+            <span class="stat-label">En attente admin</span>
+            <div v-if="adminNotificationCount > 0" class="stat-notification-dot"></div>
+          </div>
+        </div>
+      </div>
 
-          <!-- Événements en attente de validation -->
-          <div v-else-if="pendingEvents.length > 0" class="pending-events">
-            <h4 class="admin-subtitle">
-              <i class="pi pi-clock text-orange-500"></i>
-              {{ pendingEvents.length }} événement{{ pendingEvents.length > 1 ? 's' : '' }} en attente de validation
-            </h4>
+      <!-- Section Administration (si admin) -->
+      <Card v-if="isAdmin" class="admin-section-card" :class="{ 'has-notifications': adminNotificationCount > 0 }">
+        <template #header>
+          <div class="admin-header" @click="toggleAdminSection">
+            <div class="admin-title">
+              <i class="pi pi-shield admin-icon"></i>
+              <span>Administration des événements</span>
+              <div v-if="adminNotificationCount > 0" class="admin-notification-badge">
+                {{ adminNotificationCount }}
+              </div>
+            </div>
+            <i class="pi toggle-icon" :class="adminSectionOpen ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
+          </div>
+        </template>
+        
+        <template #content>
+          <div v-show="adminSectionOpen" class="admin-content">
             
-            <div class="admin-events-grid">
-              <div
-                v-for="event in pendingEvents"
-                :key="`admin-${event.id}`"
-                class="admin-event-card"
-              >
-                <div class="admin-event-header">
-                  <h5 class="admin-event-title">{{ event.title }}</h5>
-                  <div class="admin-event-status">
-                    <span class="status-badge pending-review">
+            <!-- Loading admin -->
+            <div v-if="adminLoading" class="admin-loading">
+              <div class="loading-grid">
+                <div v-for="n in 3" :key="n" class="admin-card-skeleton loading-skeleton"></div>
+              </div>
+            </div>
+
+            <!-- Événements en attente -->
+            <div v-else-if="pendingEvents.length > 0" class="pending-events">
+              <div class="section-header">
+                <h3 class="section-title">
+                  <i class="pi pi-clock"></i>
+                  Événements en attente de validation
+                </h3>
+                <div class="section-count">{{ pendingEvents.length }}</div>
+              </div>
+              
+              <div class="admin-events-grid">
+                <div
+                  v-for="event in pendingEvents"
+                  :key="`admin-${event.id}`"
+                  class="admin-event-card gaming-card"
+                >
+                  <div class="admin-event-header">
+                    <div class="event-title-section">
+                      <h4 class="event-title">{{ event.title }}</h4>
+                      <div class="event-type-badge" :class="`type-${event.event_type.toLowerCase()}`">
+                        {{ getEventTypeLabel(event.event_type) }}
+                      </div>
+                    </div>
+                    <div class="event-status-badge pending">
                       <i class="pi pi-clock"></i>
-                      En attente
-                    </span>
+                      <span>En attente</span>
+                    </div>
+                  </div>
+                  
+                  <div class="admin-event-info">
+                    <div class="info-item">
+                      <i class="pi pi-user"></i>
+                      <span>{{ event.created_by?.pseudo || 'Utilisateur' }}</span>
+                    </div>
+                    <div class="info-item">
+                      <i class="pi pi-calendar"></i>
+                      <span>{{ formatDate(event.start_date) }}</span>
+                    </div>
+                    <div class="info-item">
+                      <i class="pi pi-users"></i>
+                      <span>{{ event.current_participants }}/{{ event.max_participants || '∞' }}</span>
+                    </div>
+                  </div>
+                  
+                  <div class="admin-event-actions">
+                    <Button
+                      icon="pi pi-eye"
+                      label="Voir"
+                      size="small"
+                      outlined
+                      class="action-btn view-btn"
+                      @click="viewEventDetail(event)"
+                    />
+                    <Button
+                      icon="pi pi-check"
+                      label="Approuver"
+                      size="small"
+                      severity="success"
+                      class="action-btn approve-btn"
+                      @click="approveEvent(event)"
+                    />
+                    <Button
+                      icon="pi pi-times"
+                      label="Refuser"
+                      size="small"
+                      severity="danger"
+                      class="action-btn reject-btn"
+                      @click="rejectEvent(event)"
+                    />
+                    <Button
+                      icon="pi pi-ban"
+                      label="Annuler"
+                      size="small"
+                      severity="warning"
+                      outlined
+                      class="action-btn cancel-btn"
+                      @click="cancelEvent(event)"
+                    />
                   </div>
                 </div>
-                
-                <div class="admin-event-info">
-                  <p class="admin-event-creator">
-                    <i class="pi pi-user"></i>
-                    Créé par {{ event.created_by?.pseudo || 'Utilisateur' }}
-                  </p>
-                  <p class="admin-event-date">
-                    <i class="pi pi-calendar"></i>
-                    {{ formatDate(event.start_date) }}
-                  </p>
-                </div>
-                
-                <div class="admin-event-actions">
-                  <Button
-                    icon="pi pi-eye"
-                    label="Voir"
-                    size="small"
-                    outlined
-                    @click="viewEventDetail(event)"
-                  />
-                  <Button
-                    icon="pi pi-check"
-                    label="Approuver"
-                    size="small"
-                    severity="success"
-                    @click="approveEvent(event)"
-                  />
-                  <Button
-                    icon="pi pi-times"
-                    label="Refuser"
-                    size="small"
-                    severity="danger"
-                    @click="rejectEvent(event)"
-                  />
-                  <Button
-                    icon="pi pi-ban"
-                    label="Annuler"
-                    size="small"
-                    severity="warning"
-                    outlined
-                    @click="cancelEvent(event)"
+              </div>
+            </div>
+
+            <!-- Aucun événement en attente -->
+            <div v-else class="no-pending-events">
+              <div class="empty-state-mini">
+                <i class="pi pi-check-circle empty-icon"></i>
+                <p class="empty-message">Aucun événement en attente de validation</p>
+              </div>
+            </div>
+          </div>
+        </template>
+      </Card>
+
+      <!-- Section Mes événements avec tabs -->
+      <Card class="events-section-card">
+        <template #header>
+          <div class="section-header-with-tabs">
+            <div class="section-title-area">
+              <h2 class="section-title">
+                <i class="pi pi-calendar"></i>
+                Mes événements
+              </h2>
+            </div>
+            
+            <!-- Tabs navigation -->
+            <div class="section-tabs">
+              <button 
+                class="tab-button"
+                :class="{ active: activeTab === 'created' }"
+                @click="activeTab = 'created'"
+              >
+                <i class="pi pi-plus-circle"></i>
+                <span>Créés</span>
+                <div class="tab-count">{{ myEvents.length }}</div>
+              </button>
+              <button 
+                class="tab-button"
+                :class="{ active: activeTab === 'followed' }"
+                @click="activeTab = 'followed'"
+              >
+                <i class="pi pi-heart"></i>
+                <span>Suivis</span>
+                <div class="tab-count">{{ followedEvents.length }}</div>
+              </button>
+            </div>
+          </div>
+        </template>
+        
+        <template #content>
+          <!-- Tab Content: Événements créés -->
+          <div v-if="activeTab === 'created'" class="tab-content">
+            <!-- Loading -->
+            <div v-if="loading" class="loading-section">
+              <div class="loading-grid">
+                <div v-for="n in 4" :key="n" class="event-card-skeleton loading-skeleton"></div>
+              </div>
+            </div>
+
+            <!-- Événements créés -->
+            <div v-else-if="myEvents.length > 0" class="events-grid">
+              <EventCard
+                v-for="event in myEvents"
+                :key="event.id"
+                :event="event"
+                :show-actions="true"
+                :show-status="true"
+                class="my-event-card"
+                @edit="onEditEvent"
+                @delete="confirmDelete(event)"
+                @click="viewEventDetail(event)"
+              />
+            </div>
+
+            <!-- État vide créés -->
+            <div v-else class="empty-state">
+              <div class="empty-content">
+                <i class="pi pi-calendar-plus empty-icon"></i>
+                <h3 class="empty-title">Aucun événement créé</h3>
+                <p class="empty-message">
+                  Vous n'avez pas encore créé d'événement. Commencez dès maintenant !
+                </p>
+                <p>Si vous ne voyez pas le bouton pour créer un événement vous devez aller sur votre profil et demander à obtenir le rôle boutique ou organisateur</p>
+                <div class="empty-actions">
+                  <Button 
+                    v-if="canCreateEvent"
+                    label="Créer mon premier événement"
+                    icon="pi pi-plus"
+                    class="emerald-button primary create-deck"
+                    @click="onCreateEvent"
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Aucun événement en attente -->
-          <div v-else class="no-pending-events">
-            <i class="pi pi-check-circle text-green-500 text-4xl mb-3"></i>
-            <p class="text-secondary">Aucun événement en attente de validation</p>
+          <!-- Tab Content: Événements suivis -->
+          <div v-if="activeTab === 'followed'" class="tab-content">
+            <!-- Événements suivis -->
+            <div v-if="followedEvents.length > 0" class="events-grid">
+              <EventCard
+                v-for="event in followedEvents"
+                :key="`followed-${event.id}`"
+                :event="event"
+                :show-follow-button="true"
+                class="followed-card"
+                @follow-changed="loadFollowedEvents"
+                @click="viewEventDetail(event)"
+              />
+            </div>
+
+            <!-- État vide suivis -->
+            <div v-else class="empty-state">
+              <div class="empty-content">
+                <i class="pi pi-heart-fill empty-icon"></i>
+                <h3 class="empty-title">Aucun événement suivi</h3>
+                <p class="empty-message">
+                  Vous ne suivez encore aucun événement. Découvrez les événements disponibles et ajoutez-les à vos favoris !
+                </p>
+                <div class="empty-actions">
+                  <Button 
+                    label="Découvrir les événements"
+                    icon="pi pi-search"
+                    class="emerald-button primary"
+                    @click="goToEvents"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      </template>
-    </Card>
+        </template>
+      </Card>
 
-    <!-- Loading State -->
-    <div v-if="loading" class="events-loading-grid">
-      <div v-for="i in 2" :key="i" class="event-skeleton"></div>
-    </div>
-
-    <!-- Aucune donnée -->
-    <div v-else-if="!myEvents.length" class="text-center text-secondary my-12">
-      <i class="pi pi-info-circle mr-2"></i>
-      Aucun événement créé pour le moment.
-    </div>
-
-    <!-- Liste événements -->
-    <div v-else class="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-      <div
-        v-for="event in myEvents"
-        :key="event.id"
-        class="event-wrapper"
-        :class="{ 'pending-review': event.status === 'PENDING_REVIEW' }"
-      >
-        <!-- Badge brillant pour événements en attente -->
-        <div v-if="event.status === 'PENDING_REVIEW'" class="pending-badge">
-          <div class="shine-effect"></div>
-          <i class="pi pi-clock badge-icon"></i>
-          <span class="badge-text">En attente de validation</span>
-        </div>
+      <!-- Section Participations (si il y en a) -->
+      <Card v-if="participatingEvents.length > 0" class="events-section-card participating-section">
+        <template #header>
+          <div class="section-header">
+            <h2 class="section-title">
+              <i class="pi pi-users"></i>
+              Mes participations
+            </h2>
+            <div class="section-count">{{ participatingEvents.length }}</div>
+          </div>
+        </template>
         
-        <!-- Badge pour événements refusés -->
-        <div v-else-if="event.status === 'REJECTED'" class="rejected-badge">
-          <i class="pi pi-times-circle badge-icon"></i>
-          <span class="badge-text">Refusé - Cliquer pour modifier</span>
-        </div>
-        
-        <!-- Badge pour événements approuvés -->
-        <div v-else-if="event.status === 'APPROVED'" class="approved-badge">
-          <i class="pi pi-check-circle badge-icon"></i>
-          <span class="badge-text">Approuvé et public</span>
-        </div>
+        <template #content>
+          <div class="events-grid">
+            <EventCard
+              v-for="event in participatingEvents"
+              :key="`participating-${event.id}`"
+              :event="event"
+              class="participation-card"
+              @click="viewEventDetail(event)"
+            />
+          </div>
+        </template>
+      </Card>
 
-        <EventCard
-          :event="event"
-          :show-actions="true"
-          @edit="onEditEvent"
-          @delete="confirmDelete(event)"
-        />
+      <!-- État vide global (si aucune section n'a de contenu) -->
+      <div v-if="!loading && !hasAnyEvents" class="global-empty-state">
+        <Card class="empty-card">
+          <template #content>
+            <div class="empty-content">
+              <i class="pi pi-calendar-times empty-icon"></i>
+              <h3 class="empty-title">Aucune activité</h3>
+              <p class="empty-message">
+                Vous n'avez encore aucun événement. Créez votre premier événement ou participez à ceux existants !
+              </p>
+              <div class="empty-actions">
+                <Button 
+                  label="Découvrir les événements"
+                  icon="pi pi-search"
+                  class="emerald-outline-btn"
+                  @click="goToEvents"
+                />
+                <Button 
+                  v-if="canCreateEvent"
+                  label="Créer un événement"
+                  icon="pi pi-plus"
+                  class="emerald-button primary"
+                  @click="onCreateEvent"
+                />
+              </div>
+            </div>
+          </template>
+        </Card>
       </div>
+
     </div>
 
-    <!-- Événements suivis -->
-    <div v-if="followedEvents.length > 0" class="followed-events-section mt-8">
-      <h3 class="section-title">
-        <i class="pi pi-heart text-red-500"></i>
-        Événements suivis ({{ followedEvents.length }})
-      </h3>
-      
-      <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-        <EventCard
-          v-for="event in followedEvents"
-          :key="`followed-${event.id}`"
-          :event="event"
-          :show-follow-button="true"
-          @follow-changed="loadFollowedEvents"
-        />
-      </div>
-    </div>
-
-    <!-- Mes participations -->
-    <div v-if="participatingEvents.length > 0" class="participating-events-section mt-8">
-      <h3 class="section-title">
-        <i class="pi pi-users text-blue-500"></i>
-        Mes participations ({{ participatingEvents.length }})
-      </h3>
-      
-      <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-        <EventCard
-          v-for="event in participatingEvents"
-          :key="`participating-${event.id}`"
-          :event="event"
-        />
-      </div>
-    </div>
-
-    <!-- Dialogs Admin -->
+    <!-- Dialogs Admin (inchangés) -->
     <Dialog
       v-model:visible="adminActionDialog"
       modal
@@ -260,7 +414,7 @@
       </template>
     </Dialog>
 
-    <!-- Boîte de confirmation PrimeVue -->
+    <!-- Boîte de confirmation -->
     <ConfirmDialog></ConfirmDialog>
   </div>
 </template>
@@ -276,7 +430,12 @@ import { useRouter } from 'vue-router'
 import api from '@/services/api'
 
 import EventCard from '@/components/events/EventCard.vue'
-import CreateEventView from '@/views/CreateEventView.vue'
+import Menu from 'primevue/menu'
+import Button from 'primevue/button'
+import Card from 'primevue/card'
+import Dialog from 'primevue/dialog'
+import Textarea from 'primevue/textarea'
+import ConfirmDialog from 'primevue/confirmdialog'
 
 const eventStore = useEventStore()
 const authStore = useAuthStore()
@@ -285,8 +444,10 @@ const toast = useToast()
 const confirm = useConfirm()
 const router = useRouter()
 
+// State (identique à l'original + nouveau tab state)
 const loading = ref(true)
-const editingEvent = ref(null)
+const createEventMenu = ref()
+const activeTab = ref('created') // Nouvel état pour gérer les tabs
 
 // Admin section
 const adminSectionOpen = ref(false)
@@ -295,19 +456,61 @@ const pendingEvents = ref([])
 const followedEvents = ref([])
 const participatingEvents = ref([])
 
-// Admin actions
+// Admin actions (identique)
 const adminActionDialog = ref(false)
 const adminAction = ref('')
 const adminActionEvent = ref(null)
 const adminActionReason = ref('')
 
-// --- Computed ---
+// Computed (identique + nouveaux)
 const canCreateEvent = computed(() => authStore.canCreateEvent)
 const isAdmin = computed(() => authStore.user?.roles?.includes('ROLE_ADMIN'))
 const myEvents = computed(() => eventStore.myEvents)
-
 const adminNotificationCount = computed(() => pendingEvents.value.length)
 
+const hasAnyEvents = computed(() => 
+  myEvents.value.length > 0 || 
+  participatingEvents.value.length > 0
+)
+
+const getEventTypeLabel = (type) => {
+  const labels = {
+    'TOURNOI': 'Tournoi',
+    'AVANT_PREMIERE': 'Avant-première',
+    'RENCONTRE': 'Rencontre',
+    'GENERIQUE': 'Générique'
+  }
+  return labels[type] || type
+}
+
+// Menu création (identique à EventsView)
+const createEventMenuItems = ref([
+  {
+    label: 'Événement générique',
+    icon: 'pi pi-calendar',
+    command: () => goToCreateEventType('GENERIQUE')
+  },
+  {
+    label: 'Rencontre',
+    icon: 'pi pi-users',
+    command: () => goToCreateEventType('RENCONTRE')
+  },
+  {
+    label: 'Avant-première',
+    icon: 'pi pi-star',
+    command: () => goToCreateEventType('AVANT_PREMIERE')
+  },
+  {
+    separator: true
+  },
+  {
+    label: 'Tournoi',
+    icon: 'pi pi-trophy',
+    command: () => goToCreateTournament()
+  }
+])
+
+// Computed pour les dialogs admin (identiques)
 const adminActionTitle = computed(() => {
   switch (adminAction.value) {
     case 'approve': return 'Approuver l\'événement'
@@ -365,7 +568,36 @@ const adminActionSeverity = computed(() => {
   }
 })
 
-// --- Methods ---
+// Methods (identiques à l'original + nouvelles pour navigation)
+const toggleCreateEventMenu = (event) => {
+  createEventMenu.value.toggle(event)
+}
+
+const goToCreateEventType = (eventType) => {
+  router.push({ 
+    name: 'creer-evenement',
+    query: { type: eventType }
+  })
+}
+
+const goToCreateTournament = () => {
+  router.push({ name: 'creer-tournoi' })
+}
+
+const goToEvents = () => {
+  router.push({ name: 'evenements' })
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  return new Date(dateString).toLocaleString('fr-FR', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  })
+}
+
+// Toutes les autres méthodes restent identiques à l'original...
+// (loadMyEvents, loadPendingEvents, etc. - garder exactement le même code)
 
 const loadMyEvents = async () => {
   loading.value = true
@@ -413,13 +645,6 @@ const loadFollowedEvents = async () => {
   }
 }
 
-const cancelEvent = (event) => {
-  adminActionEvent.value = event
-  adminAction.value = 'cancel'
-  adminActionReason.value = ''
-  adminActionDialog.value = true
-}
-
 const loadParticipatingEvents = async () => {
   try {
     const response = await api.get('/api/events/user/participating')
@@ -433,21 +658,12 @@ const loadParticipatingEvents = async () => {
 const toggleAdminSection = async () => {
   adminSectionOpen.value = !adminSectionOpen.value
   
-  // Charger les événements en attente si on ouvre la section
   if (adminSectionOpen.value && !pendingEvents.value.length) {
     await loadPendingEvents()
   }
 }
 
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  return new Date(dateString).toLocaleString('fr-FR', {
-    dateStyle: 'short',
-    timeStyle: 'short'
-  })
-}
-
-// Admin actions
+// Admin actions (identiques)
 const viewEventDetail = (event) => {
   router.push({ name: 'evenement-detail', params: { id: event.id } })
 }
@@ -466,9 +682,9 @@ const rejectEvent = (event) => {
   adminActionDialog.value = true
 }
 
-const deleteEventAdmin = (event) => {
+const cancelEvent = (event) => {
   adminActionEvent.value = event
-  adminAction.value = 'delete'
+  adminAction.value = 'cancel'
   adminActionReason.value = ''
   adminActionDialog.value = true
 }
@@ -479,7 +695,6 @@ const confirmAdminAction = async () => {
   const eventId = adminActionEvent.value.id
   const reason = adminActionReason.value.trim()
   
-  // Validation
   if ((adminAction.value === 'reject' || adminAction.value === 'delete' || adminAction.value === 'cancel') && !reason) {
     toast.add({
       severity: 'error',
@@ -490,7 +705,6 @@ const confirmAdminAction = async () => {
     return
   }
   
-  // Validation longueur pour annulation
   if (adminAction.value === 'cancel' && reason.length < 30) {
     toast.add({
       severity: 'error',
@@ -509,24 +723,20 @@ const confirmAdminAction = async () => {
         await eventStore.approveEvent(eventId, reason || null)
         successMessage = 'Événement approuvé avec succès'
         break
-        
       case 'reject':
         await eventStore.rejectEvent(eventId, reason)
         successMessage = 'Événement refusé. Le créateur a été notifié.'
         break
-        
       case 'delete':
         await eventStore.deleteEventAdmin(eventId, reason)
         successMessage = 'Événement supprimé définitivement'
         break
-        
-      case 'cancel':  // ✅ NOUVEAU
+      case 'cancel':
         await eventStore.cancelEventAdmin(eventId, reason)
         successMessage = 'Événement annulé. Tous les participants ont été notifiés.'
         break
     }
     
-    // Succès
     toast.add({
       severity: 'success',
       summary: 'Action réalisée',
@@ -534,7 +744,6 @@ const confirmAdminAction = async () => {
       life: 3000
     })
     
-    // Fermer dialog et recharger
     adminActionDialog.value = false
     await loadPendingEvents()
     
@@ -579,7 +788,6 @@ function confirmDelete(event) {
   })
 }
 
-// Ajoute ces méthodes APRÈS les autres méthodes (vers la ligne 600)
 const onCreateEvent = () => {
   router.push({ name: 'creer-evenement' })
 }
@@ -589,6 +797,7 @@ const onEditEvent = (event) => {
   router.push({ name: 'creer-evenement', query: { id: event.id } })
 }
 
+// Lifecycle
 onMounted(async () => {
   console.log('🚀 MyEventsView montée - User authentifié:', authStore.isAuthenticated)
   if (authStore.isAuthenticated) {
@@ -598,7 +807,6 @@ onMounted(async () => {
       loadParticipatingEvents()
     ])
     
-    // Charger les événements admin si admin
     if (isAdmin.value) {
       await loadPendingEvents()
     }
@@ -627,26 +835,274 @@ watch(
 </script>
 
 <style scoped>
-/* Section Admin */
-.admin-section {
-  border-left: 4px solid var(--primary);
-  background: linear-gradient(135deg, rgba(38, 166, 154, 0.05), rgba(38, 166, 154, 0.02));
-  transition: all var(--transition-medium);
+/* === MY EVENTS PAGE === */
+
+.my-events-page {
+  min-height: calc(100vh - var(--header-height));
+  background: var(--surface-gradient);
+  padding: 2rem 0;
 }
 
-.admin-section.has-notifications {
-  border-left-color: #f59e0b;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.02));
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.1);
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
 }
+
+/* === PAGE HEADER === */
+
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.header-info {
+  flex: 1;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.title-icon {
+  font-size: 2rem;
+  color: var(--primary);
+  background: rgba(38, 166, 154, 0.1);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-description {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 500px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+/* Stats rapides */
+.quick-stats {
+  display: flex;
+  gap: 2rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--surface-200);
+}
+
+.stat-item {
+  text-align: center;
+  position: relative;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-item.admin-stat .stat-value {
+  color: #f59e0b;
+}
+
+.stat-notification-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+/* === SECTION CARDS === */
+
+.admin-section-card,
+.events-section-card {
+  margin-bottom: 2rem;
+  border-radius: var(--border-radius-large) !important;
+  box-shadow: var(--shadow-medium) !important;
+  border: 1px solid var(--surface-200) !important;
+  overflow: hidden !important;
+}
+
+.admin-section-card {
+  border-left: 4px solid var(--primary) !important;
+  background: linear-gradient(135deg, rgba(38, 166, 154, 0.02), rgba(38, 166, 154, 0.01)) !important;
+}
+
+.admin-section-card.has-notifications {
+  border-left-color: #f59e0b !important;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.02)) !important;
+  animation: adminPulse 3s ease-in-out infinite;
+}
+
+@keyframes adminPulse {
+  0%, 100% { box-shadow: var(--shadow-medium); }
+  50% { box-shadow: 0 8px 32px rgba(245, 158, 11, 0.2); }
+}
+
+.participating-section {
+  border-left: 4px solid #3b82f6 !important;
+}
+
+.followed-section {
+  border-left: 4px solid #ef4444 !important;
+}
+
+/* === SECTION HEADERS AVEC TABS === */
+
+.section-header-with-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  background: var(--surface-100);
+  border-bottom: 1px solid var(--surface-200);
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.section-title-area {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Tabs navigation */
+.section-tabs {
+  display: flex;
+  background: var(--surface-200);
+  border-radius: var(--border-radius);
+  padding: 0.25rem;
+}
+
+.tab-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-small);
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  white-space: nowrap;
+}
+
+.tab-button:hover {
+  background: rgba(38, 166, 154, 0.1);
+  color: var(--primary);
+}
+
+.tab-button.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(38, 166, 154, 0.3);
+}
+
+.tab-button i {
+  font-size: 0.9rem;
+}
+
+.tab-count {
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+  border-radius: 12px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+.tab-button.active .tab-count {
+  background: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.tab-button:not(.active) .tab-count {
+  background: var(--surface-300);
+  color: var(--text-secondary);
+}
+
+/* Tab content */
+.tab-content {
+  min-height: 200px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  background: var(--surface-100);
+  border-bottom: 1px solid var(--surface-200);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.section-count {
+  background: var(--primary);
+  color: white;
+  border-radius: 20px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  min-width: 2rem;
+  text-align: center;
+}
+
+/* === ADMIN SECTION === */
 
 .admin-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  padding: 1rem;
+  padding: 1.5rem;
   transition: all var(--transition-fast);
+  background: var(--surface-100);
 }
 
 .admin-header:hover {
@@ -659,6 +1115,7 @@ watch(
   gap: 0.75rem;
   font-weight: 600;
   color: var(--text-primary);
+  font-size: 1.25rem;
 }
 
 .admin-icon {
@@ -666,79 +1123,60 @@ watch(
   font-size: 1.25rem;
 }
 
-/* Cloche de notification */
-.notification-bell {
-  position: relative;
-  animation: bellShake 2s ease-in-out infinite;
-}
-
-.notification-icon {
-  color: #f59e0b;
-  font-size: 1.1rem;
-}
-
-.notification-count {
-  position: absolute;
-  top: -8px;
-  right: -8px;
+.admin-notification-badge {
   background: #ef4444;
   color: white;
   border-radius: 50%;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
+  animation: bounceIn 0.6s ease;
 }
 
-@keyframes bellShake {
-  0%, 50%, 100% { transform: rotate(0deg); }
-  10%, 30% { transform: rotate(-10deg); }
-  20%, 40% { transform: rotate(10deg); }
-}
-
-/* Admin content */
-.admin-content {
-  padding: 0 1rem 1rem;
-}
-
-.admin-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 2rem;
+.toggle-icon {
   color: var(--text-secondary);
+  transition: transform var(--transition-fast);
 }
 
-.admin-subtitle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 1.5rem;
+.admin-content {
+  padding: 1.5rem;
 }
+
+/* === ADMIN EVENTS GRID === */
 
 .admin-events-grid {
   display: grid;
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+  gap: 1.5rem;
 }
 
 .admin-event-card {
   background: white;
   border: 1px solid var(--surface-200);
   border-radius: var(--border-radius-large);
-  padding: 1.25rem;
+  padding: 1.5rem;
   transition: all var(--transition-medium);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-event-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #f59e0b, #d97706);
 }
 
 .admin-event-card:hover {
-  box-shadow: var(--shadow-medium);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-large);
 }
 
 .admin-event-header {
@@ -748,39 +1186,83 @@ watch(
   margin-bottom: 1rem;
 }
 
-.admin-event-title {
+.event-title-section {
+  flex: 1;
+}
+
+.event-title {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0;
+  margin: 0 0 0.5rem 0;
+  line-height: 1.3;
 }
 
-.status-badge.pending-review {
-  background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  padding: 0.375rem 0.75rem;
-  border-radius: 50px;
+.event-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.event-type-badge.type-tournoi {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+}
+
+.event-type-badge.type-avant_premiere {
+  background: rgba(139, 69, 19, 0.1);
+  color: #8b4513;
+}
+
+.event-type-badge.type-rencontre {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.event-type-badge.type-generique {
+  background: rgba(107, 114, 128, 0.1);
+  color: #4b5563;
+}
+
+.event-status-badge {
   display: flex;
   align-items: center;
   gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.event-status-badge.pending {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .admin-event-info {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   font-size: 0.875rem;
   color: var(--text-secondary);
 }
 
-.admin-event-info p {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin: 0;
+.info-item i {
+  color: var(--primary);
 }
 
 .admin-event-actions {
@@ -789,103 +1271,129 @@ watch(
   flex-wrap: wrap;
 }
 
-.no-pending-events {
-  text-align: center;
-  padding: 3rem;
-  color: var(--text-secondary);
+.action-btn {
+  border-radius: var(--border-radius) !important;
+  font-weight: 500 !important;
+  transition: all var(--transition-fast) !important;
 }
 
-/* Badges brillants pour les événements */
-.event-wrapper {
-  position: relative;
+.action-btn:hover {
+  transform: translateY(-1px) !important;
 }
 
-.pending-badge,
-.rejected-badge,
-.approved-badge {
-  position: absolute;
-  top: -8px;
-  left: -8px;
-  right: -8px;
-  z-index: 10;
-  padding: 0.5rem 1rem;
-  border-radius: var(--border-radius);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* === EVENTS GRID SIMPLIFIÉ === */
+
+.events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem;
 }
 
-.pending-badge {
-  background: linear-gradient(135deg, #f59e0b, #fbbf24);
-  color: white;
-  position: relative;
-  overflow: hidden;
+.my-event-card,
+.participation-card,
+.followed-card {
+  transition: all var(--transition-medium) !important;
 }
 
-.rejected-badge {
-  background: linear-gradient(135deg, #ef4444, #f87171);
-  color: white;
+.my-event-card:hover,
+.participation-card:hover,
+.followed-card:hover {
+  transform: translateY(-6px) scale(1.02) !important;
 }
 
-.approved-badge {
-  background: linear-gradient(135deg, #22c55e, #4ade80);
-  color: white;
+/* === LOADING STATES === */
+
+.loading-section,
+.admin-loading {
+  padding: 1.5rem;
 }
 
-/* Effet brillant pour pending */
-.shine-effect {
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  animation: shine 2s infinite;
-}
-
-@keyframes shine {
-  0% { left: -100%; }
-  100% { left: 100%; }
-}
-
-.badge-icon {
-  font-size: 0.875rem;
-}
-
-.badge-text {
-  font-weight: 600;
-}
-
-/* Event wrapper pending */
-.event-wrapper.pending-review {
-  margin-top: 1rem;
-}
-
-/* Loading grid */
-.events-loading-grid {
+.loading-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 1.5rem;
 }
 
-.event-skeleton {
+.event-card-skeleton,
+.admin-card-skeleton {
   height: 280px;
-  background: linear-gradient(90deg, var(--surface-200) 25%, var(--surface-100) 50%, var(--surface-200) 75%);
-  background-size: 200% 100%;
-  animation: loading 1.5s infinite;
   border-radius: var(--border-radius-large);
 }
 
-@keyframes loading {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+.admin-card-skeleton {
+  height: 200px;
 }
 
-/* Admin dialog */
+/* === EMPTY STATES === */
+
+.empty-state,
+.empty-state-mini,
+.global-empty-state {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+}
+
+.empty-state-mini {
+  padding: 2rem;
+  text-align: center;
+}
+
+.empty-card {
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+}
+
+.empty-content {
+  padding: 2rem;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  color: var(--surface-400);
+  margin-bottom: 1.5rem;
+}
+
+.empty-state-mini .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.empty-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 1rem 0;
+}
+
+.empty-state-mini .empty-title {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-message {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 2rem 0;
+}
+
+.empty-state-mini .empty-message {
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* === ADMIN DIALOGS === */
+
 .admin-action-content {
   padding: 0.5rem 0;
 }
@@ -901,10 +1409,102 @@ watch(
   margin-bottom: 0.5rem;
 }
 
-/* Responsive */
+/* === RESPONSIVE === */
+
+@media (max-width: 1024px) {
+  .events-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1rem;
+  }
+  
+  .admin-events-grid {
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  }
+  
+  .loading-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
+  .container {
+    padding: 0 1rem;
+  }
+  
+  .my-events-page {
+    padding: 1rem 0;
+  }
+  
+  .page-title {
+    font-size: 2rem;
+  }
+  
+  .title-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 1.5rem;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .quick-stats {
+    justify-content: space-around;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  
+  .stat-item {
+    min-width: 80px;
+  }
+  
+  .events-grid {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+  
   .admin-events-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .loading-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .section-header-with-tabs {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .section-title-area {
+    min-width: auto;
+  }
+  
+  .section-tabs {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .tab-button {
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+  
+  .tab-button span {
+    display: none;
+  }
+  
+  .tab-button i {
+    font-size: 1rem;
+  }
+  
+  .section-title {
+    font-size: 1.25rem;
   }
   
   .admin-event-actions {
@@ -916,29 +1516,62 @@ watch(
     gap: 0.5rem;
   }
   
-  .notification-bell {
-    display: none;
+  .event-status-overlay {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
   }
 }
 
-/* Nouvelles sections */
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid var(--surface-200);
+@media (max-width: 640px) {
+  .quick-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
+  .stat-item {
+    padding: 0.75rem;
+    background: var(--surface-100);
+    border-radius: var(--border-radius);
+  }
+  
+  .admin-notification-badge {
+    display: none;
+  }
+  
+  .empty-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .empty-actions .emerald-button,
+  .empty-actions .emerald-outline-btn {
+    width: 100%;
+  }
 }
 
-.followed-events-section,
-.participating-events-section {
-  background: var(--surface-50);
-  border-radius: var(--border-radius-large);
-  padding: 2rem;
-  border: 1px solid var(--surface-200);
+/* === ANIMATIONS === */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.slide-in-up {
+  animation: slideInUp 0.6s ease-out;
+}
+
+.fade-in-scale {
+  animation: fadeInScale 0.4s ease-out;
+}
+
+/* Transition pour l'ouverture/fermeture admin */
+.admin-content {
+  transition: all var(--transition-medium);
 }
 </style>

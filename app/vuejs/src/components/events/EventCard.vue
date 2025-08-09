@@ -14,6 +14,42 @@
     @click="goToDetail"
     v-ripple
   >
+<div class="event-creator-section">
+  <div class="creator-info" @click="goToCreatorProfile">
+    <div class="creator-avatar" :class="{ 'clickable-avatar': canNavigateToProfile(creatorUserId) }">
+      <img 
+        v-if="creatorAvatar" 
+        :src="creatorAvatar" 
+        :alt="creatorDisplayName"
+        class="avatar-image"
+        @error="(e) => e.target.style.display = 'none'"
+      />
+      <div v-else class="avatar-placeholder">
+        <i :class="creatorIcon" class="avatar-icon"></i>
+      </div>
+    </div>
+    <div class="creator-details">
+      <span 
+        class="creator-name"
+        :class="{ 'clickable-name': canNavigateToProfile(creatorUserId) }"
+        :title="canNavigateToProfile(creatorUserId) ? getProfileTooltip(creatorDisplayName) : ''"
+      >
+        {{ creatorDisplayName }}
+      </span>
+      <div class="creator-type">
+        <i :class="creatorTypeIcon" class="type-icon"></i>
+        <span class="type-label">{{ creatorTypeLabel }}</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Status badge déplacé ici -->
+  <div v-if="showStatus" class="event-status-badge" :class="statusBadgeClass">
+    <i :class="statusIcon" class="status-icon"></i>
+    <span class="status-text">{{ statusLabel }}</span>
+  </div>
+</div>
+
     <!-- Image avec overlay et badges -->
     <div class="event-image-section">
       <div v-if="event.image" class="event-image-container">
@@ -24,16 +60,10 @@
         <i :class="eventTypeIcon" class="placeholder-icon"></i>
       </div>
       
-      <!-- Status badge en haut à droite -->
-      <div class="event-status-badge" :class="statusBadgeClass">
-        <i :class="statusIcon" class="status-icon"></i>
-        <span class="status-text">{{ statusLabel }}</span>
-      </div>
-      
       <!-- Badge "En ligne" -->
       <div v-if="event.is_online" class="online-badge">
         <i class="pi pi-globe"></i>
-        <span>En ligne</span>
+        <span>Evenement en virtuel</span>
       </div>
       
       <!-- Badge "Complet" -->
@@ -100,6 +130,34 @@
         <span class="progress-text">
           {{ event.current_participants }}/{{ event.max_participants }} inscrits
         </span>
+      </div>
+
+      <!-- Countdown (nouveau) -->
+      <div v-if="showCountdown" class="event-countdown">
+        <div class="countdown-container" :class="countdownType">
+          <i :class="countdownIcon" class="countdown-icon"></i>
+          <div class="countdown-content">
+            <span class="countdown-label">{{ countdownLabel }}</span>
+            <div class="countdown-timer">
+              <div v-if="timeRemaining.days > 0" class="time-unit">
+                <span class="time-value">{{ timeRemaining.days }}</span>
+                <span class="time-label">j</span>
+              </div>
+              <div v-if="timeRemaining.hours > 0 || timeRemaining.days > 0" class="time-unit">
+                <span class="time-value">{{ String(timeRemaining.hours).padStart(2, '0') }}</span>
+                <span class="time-label">h</span>
+              </div>
+              <div class="time-unit">
+                <span class="time-value">{{ String(timeRemaining.minutes).padStart(2, '0') }}</span>
+                <span class="time-label">m</span>
+              </div>
+              <div v-if="timeRemaining.days === 0 && timeRemaining.hours === 0" class="time-unit">
+                <span class="time-value">{{ String(timeRemaining.seconds).padStart(2, '0') }}</span>
+                <span class="time-label">s</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -178,16 +236,87 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 import Button from 'primevue/button'
+import { useProfileNavigation } from '@/composables/useProfileNavigation'
+
+
+// Ajouter après les autres imports
+const { goToProfile, canNavigateToProfile, getProfileTooltip } = useProfileNavigation()
+
+// Ajouter temporairement dans les computed pour debug
+const creatorDisplayName = computed(() => {
+  console.log('🔍 Event data:', {
+    organizerType: props.event.organizer_type,
+    createdBy: props.event.created_by,
+    organizerName: props.event.organizer_name
+  })
+  
+  // Si l'organisateur est une boutique ET que le créateur a une boutique active
+  if (props.event.organizer_type === 'SHOP' && 
+      props.event.created_by?.shop?.name && 
+      props.event.created_by?.shop?.isActive) {
+    return props.event.created_by.shop.name
+  }
+  
+  // Sinon, utiliser le pseudo du créateur
+  return props.event.created_by?.pseudo || 
+         props.event.organizer_name || 
+         'Organisateur'
+})
+
+const creatorAvatar = computed(() => {
+  // Si organisateur boutique et boutique active avec logo
+  if (props.event.organizer_type === 'SHOP' && 
+      props.event.created_by?.shop?.logo && 
+      props.event.created_by?.shop?.isActive) {
+    return getImageUrl(props.event.created_by.shop.logo)
+  }
+  
+  // Sinon, utiliser l'avatar du créateur
+  if (props.event.created_by?.avatar) {
+    return getImageUrl(props.event.created_by.avatar)
+  }
+  
+  return null
+})
+
+const creatorTypeLabel = computed(() => {
+  if (props.event.organizer_type === 'SHOP') {
+    return 'Boutique'
+  }
+  return 'Créateur'
+})
+
+const creatorTypeIcon = computed(() => {
+  if (props.event.organizer_type === 'SHOP') {
+    return 'pi pi-shop'
+  }
+  return 'pi pi-user'
+})
+
+const creatorUserId = computed(() => {
+  return props.event.created_by?.id || props.event.created_by_id
+})
+
+const goToCreatorProfile = (event) => {
+  event?.stopPropagation()
+  
+  if (!creatorUserId.value) return
+  
+  if (canNavigateToProfile(creatorUserId.value)) {
+    goToProfile(creatorUserId.value, creatorDisplayName.value)
+  }
+}
 
 // Props
 const props = defineProps({
   event: { type: Object, required: true },
   showFollowButton: { type: Boolean, default: false },
+  showStatus: { type: Boolean, default: false },
   onEdit: { type: Function },
   onDelete: { type: Function },
   onRegister: { type: Function },
@@ -199,7 +328,71 @@ const router = useRouter()
 const authStore = useAuthStore()
 const isPosting = ref(false)
 
-// ============= COMPUTED STATES =============
+// ============= COUNTDOWN SYSTEM =============
+
+const currentTime = ref(new Date())
+let countdownInterval = null
+
+const updateCountdown = () => {
+  currentTime.value = new Date()
+}
+
+onMounted(() => {
+  // Mettre à jour toutes les secondes
+  countdownInterval = setInterval(updateCountdown, 1000)
+})
+
+onUnmounted(() => {
+  if (countdownInterval) {
+    clearInterval(countdownInterval)
+  }
+})
+
+const showCountdown = computed(() => {
+  return props.event.start_date && !isPast.value && 
+         (props.event.status === 'APPROVED' || props.event.status === 'VALIDATED')
+})
+
+const countdownType = computed(() => {
+  if (isLive.value) return 'countdown-ending'
+  return 'countdown-starting'
+})
+
+const countdownLabel = computed(() => {
+  if (isLive.value) return 'Se termine dans'
+  return 'Commence dans'
+})
+
+const countdownIcon = computed(() => {
+  if (isLive.value) return 'pi pi-clock text-red-500'
+  return 'pi pi-clock text-blue-500'
+})
+
+const targetDate = computed(() => {
+  if (isLive.value && props.event.end_date) {
+    return new Date(props.event.end_date)
+  }
+  return new Date(props.event.start_date)
+})
+
+const timeRemaining = computed(() => {
+  const now = currentTime.value
+  const target = targetDate.value
+  const diff = target.getTime() - now.getTime()
+  
+  if (diff <= 0) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0 }
+  }
+  
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+  
+  return { days, hours, minutes, seconds }
+})
+
+// ============= COMPUTED STATES (existants) =============
 
 const canEdit = computed(() => {
   const result = authStore.user?.id === props.event.created_by_id
@@ -213,6 +406,13 @@ const canEdit = computed(() => {
   })
   
   return result
+})
+
+const creatorIcon = computed(() => {
+  if (props.event.organizer_type === 'SHOP') {
+    return 'pi pi-shop'
+  }
+  return 'pi pi-user'
 })
 
 const canRegister = computed(() =>
@@ -317,10 +517,12 @@ const eventTypeIcon = computed(() => {
 // ============= STATUS MANAGEMENT =============
 
 const statusLabel = computed(() => {
+  if (!props.showStatus) return ''
+  
   switch (props.event.status) {
     case 'DRAFT': return 'Brouillon'
     case 'PENDING_REVIEW': return 'En validation'
-    case 'APPROVED': return 'Approuvé'
+    case 'APPROVED': return 'Publié'
     case 'VALIDATED': return 'Validé'
     case 'REJECTED': return 'Refusé'
     case 'CANCELLED': return 'Annulé'
@@ -345,6 +547,8 @@ const statusIcon = computed(() => {
 })
 
 const statusBadgeClass = computed(() => {
+  if (!props.showStatus) return 'status-hidden'
+  
   switch (props.event.status) {
     case 'DRAFT': return 'status-draft'
     case 'PENDING_REVIEW': return 'status-pending'
@@ -406,7 +610,7 @@ async function toggleFollow(e) {
 const getImageUrl = (imagePath) => {
   if (!imagePath) return null
   
-  if (imagePath.startsWith('events/')) {
+  if (imagePath.startsWith('events/') || imagePath.startsWith('avatars/') || imagePath.startsWith('shops/')) {
     return `http://localhost:8000/uploads/${imagePath}`
   }
   
@@ -482,7 +686,7 @@ function unregister(e) {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 380px;
+  min-height: 440px; /* Augmenté de 420px à 440px */
 }
 
 .event-card:hover {
@@ -507,11 +711,103 @@ function unregister(e) {
   background: linear-gradient(90deg, var(--primary), var(--primary-dark), #004d40);
 }
 
+/* ============= CREATOR SECTION (NOUVELLE) ============= */
+
+.event-creator-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: var(--surface-gradient);
+  border-bottom: 1px solid var(--surface-200);
+  min-height: 60px; /* Assurer une hauteur minimum */
+}
+
+.creator-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-radius: var(--border-radius);
+  padding: 0.375rem;
+  margin: -0.375rem;
+}
+
+.creator-info:hover {
+  background: rgba(38, 166, 154, 0.1);
+  transform: translateX(2px);
+}
+
+.creator-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-200);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--surface-300);
+  flex-shrink: 0;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-gradient);
+}
+
+.avatar-icon {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.creator-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.creator-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.creator-type {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.type-icon {
+  font-size: 0.7rem;
+}
+
+.type-label {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
 /* ============= IMAGE SECTION ============= */
 
 .event-image-section {
   position: relative;
-  height: 160px;
+  height: 130px; /* Réduit de 140px à 130px pour compenser */
   background: var(--surface-gradient);
 }
 
@@ -557,12 +853,9 @@ function unregister(e) {
   opacity: 0.5;
 }
 
-/* ============= BADGES ============= */
+/* ============= STATUS BADGES ============= */
 
 .event-status-badge {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   display: flex;
   align-items: center;
   gap: 0.375rem;
@@ -574,6 +867,11 @@ function unregister(e) {
   letter-spacing: 0.5px;
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+.status-hidden {
+  display: none;
 }
 
 .status-draft {
@@ -795,6 +1093,98 @@ function unregister(e) {
   font-weight: 500;
 }
 
+/* ============= COUNTDOWN SECTION (NOUVELLE) ============= */
+
+.event-countdown {
+  margin-top: 0.5rem;
+}
+
+.countdown-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  background: var(--surface-gradient);
+  border: 1px solid var(--surface-200);
+  border-radius: var(--border-radius);
+  transition: all var(--transition-fast);
+}
+
+.countdown-container.countdown-starting {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.02));
+}
+
+.countdown-container.countdown-ending {
+  border-color: #ef4444;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05), rgba(239, 68, 68, 0.02));
+  animation: countdownPulse 2s ease-in-out infinite;
+}
+
+@keyframes countdownPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.countdown-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.countdown-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.countdown-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.countdown-timer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.time-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 32px;
+}
+
+.time-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.time-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 0.125rem;
+}
+
+.countdown-ending .time-value {
+  color: #ef4444;
+}
+
+.countdown-ending .countdown-label {
+  color: #ef4444;
+}
+
 /* ============= ACTIONS ============= */
 
 .event-actions {
@@ -924,11 +1314,24 @@ function unregister(e) {
 
 @media (max-width: 768px) {
   .event-card {
-    min-height: 350px;
+    min-height: 400px;
+  }
+  
+  .event-creator-section {
+    padding: 0.875rem 1rem;
+  }
+  
+  .creator-avatar {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .creator-name {
+    font-size: 0.8rem;
   }
   
   .event-image-section {
-    height: 140px;
+    height: 120px;
   }
   
   .event-content {
@@ -942,6 +1345,22 @@ function unregister(e) {
   
   .info-row {
     gap: 1rem;
+  }
+  
+  .countdown-container {
+    padding: 0.75rem;
+  }
+  
+  .countdown-timer {
+    gap: 0.375rem;
+  }
+  
+  .time-unit {
+    min-width: 28px;
+  }
+  
+  .time-value {
+    font-size: 1.125rem;
   }
   
   .event-actions {
@@ -961,6 +1380,38 @@ function unregister(e) {
 }
 
 @media (max-width: 480px) {
+  .event-creator-section {
+    padding: 0.75rem;
+  }
+  
+  .creator-details {
+    gap: 0.125rem;
+  }
+  
+  .creator-name {
+    font-size: 0.75rem;
+  }
+  
+  .creator-type {
+    font-size: 0.7rem;
+  }
+  
+  .countdown-timer {
+    justify-content: center;
+  }
+  
+  .time-unit {
+    min-width: 24px;
+  }
+  
+  .time-value {
+    font-size: 1rem;
+  }
+  
+  .time-label {
+    font-size: 0.65rem;
+  }
+  
   .event-actions {
     flex-direction: column;
     gap: 0.75rem;
@@ -973,6 +1424,73 @@ function unregister(e) {
   .owner-actions {
     align-self: stretch;
     justify-content: space-between;
+  }
+}
+
+/* ============= THEMES PAR JEU ============= */
+
+.event-card.gaming-magic .countdown-container.countdown-starting {
+  border-color: #6b46c1;
+  background: linear-gradient(135deg, rgba(107, 70, 193, 0.05), rgba(107, 70, 193, 0.02));
+}
+
+.event-card.gaming-hearthstone .countdown-container.countdown-starting {
+  border-color: #ff6347;
+  background: linear-gradient(135deg, rgba(255, 99, 71, 0.05), rgba(255, 99, 71, 0.02));
+}
+
+.event-card.gaming-pokemon .countdown-container.countdown-starting {
+  border-color: #dc2626;
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.05), rgba(220, 38, 38, 0.02));
+}
+
+/* Styles cliquables pour navigation profil */
+.clickable-avatar {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-radius: 50%;
+  position: relative;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(38, 166, 154, 0.3);
+}
+
+.clickable-name {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  text-decoration: none;
+  border-radius: var(--border-radius-small);
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+}
+
+.clickable-name:hover {
+  color: var(--primary) !important;
+  background: rgba(38, 166, 154, 0.1);
+}
+
+.clickable-avatar:hover::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+/* Responsive pour les avatars cliquables */
+@media (max-width: 768px) {
+  .clickable-avatar:hover {
+    transform: scale(1.02);
+  }
+  
+  .clickable-avatar:hover::after {
+    display: none;
   }
 }
 </style>

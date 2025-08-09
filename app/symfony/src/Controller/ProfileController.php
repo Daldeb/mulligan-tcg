@@ -710,7 +710,7 @@ public function getPublicProfile(int $id): JsonResponse
     if (in_array('ROLE_ORGANIZER', $user->getRoles()) || in_array('ROLE_SHOP', $user->getRoles())) {
         $eventRepository = $this->entityManager->getRepository(\App\Entity\Event::class);
         $events = $eventRepository->findBy(
-            ['organizer' => $user], 
+            ['createdBy' => $user], 
             ['createdAt' => 'DESC'], 
             5
         );
@@ -722,7 +722,7 @@ public function getPublicProfile(int $id): JsonResponse
                 'startDate' => $event->getStartDate()->format('c'),
                 'status' => $event->getStatus(),
                 'participantsCount' => count($event->getRegistrations()),
-                'type' => $event->getType()
+                'eventType' => $event->getEventType()
             ];
         }, $events);
     }

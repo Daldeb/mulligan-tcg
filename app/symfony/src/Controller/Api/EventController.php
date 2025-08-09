@@ -898,6 +898,7 @@ $this->logger->info('🔍 php://input size: ' . strlen(file_get_contents('php://
             'max_participants' => $event->getMaxParticipants(),
             'current_participants' => $event->getCurrentParticipants(),
             'created_by_id' => $event->getCreatedBy()?->getId(),
+            'created_by' => $event->getCreatedBy() ? $this->serializeEventCreator($event->getCreatedBy()) : null,
             'is_online' => $event->isOnline(),
             'organizer_type' => $event->getOrganizerType(),
             'organizer_name' => $event->getOrganizerName(),
@@ -987,4 +988,29 @@ $this->logger->info('🔍 php://input size: ' . strlen(file_get_contents('php://
         }
         return $formattedErrors;
     }
+
+    private function serializeEventCreator(User $creator): array
+{
+    $data = [
+        'id' => $creator->getId(),
+        'pseudo' => $creator->getPseudo(),
+        'avatar' => $creator->getAvatar(),
+        'full_name' => $creator->getFullName(),
+        'display_name' => $creator->getDisplayName(), 
+        'entity_type' => $creator->getEntityType()    
+    ];
+
+    if ($creator->hasShop()) {
+        $shop = $creator->getShop();
+        $data['shop'] = [
+            'id' => $shop->getId(),
+            'name' => $shop->getName(),
+            'logo' => $shop->getLogo(),
+            'isActive' => $shop->isActive(),   
+            'isVerified' => $shop->isVerified() 
+        ];
+    }
+
+    return $data;
+}
 }

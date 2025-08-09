@@ -11,7 +11,7 @@
               Événements TCG
             </h1>
             <p class="page-description">
-              Découvrez tous les événements TCG près de chez vous
+              Découvrez tous les événements TCG près de chez vous, Avant-première, Rencontres, Tournois et autres
             </p>
           </div>
           
