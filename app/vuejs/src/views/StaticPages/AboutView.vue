@@ -46,12 +46,12 @@
 
           <section class="content-section">
             <h2>Contact</h2>
-            <p>Une question ? Une suggestion ? N'hésitez pas à nous contacter à contact@mulligan-tcg.com ou via nos réseaux sociaux. Nous répondons généralement sous 24h.</p>
+            <p>Une question ? Une suggestion ? N'hésitez pas à nous contacter à mulligan.alltcg@gmail.com ou via nos réseaux sociaux. Nous répondons généralement sous 24h.</p>
           </section>
         </div>
 
         <div class="last-updated">
-          <p class="update-info">Version 2.1 - Août 2024</p>
+          <p class="update-info">Version 2.1 - Août 2025</p>
         </div>
       </div>
     </div>
