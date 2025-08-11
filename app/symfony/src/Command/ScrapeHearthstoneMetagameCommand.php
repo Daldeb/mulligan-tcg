@@ -10,206 +10,146 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Process\Process;
 
 #[AsCommand(
-    name: 'app:scrape-hearthstone-standard',
-    description: 'Scrape Hearthstone Standard metagame decks from HS Guru'
-)]
-class ScrapeHearthstoneStandardCommand extends Command
-{
-    protected function execute(InputInterface $input, OutputInterface $output): int
-    {
-        return $this->scrapeFormat($input, $output, 'standard');
-    }
-
-    private function scrapeFormat(InputInterface $input, OutputInterface $output, string $format): int
-    {
-        $io = new SymfonyStyle($input, $output);
-
-        $config = [
-            'url' => 'https://www.hsguru.com/decks?format=2&period=past_day&rank=all',
-            'outputDir' => 'public/uploads/hearthstone/metagame'
-        ];
-
-        $scriptPath = __DIR__ . '/Scripts/scraper-hsguru.js';
-
-        if (!file_exists($scriptPath)) {
-            $io->error("❌ Le script JS est introuvable : {$scriptPath}");
-            return Command::FAILURE;
-        }
-
-        $url = $config['url'];
-        $outputDir = rtrim($config['outputDir'], '/');
-        $metadataOutputPath = $outputDir . '/metagame_decks.json';
-
-        $io->title("📊 Scraping HS Guru Standard → {$url}");
-
-        // Nettoyage préventif
-        $io->writeln("🧹 Nettoyage des processus Chrome...");
-        $killProcess = new Process(['pkill', '-f', 'chromium']);
-        $killProcess->run();
-        sleep(2);
-
-        $process = new Process(['node', $scriptPath, $url, $outputDir, $metadataOutputPath]);
-        $process->setTimeout(300);
-        
-        $process->setEnv([
-            'NODE_OPTIONS' => '--max-old-space-size=256'
-        ]);
-
-        $io->section('🕵️ Lancement du scraper Puppeteer...');
-
-        try {
-            $process->mustRun(function ($type, $buffer) use ($io) {
-                if (Process::ERR === $type) {
-                    $io->error($buffer);
-                } else {
-                    $io->write($buffer);
-                }
-            });
-
-            if (!file_exists($metadataOutputPath)) {
-                $io->error("❌ Le fichier JSON n'a pas été généré : {$metadataOutputPath}");
-                return Command::FAILURE;
-            }
-
-            $io->success("🎉 Scraping Hearthstone Standard terminé avec succès !");
-            return Command::SUCCESS;
-
-        } catch (\Exception $e) {
-            $io->error("💥 Erreur pendant l'exécution du script Node : " . $e->getMessage());
-            return Command::FAILURE;
-        }
-    }
-}
-
-// =================================================================================
-
-#[AsCommand(
-    name: 'app:scrape-hearthstone-wild',
-    description: 'Scrape Hearthstone Wild metagame decks from HS Guru'
-)]
-class ScrapeHearthstoneWildCommand extends Command
-{
-    protected function execute(InputInterface $input, OutputInterface $output): int
-    {
-        return $this->scrapeFormat($input, $output, 'wild');
-    }
-
-    private function scrapeFormat(InputInterface $input, OutputInterface $output, string $format): int
-    {
-        $io = new SymfonyStyle($input, $output);
-
-        $config = [
-            'url' => 'https://www.hsguru.com/decks?format=1&period=past_day&rank=all',
-            'outputDir' => 'public/uploads/hearthstone/wild_metagame'
-        ];
-
-        $scriptPath = __DIR__ . '/Scripts/scraper-hsguru.js';
-
-        if (!file_exists($scriptPath)) {
-            $io->error("❌ Le script JS est introuvable : {$scriptPath}");
-            return Command::FAILURE;
-        }
-
-        $url = $config['url'];
-        $outputDir = rtrim($config['outputDir'], '/');
-        $metadataOutputPath = $outputDir . '/metagame_decks.json';
-
-        $io->title("📊 Scraping HS Guru Wild → {$url}");
-
-        // Nettoyage préventif
-        $io->writeln("🧹 Nettoyage des processus Chrome...");
-        $killProcess = new Process(['pkill', '-f', 'chromium']);
-        $killProcess->run();
-        sleep(2);
-
-        $process = new Process(['node', $scriptPath, $url, $outputDir, $metadataOutputPath]);
-        $process->setTimeout(300);
-        
-        $process->setEnv([
-            'NODE_OPTIONS' => '--max-old-space-size=256'
-        ]);
-
-        $io->section('🕵️ Lancement du scraper Puppeteer...');
-
-        try {
-            $process->mustRun(function ($type, $buffer) use ($io) {
-                if (Process::ERR === $type) {
-                    $io->error($buffer);
-                } else {
-                    $io->write($buffer);
-                }
-            });
-
-            if (!file_exists($metadataOutputPath)) {
-                $io->error("❌ Le fichier JSON n'a pas été généré : {$metadataOutputPath}");
-                return Command::FAILURE;
-            }
-
-            $io->success("🎉 Scraping Hearthstone Wild terminé avec succès !");
-            return Command::SUCCESS;
-
-        } catch (\Exception $e) {
-            $io->error("💥 Erreur pendant l'exécution du script Node : " . $e->getMessage());
-            return Command::FAILURE;
-        }
-    }
-}
-
-// =================================================================================
-
-#[AsCommand(
     name: 'app:scrape-hearthstone-metagame',
-    description: 'Scrape both Hearthstone Standard & Wild metagame (calls both commands)'
+    description: 'Scrape standard & wild metagame decks from HS Guru and save images + metadata'
 )]
 class ScrapeHearthstoneMetagameCommand extends Command
 {
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        
-        $io->title("🔥 Scraping Hearthstone Metagame Complet");
-        
-        $success = 0;
-        
-        // Standard
-        $io->section("1️⃣ Scraping Standard...");
-        $standardProcess = new Process(['php', 'bin/console', 'app:scrape-hearthstone-standard']);
-        $standardProcess->setTimeout(400);
-        
-        try {
-            $standardProcess->mustRun();
-            $io->success("✅ Standard terminé");
-            $success++;
-        } catch (\Exception $e) {
-            $io->error("❌ Standard échoué : " . $e->getMessage());
+
+        $formats = [
+            'standard' => [
+                'url' => 'https://www.hsguru.com/decks?format=2&period=past_day&rank=all',
+                'outputDir' => 'public/uploads/hearthstone/metagame'
+            ],
+            'wild' => [
+                'url' => 'https://www.hsguru.com/decks?format=1&period=past_day&rank=all',
+                'outputDir' => 'public/uploads/hearthstone/wild_metagame'
+            ]
+        ];
+
+        $scriptPath = __DIR__ . '/Scripts/scraper-hsguru.js';
+
+        if (!file_exists($scriptPath)) {
+            $io->error("❌ Le script JS est introuvable : {$scriptPath}");
+            return Command::FAILURE;
         }
-        
-        // Pause entre formats
-        $io->writeln("⏰ Pause de 15 secondes entre formats...");
-        sleep(15);
-        
-        // Wild  
-        $io->section("2️⃣ Scraping Wild...");
-        $wildProcess = new Process(['php', 'bin/console', 'app:scrape-hearthstone-wild']);
-        $wildProcess->setTimeout(400);
-        
-        try {
-            $wildProcess->mustRun();
-            $io->success("✅ Wild terminé");
-            $success++;
-        } catch (\Exception $e) {
-            $io->error("❌ Wild échoué : " . $e->getMessage());
+
+        $successCount = 0;
+        $totalFormats = count($formats);
+
+        foreach ($formats as $label => $config) {
+            $url = $config['url'];
+            $outputDir = rtrim($config['outputDir'], '/');
+            $metadataOutputPath = $outputDir . '/metagame_decks.json';
+
+            $io->title("📊 Scraping HS Guru ({$label}) → {$url}");
+            
+            // ========================================
+            // NETTOYAGE RADICAL AVANT CHAQUE FORMAT
+            // ========================================
+            if ($label !== 'standard') {
+                $io->writeln("🧹 Nettoyage radical avant {$label}...");
+                
+                // 1. Tuer TOUS les processus Chrome/Chromium
+                $killCommands = [
+                    ['pkill', '-9', '-f', 'chromium'],
+                    ['pkill', '-9', '-f', 'chrome'],
+                    ['pkill', '-9', '-f', 'node.*scraper']
+                ];
+                
+                foreach ($killCommands as $cmd) {
+                    $killProcess = new Process($cmd);
+                    $killProcess->run();
+                }
+                
+                // 2. Forcer le garbage collection PHP
+                gc_collect_cycles();
+                
+                // 3. Pause LONGUE pour que tout se libère
+                $io->writeln("⏰ Pause de 20 secondes pour libération complète...");
+                sleep(20);
+            } else {
+                // Nettoyage léger pour le premier format
+                $io->writeln("🧹 Nettoyage préventif...");
+                $killProcess = new Process(['pkill', '-f', 'chromium']);
+                $killProcess->run();
+                sleep(3);
+            }
+
+            // ========================================
+            // LANCEMENT AVEC CONFIGURATION ISOLÉE
+            // ========================================
+            $process = new Process(['node', $scriptPath, $url, $outputDir, $metadataOutputPath]);
+            $process->setTimeout(500); // Augmenté encore plus
+            
+            // Variables d'environnement ultra-restrictives
+            $process->setEnv([
+                'NODE_OPTIONS' => '--max-old-space-size=200 --expose-gc',
+                'PUPPETEER_ARGS' => '--memory-pressure-off --max_old_space_size=200',
+                'CHROME_DEVEL_SANDBOX' => '0'
+            ]);
+
+            $io->section("🕵️ Lancement du scraper Puppeteer ({$label})...");
+
+            try {
+                $process->mustRun(function ($type, $buffer) use ($io) {
+                    if (Process::ERR === $type) {
+                        $io->error($buffer);
+                    } else {
+                        $io->write($buffer);
+                    }
+                });
+
+                // Vérifier que le fichier JSON a été créé
+                if (!file_exists($metadataOutputPath)) {
+                    $io->error("❌ Le fichier JSON n'a pas été généré : {$metadataOutputPath}");
+                    
+                    // En cas d'échec, continuer quand même
+                    $io->warning("⚠️ Le scraping {$label} a échoué, mais on continue...");
+                    continue;
+                }
+
+                $io->success("🎉 Scraping {$label} terminé avec succès ! Images dans {$outputDir}");
+                $successCount++;
+
+                // Petit nettoyage immédiat après succès
+                $quickKill = new Process(['pkill', '-f', 'chromium']);
+                $quickKill->run();
+
+            } catch (\Exception $e) {
+                $io->error("💥 Erreur pendant l'exécution du script Node pour {$label} : " . $e->getMessage());
+                
+                // Nettoyage forcé en cas d'erreur
+                $forceKill = new Process(['pkill', '-9', '-f', 'chromium']);
+                $forceKill->run();
+                
+                $io->warning("⚠️ Le scraping {$label} a échoué, mais on continue avec les autres formats...");
+                continue;
+            }
         }
-        
-        // Résumé
-        if ($success === 2) {
-            $io->success("🎉 Scraping Hearthstone complet réussi ! (2/2)");
+
+        // ========================================
+        // NETTOYAGE FINAL COMPLET
+        // ========================================
+        $io->writeln("🧹 Nettoyage final...");
+        $finalKill = new Process(['pkill', '-9', '-f', 'chromium']);
+        $finalKill->run();
+
+        // ========================================
+        // RÉSUMÉ FINAL
+        // ========================================
+        $io->newLine();
+        if ($successCount === $totalFormats) {
+            $io->success("🎉 Tous les scrapings Hearthstone terminés avec succès ! ({$successCount}/{$totalFormats})");
             return Command::SUCCESS;
-        } elseif ($success === 1) {
-            $io->warning("⚠️ Scraping Hearthstone partiel (1/2)");
-            return Command::SUCCESS;
+        } elseif ($successCount > 0) {
+            $io->warning("⚠️ Scraping partiellement réussi : {$successCount}/{$totalFormats} formats traités");
+            return Command::SUCCESS; // Succès partiel acceptable
         } else {
-            $io->error("❌ Scraping Hearthstone complètement échoué");
+            $io->error("❌ Tous les scrapings Hearthstone ont échoué");
             return Command::FAILURE;
         }
     }
