@@ -28,7 +28,7 @@ class ScrapePokemonMetagameCommand extends Command
             $io->error("❌ Script JS introuvable : {$scriptPath}");
             return Command::FAILURE;
         }
-
+//php bin/console app:scrape-pokemon-metagame
         $io->title("🔍 Scraping Pokémon Standard decks → {$url}");
 
         $process = new Process(['node', $scriptPath, $url, $outputDir, $metadataOutputPath]);

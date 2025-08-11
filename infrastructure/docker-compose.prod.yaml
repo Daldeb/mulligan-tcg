@@ -11,8 +11,8 @@ services:
       - ./nginx/sites:/etc/nginx/conf.d:ro
       - ./app/symfony:/var/www/backend:ro
       - ./app/vuejs/dist:/var/www/frontend:ro
-      - ./ssl:/etc/letsencrypt  #  Bind mount certificats SSL
-      - ./ssl:/var/www/letsencrypt  # Dossier challenge Let's Encrypt
+      - ./ssl:/etc/letsencrypt
+      - ./ssl:/var/www/letsencrypt
     depends_on:
       - app
     networks:
@@ -24,11 +24,13 @@ services:
       dockerfile: ./docker/php/Dockerfile
     container_name: tcg_prod_app
     working_dir: /var/www/backend
-    ports: 
+    ports:
       - "2223:22"
     volumes:
       - ./app/vuejs/dist:/var/www/frontend
-      # - ./app/symfony:/var/www/backend
+      # on ne monte pas tout le backend pour rester reproductible ;
+      # on ne persiste que les uploads pour que nginx les voie et qu'ils survivent aux redeploys
+      - ./app/symfony/public/uploads:/var/www/backend/public/uploads
     environment:
       - APP_ENV=prod
       - DATABASE_URL=mysql://tcg_prod_user:tcg_prod_password@mysql:3306/tcg_prod_db
@@ -39,19 +41,21 @@ services:
       - MYSQL_PASSWORD=tcg_prod_password
       - JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem
       - MESSENGER_TRANSPORT_DSN=sync://
-      - CORS_ALLOW_ORIGIN=https://mulligan-tcg.fr,https://www.mulligan-tcg.fr  # MISE À JOUR HTTPS
-      - VUE_APP_API_URL=https://mulligan-tcg.fr/api  # MISE À JOUR HTTPS
+      - CORS_ALLOW_ORIGIN=https://mulligan-tcg.fr,https://www.mulligan-tcg.fr
+      - VUE_APP_API_URL=https://mulligan-tcg.fr/api
       - MAILER_DSN=smtp://localhost:25
       - DEBUG=false
       - JWT_PASSPHRASE=
       - LOG_LEVEL=info
-      - BACKEND_URL=https://mulligan-tcg.fr  #  MISE À JOUR HTTPS
-      - FRONTEND_URL=https://mulligan-tcg.fr  # MISE À JOUR HTTPS
+      - BACKEND_URL=https://mulligan-tcg.fr
+      - FRONTEND_URL=https://mulligan-tcg.fr
       - INSEE_API_BASE_URL=https://api.insee.fr/api-sirene/3.11
       - INSEE_BEARER_TOKEN=c7fcd9e2-516a-4664-bcd9-e2516ae664e0
       - INSEE_RATE_LIMIT_MS=2000
       - MAILER_DSN=gmail://mulligan.alltcg@gmail.com:fmfhbzevmswievww@default
       - MAILER_FROM=mulligan.alltcg@gmail.com
+      # explicite pour Puppeteer/chromium présent dans l'image Alpine
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
     depends_on:
       - mysql
       - redis
@@ -114,3 +118,9 @@ volumes:
 networks:
   tcg_prod_network:
     driver: bridge
+
+
+
+
+
+
