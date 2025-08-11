@@ -28,10 +28,10 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
   try {
     console.log('🔍 Détection de Chrome...');
     
-    // Configuration ultra-robuste pour conteneurs Docker
+    // Configuration ULTRA-OPTIMISÉE pour faible mémoire
     const launchOptions = {
       headless: 'new',
-      defaultViewport: null,
+      defaultViewport: { width: 1200, height: 800 }, // Réduire la viewport
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -39,7 +39,7 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--single-process',
+        '--single-process', // CRITIQUE pour la mémoire
         '--disable-gpu',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
@@ -47,14 +47,25 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
         '--disable-features=TranslateUI',
         '--disable-extensions',
         '--disable-plugins',
-        '--disable-images',
-        '--disable-javascript',
+        '--disable-images', // DÉSACTIVER les images pour économiser
+        '--disable-javascript', // DÉSACTIVER JS non essentiel
         '--disable-web-security',
         '--memory-pressure-off',
-        '--max_old_space_size=512',
+        '--max_old_space_size=256', // RÉDUIRE drastiquement
         '--aggressive-cache-discard',
         '--disable-sync',
-        '--disable-default-apps'
+        '--disable-default-apps',
+        // NOUVEAUX FLAGS pour optimisation mémoire
+        '--disable-background-networking',
+        '--disable-background-mode',
+        '--disable-client-side-phishing-detection',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-default-apps',
+        '--disable-hang-monitor',
+        '--disable-prompt-on-repost',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-device-discovery-notifications'
       ]
     };
 
@@ -87,8 +98,8 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
   } catch (launchError) {
     console.error('💥 Erreur de lancement de Puppeteer:', launchError.message);
     
-    // Fallback: Essayer avec configuration minimale
-    console.log('🔄 Tentative avec configuration minimale...');
+    // Fallback: Configuration MINIMALE ABSOLUE
+    console.log('🔄 Tentative avec configuration ultra-minimale...');
     try {
       browser = await puppeteer.launch({
         headless: true,
@@ -96,20 +107,15 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--single-process',
-          '--no-zygote'
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--max_old_space_size=128'
         ]
       });
-      console.log('✅ Browser lancé en mode fallback');
+      console.log('✅ Browser lancé en mode ultra-minimal');
     } catch (fallbackError) {
-      console.error('💥 Échec même en mode fallback:', fallbackError.message);
-      
-      // Dernière tentative: mode ultra-minimaliste
-      console.log('🔄 Dernière tentative ultra-minimaliste...');
-      browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox']
-      });
-      console.log('✅ Browser lancé en mode ultra-minimaliste');
+      console.error('💥 Échec même en mode ultra-minimal:', fallbackError.message);
+      process.exit(1);
     }
   }
 
@@ -122,18 +128,37 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
     const page = await browser.newPage();
     console.log('📄 Page créée');
 
-    // Configuration page minimaliste mais efficace
-    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    // Configuration page ultra-optimisée
+    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36');
+    
+    // Bloquer les ressources non essentielles pour économiser la mémoire
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const resourceType = req.resourceType();
+      const url = req.url();
+      
+      // Bloquer images, CSS non critique, fonts, etc.
+      if (resourceType === 'image' || 
+          resourceType === 'font' || 
+          resourceType === 'media' ||
+          url.includes('google-analytics') ||
+          url.includes('facebook.com') ||
+          url.includes('doubleclick')) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
     
     console.log('🚀 Navigation vers:', targetUrl);
     await page.goto(targetUrl, { 
       waitUntil: 'domcontentloaded',
-      timeout: 30000 
+      timeout: 40000 // Augmenté car on bloque des ressources
     });
     console.log('✅ Page chargée');
 
-    // Attendre que le contenu se charge
-    await new Promise(resolve => setTimeout(resolve, 8000));
+    // Attendre que le contenu se charge (réduit de 8 à 5 secondes)
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Gérer popup cookies
     try {
@@ -159,18 +184,18 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
       console.log('⚠️ Erreur popup:', popupError.message);
     }
 
-    // Scroll pour charger plus de contenu
+    // Scroll réduit pour économiser mémoire et temps
     console.log('📜 Scroll pour charger le contenu...');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 6; i++) { // Réduit de 10 à 6 scrolls
       const deckCount = await page.$$eval('.deck-card, .card-image, .deck-root', els => els.length);
       console.log(`➡️ Scroll ${i + 1} → ${deckCount} decks visibles`);
       
-      if (deckCount >= 30) break;
-
+      if (deckCount >= 25) break; // Réduit de 30 à 25
+      
       await page.evaluate(() => {
         window.scrollTo(0, document.body.scrollHeight);
       });
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 2500)); // Réduit de 3s à 2.5s
     }
 
     // Récupérer les éléments decks
@@ -186,8 +211,11 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
 
     const decks = [];
     let count = 0;
+    const maxDecks = Math.min(deckElements.length, 40); // Limiter à 40 au lieu de 50
 
-    for (const deckEl of deckElements) {
+    for (let i = 0; i < maxDecks; i++) {
+      const deckEl = deckElements[i];
+      
       try {
         const deckData = await deckEl.evaluate(el => {
           const getText = (selector) => {
@@ -228,7 +256,11 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
         const filename = `deck__${safeTitle}_${count}.png`;
         const imagePath = path.join(outputDir, filename);
 
-        await deckEl.screenshot({ path: imagePath });
+        // Screenshot optimisé
+        await deckEl.screenshot({ 
+          path: imagePath
+          // Note: quality ne fonctionne que pour JPG, pas PNG
+        });
         console.log(`📸 Screenshot: ${filename}`);
 
         decks.push({
@@ -238,7 +270,10 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
 
         count++;
         
-        if (count >= 50) break; // Limiter pour éviter les timeouts
+        // Petit nettoyage mémoire tous les 10 screenshots
+        if (count % 10 === 0) {
+          global.gc && global.gc();
+        }
         
       } catch (deckError) {
         console.log(`⚠️ Erreur deck ${count}:`, deckError.message);
