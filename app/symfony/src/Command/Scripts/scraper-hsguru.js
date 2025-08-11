@@ -28,44 +28,56 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
   try {
     console.log('🔍 Détection de Chrome...');
     
-    // Configuration ULTRA-OPTIMISÉE pour faible mémoire
+    // Configuration BULLETPROOF pour containers sans GPU
     const launchOptions = {
-      headless: 'new',
-      defaultViewport: { width: 1200, height: 800 }, // Réduire la viewport
+      headless: true,
+      defaultViewport: { width: 800, height: 600 },
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process', // CRITIQUE pour la mémoire
         '--disable-gpu',
+        '--disable-gpu-sandbox',
+        '--disable-software-rasterizer',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding',
-        '--disable-features=TranslateUI',
+        '--disable-features=TranslateUI,BlinkGenPropertyTrees,VizDisplayCompositor',
+        '--disable-ipc-flooding-protection',
         '--disable-extensions',
-        '--disable-plugins',
-        '--disable-images', // DÉSACTIVER les images pour économiser
-        '--disable-javascript', // DÉSACTIVER JS non essentiel
-        '--disable-web-security',
-        '--memory-pressure-off',
-        '--max_old_space_size=256', // RÉDUIRE drastiquement
-        '--aggressive-cache-discard',
-        '--disable-sync',
         '--disable-default-apps',
-        // NOUVEAUX FLAGS pour optimisation mémoire
+        '--disable-sync',
         '--disable-background-networking',
         '--disable-background-mode',
         '--disable-client-side-phishing-detection',
         '--disable-component-extensions-with-background-pages',
-        '--disable-default-apps',
         '--disable-hang-monitor',
         '--disable-prompt-on-repost',
-        '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding',
-        '--disable-device-discovery-notifications'
+        '--disable-domain-reliability',
+        '--disable-component-update',
+        '--disable-background-media-suspend',
+        '--disable-device-discovery-notifications',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--memory-pressure-off',
+        '--max_old_space_size=128',
+        '--aggressive-cache-discard',
+        // CRITIQUES pour les erreurs GPU
+        '--disable-vulkan',
+        '--disable-vulkan-fallback-to-gl-for-testing',
+        '--use-gl=swiftshader',
+        '--disable-gl-extensions',
+        '--disable-accelerated-2d-canvas',
+        '--disable-accelerated-video-decode',
+        '--disable-accelerated-video-encode',
+        '--disable-accelerated-mjpeg-decode',
+        '--disable-gpu-memory-buffer-compositor-resources',
+        '--disable-gpu-memory-buffer-video-frames',
+        '--disable-oop-rasterization',
+        '--disable-zero-copy',
+        '--ignore-gpu-blacklist',
+        '--ignore-gpu-blocklist'
       ]
     };
 
@@ -98,23 +110,23 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
   } catch (launchError) {
     console.error('💥 Erreur de lancement de Puppeteer:', launchError.message);
     
-    // Fallback: Configuration MINIMALE ABSOLUE
-    console.log('🔄 Tentative avec configuration ultra-minimale...');
+    // UN SEUL fallback ultra-simple
+    console.log('🔄 Dernière tentative absolue...');
     try {
       browser = await puppeteer.launch({
         headless: true,
+        executablePath: '/usr/bin/chromium-browser',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--single-process',
           '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--max_old_space_size=128'
+          '--single-process',
+          '--disable-gpu'
         ]
       });
-      console.log('✅ Browser lancé en mode ultra-minimal');
-    } catch (fallbackError) {
-      console.error('💥 Échec même en mode ultra-minimal:', fallbackError.message);
+      console.log('✅ Browser lancé en mode de secours');
+    } catch (finalError) {
+      console.error('💥 Échec total:', finalError.message);
       process.exit(1);
     }
   }
