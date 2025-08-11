@@ -56,7 +56,6 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
         '--disable-domain-reliability',
         '--disable-component-update',
         '--disable-background-media-suspend',
-        '--disable-device-discovery-notifications',
         '--no-first-run',
         '--no-zygote',
         '--single-process',
@@ -143,18 +142,18 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
     // Configuration page ultra-optimisée
     await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36');
     
-    // Bloquer les ressources non essentielles pour économiser la mémoire
+    // Bloquer les ressources non essentielles pour économiser la mémoire (on NE bloque PAS les images)
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const resourceType = req.resourceType();
       const url = req.url();
-      
-      // Bloquer images, CSS non critique, fonts, etc.
-      if (resourceType === 'font' || 
-          resourceType === 'media' ||
-          url.includes('google-analytics') ||
-          url.includes('facebook.com') ||
-          url.includes('doubleclick')) {
+      if (
+        resourceType === 'font' ||
+        resourceType === 'media' ||
+        url.includes('google-analytics') ||
+        url.includes('facebook.com') ||
+        url.includes('doubleclick')
+      ) {
         req.abort();
       } else {
         req.continue();
@@ -168,7 +167,7 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
     });
     console.log('✅ Page chargée');
 
-    // Attendre que le contenu se charge (réduit de 8 à 5 secondes)
+    // Attendre que le contenu se charge
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Gérer popup cookies
@@ -197,16 +196,12 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
 
     // Scroll réduit pour économiser mémoire et temps
     console.log('📜 Scroll pour charger le contenu...');
-    for (let i = 0; i < 6; i++) { // Réduit de 10 à 6 scrolls
+    for (let i = 0; i < 6; i++) {
       const deckCount = await page.$$eval('.deck-card, .card-image, .deck-root', els => els.length);
       console.log(`➡️ Scroll ${i + 1} → ${deckCount} decks visibles`);
-      
-      if (deckCount >= 25) break; // Réduit de 30 à 25
-      
-      await page.evaluate(() => {
-        window.scrollTo(0, document.body.scrollHeight);
-      });
-      await new Promise(resolve => setTimeout(resolve, 2500)); // Réduit de 3s à 2.5s
+      if (deckCount >= 25) break;
+      await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
+      await new Promise(resolve => setTimeout(resolve, 2500));
     }
 
     // Récupérer les éléments decks
@@ -222,7 +217,7 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
 
     const decks = [];
     let count = 0;
-    const maxDecks = Math.min(deckElements.length, 40); // Limiter à 40 au lieu de 50
+    const maxDecks = Math.min(deckElements.length, 40); // Limiter à 40
 
     for (let i = 0; i < maxDecks; i++) {
       const deckEl = deckElements[i];
@@ -267,7 +262,46 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
         const filename = `deck__${safeTitle}_${count}.png`;
         const imagePath = path.join(outputDir, filename);
 
-        await new Promise(r => setTimeout(r, 1500));
+        // --- NOUVEAU : fiabiliser le rendu des vignettes + pause 1s avant screenshot ---
+
+        // 1) Amener l'élément au centre du viewport pour déclencher le lazy-loading
+        await deckEl.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
+        await page.waitForTimeout(100);
+
+        // 2) Forcer/attendre le chargement des images internes (lazy, data-src/srcset, decode)
+        try {
+          await page.evaluate(async el => {
+            const imgs = Array.from(el.querySelectorAll('img'));
+            for (const img of imgs) {
+              if (img.loading === 'lazy') img.loading = 'eager';
+              if (img.dataset && img.dataset.src && !img.src) img.src = img.dataset.src;
+              if (img.dataset && img.dataset.srcset && !img.srcset) img.srcset = img.dataset.srcset;
+              try { await img.decode(); } catch (_) {}
+            }
+            // Cas fréquents: vignettes en background-image via data-*
+            const bgNodes = Array.from(el.querySelectorAll('[data-bg],[data-background-image]'));
+            for (const node of bgNodes) {
+              const url = node.dataset.bg || node.dataset.backgroundImage;
+              if (url && !getComputedStyle(node).backgroundImage.includes('url(')) {
+                node.style.backgroundImage = `url("${url}")`;
+              }
+            }
+          }, deckEl);
+        } catch (e) {
+          // l'élément a pu être détaché/transient: on ignore
+        }
+
+        // 3) Attendre que toutes les <img> soient complètes OU timeout doux
+        await Promise.race([
+          page.waitForFunction(el => {
+            const imgs = Array.from(el.querySelectorAll('img'));
+            return imgs.length === 0 || imgs.every(i => i.complete && i.naturalWidth > 0);
+          }, {}, deckEl),
+          page.waitForTimeout(3000)
+        ]);
+
+        // 4) Attente demandée : 1 seconde avant chaque screenshot
+        await page.waitForTimeout(1000);
 
         // Screenshot optimisé
         await deckEl.screenshot({ 
