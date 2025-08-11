@@ -150,8 +150,7 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
       const url = req.url();
       
       // Bloquer images, CSS non critique, fonts, etc.
-      if (resourceType === 'image' || 
-          resourceType === 'font' || 
+      if (resourceType === 'font' || 
           resourceType === 'media' ||
           url.includes('google-analytics') ||
           url.includes('facebook.com') ||
