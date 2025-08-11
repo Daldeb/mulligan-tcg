@@ -28,7 +28,7 @@ services:
       - "2223:22"
     volumes:
       - ./app/vuejs/dist:/var/www/frontend
-      # - ./app/symfony:/var/www/backend
+      - ./app/symfony:/var/www/backend
     environment:
       - APP_ENV=prod
       - DATABASE_URL=mysql://tcg_prod_user:tcg_prod_password@mysql:3306/tcg_prod_db
