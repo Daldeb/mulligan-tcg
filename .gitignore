@@ -48,26 +48,70 @@ backup*.sql
 tmp/
 temp/
 
-# === UPLOADS ===
-# Ignorer le contenu des uploads mais garder la structure
+# === UPLOADS GLOBAUX ===
+# Ignorer TOUT le contenu des uploads (images, decklists, etc.)
 app/symfony/public/uploads/*
+
+# Garder uniquement les .gitkeep pour maintenir la structure
 !app/symfony/public/uploads/.gitkeep
+
+# Structure des dossiers nécessaires (vides)
 !app/symfony/public/uploads/avatars/
 app/symfony/public/uploads/avatars/*
 !app/symfony/public/uploads/avatars/.gitkeep
 
-
-# EXCEPTION: Garder les dossiers de metagame pour la prod
 !app/symfony/public/uploads/hearthstone/
 app/symfony/public/uploads/hearthstone/*
+!app/symfony/public/uploads/hearthstone/.gitkeep
+
 !app/symfony/public/uploads/hearthstone/metagame/
+app/symfony/public/uploads/hearthstone/metagame/*
+!app/symfony/public/uploads/hearthstone/metagame/.gitkeep
+
 !app/symfony/public/uploads/hearthstone/wild_metagame/
+app/symfony/public/uploads/hearthstone/wild_metagame/*
+!app/symfony/public/uploads/hearthstone/wild_metagame/.gitkeep
+
+!app/symfony/public/uploads/hearthstone/cards/
+app/symfony/public/uploads/hearthstone/cards/*
+!app/symfony/public/uploads/hearthstone/cards/.gitkeep
 
 !app/symfony/public/uploads/magic/
 app/symfony/public/uploads/magic/*
+!app/symfony/public/uploads/magic/.gitkeep
+
 !app/symfony/public/uploads/magic/metagame/
+app/symfony/public/uploads/magic/metagame/*
+!app/symfony/public/uploads/magic/metagame/.gitkeep
+
 !app/symfony/public/uploads/magic/commander_metagame/
+app/symfony/public/uploads/magic/commander_metagame/*
+!app/symfony/public/uploads/magic/commander_metagame/.gitkeep
+
+!app/symfony/public/uploads/magic/cards/
+app/symfony/public/uploads/magic/cards/*
+!app/symfony/public/uploads/magic/cards/.gitkeep
 
 !app/symfony/public/uploads/pokemon/
 app/symfony/public/uploads/pokemon/*
+!app/symfony/public/uploads/pokemon/.gitkeep
+
 !app/symfony/public/uploads/pokemon/metagame/
+app/symfony/public/uploads/pokemon/metagame/*
+!app/symfony/public/uploads/pokemon/metagame/.gitkeep
+
+!app/symfony/public/uploads/pokemon/cards/
+app/symfony/public/uploads/pokemon/cards/*
+!app/symfony/public/uploads/pokemon/cards/.gitkeep
+
+!app/symfony/public/uploads/pokemon/sets/
+app/symfony/public/uploads/pokemon/sets/*
+!app/symfony/public/uploads/pokemon/sets/.gitkeep
+
+!app/symfony/public/uploads/pokemon/sets/logos/
+app/symfony/public/uploads/pokemon/sets/logos/*
+!app/symfony/public/uploads/pokemon/sets/logos/.gitkeep
+
+!app/symfony/public/uploads/pokemon/sets/symbols/
+app/symfony/public/uploads/pokemon/sets/symbols/*
+!app/symfony/public/uploads/pokemon/sets/symbols/.gitkeep

@@ -96,7 +96,7 @@
           <!-- Pagination Hearthstone -->
           <div class="pagination-controls" v-if="hasMoreDecks('hearthstone')">
             <Button
-              :label="`Charger plus (${getRemainingCount('hearthstone')} restants)`"
+              :label="`Charger plus`"
               icon="pi pi-chevron-down"
               class="load-more-btn hearthstone-btn"
               @click="loadMore('hearthstone')"
@@ -194,7 +194,7 @@
           <!-- Pagination Magic -->
           <div class="pagination-controls" v-if="hasMoreDecks('magic')">
             <Button
-              :label="`Charger plus (${getRemainingCount('magic')} restants)`"
+              :label="`Charger plus`"
               icon="pi pi-chevron-down"
               class="load-more-btn magic-btn"
               @click="loadMore('magic')"
@@ -277,7 +277,7 @@
           <!-- Pagination Pokemon -->
           <div class="pagination-controls" v-if="hasMoreDecks('pokemon')">
             <Button
-              :label="`Charger plus (${getRemainingCount('pokemon')} restants)`"
+              :label="`Charger plus`"
               icon="pi pi-chevron-down"
               class="load-more-btn pokemon-btn"
               @click="loadMore('pokemon')"
