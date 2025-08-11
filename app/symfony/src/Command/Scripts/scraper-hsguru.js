@@ -266,7 +266,9 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
         const safeTitle = deckData.title.toLowerCase().replace(/[^a-z0-9]+/gi, '_').slice(0, 30);
         const filename = `deck__${safeTitle}_${count}.png`;
         const imagePath = path.join(outputDir, filename);
-await page.waitForTimeout(1500);
+
+        await new Promise(r => setTimeout(r, 1500));
+
         // Screenshot optimisé
         await deckEl.screenshot({ 
           path: imagePath
