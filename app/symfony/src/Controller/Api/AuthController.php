@@ -179,4 +179,94 @@ class AuthController extends AbstractController
             'message' => 'Email de vérification renvoyé !'
         ]);
     }
+
+        #[Route('/api/password-reset', name: 'api_password_reset', methods: ['POST'])]
+    public function requestPasswordReset(
+        Request $request,
+        EntityManagerInterface $em,
+        EmailService $emailService
+    ): JsonResponse {
+        $data = json_decode($request->getContent(), true);
+
+        if (!isset($data['email'])) {
+            return $this->json(['error' => 'Email requis'], 400);
+        }
+
+        $user = $em->getRepository(User::class)->findOneBy(['email' => $data['email']]);
+
+        // ✅ Toujours retourner success pour éviter l'énumération d'emails
+        if (!$user) {
+            return $this->json([
+                'success' => true,
+                'message' => 'Si cet email existe dans notre base, vous recevrez un lien de réinitialisation.'
+            ]);
+        }
+
+        // ✅ Vérifier que le compte est vérifié
+        if (!$user->isVerified()) {
+            return $this->json([
+                'error' => 'Compte non vérifié',
+                'message' => 'Veuillez d\'abord vérifier votre email avant de réinitialiser votre mot de passe.'
+            ], 403);
+        }
+
+        // ✅ Générer le token de reset
+        $user->generateResetToken();
+        $em->flush();
+
+        // ✅ Envoyer l'email de reset
+        try {
+            $emailService->sendPasswordResetEmail(
+                $user->getEmail(),
+                $user->getPseudo(),
+                $user->getResetToken()
+            );
+        } catch (\Exception $e) {
+            error_log('Erreur envoi email reset: ' . $e->getMessage());
+            return $this->json(['error' => 'Erreur lors de l\'envoi de l\'email'], 500);
+        }
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Si cet email existe dans notre base, vous recevrez un lien de réinitialisation.'
+        ]);
+    }
+
+    #[Route('/api/password-reset/confirm', name: 'api_password_reset_confirm', methods: ['POST'])]
+    public function confirmPasswordReset(
+        Request $request,
+        EntityManagerInterface $em,
+        UserPasswordHasherInterface $hasher
+    ): JsonResponse {
+        $data = json_decode($request->getContent(), true);
+
+        if (!isset($data['token'], $data['password'])) {
+            return $this->json(['error' => 'Token et nouveau mot de passe requis'], 400);
+        }
+
+        // ✅ Validation du mot de passe
+        if (strlen($data['password']) < 6) {
+            return $this->json(['error' => 'Le mot de passe doit contenir au moins 6 caractères'], 400);
+        }
+
+        $user = $em->getRepository(User::class)->findOneBy(['resetToken' => $data['token']]);
+
+        if (!$user) {
+            return $this->json(['error' => 'Token invalide'], 404);
+        }
+
+        if (!$user->isResetTokenValid()) {
+            return $this->json(['error' => 'Token expiré'], 400);
+        }
+
+        // ✅ Mettre à jour le mot de passe
+        $user->setPassword($hasher->hashPassword($user, $data['password']));
+        $user->clearResetToken();
+        $em->flush();
+
+        return $this->json([
+            'success' => true,
+            'message' => 'Mot de passe réinitialisé avec succès ! Vous pouvez maintenant vous connecter.'
+        ]);
+    }
 }

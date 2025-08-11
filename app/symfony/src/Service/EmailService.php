@@ -33,4 +33,20 @@ class EmailService
 
         $this->mailer->send($email);
     }
+
+        public function sendPasswordResetEmail(string $userEmail, string $pseudo, string $token): void
+    {
+        $resetUrl = 'https://mulligan-tcg.fr/password-reset?token=' . $token;
+
+        $email = (new Email())
+            ->from($this->fromEmail)
+            ->to($userEmail)
+            ->subject('Réinitialisation de votre mot de passe - Mulligan TCG')
+            ->html($this->twig->render('emails/password_reset.html.twig', [
+                'pseudo' => $pseudo,
+                'resetUrl' => $resetUrl
+            ]));
+
+        $this->mailer->send($email);
+    }
 }

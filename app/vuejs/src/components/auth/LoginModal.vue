@@ -87,6 +87,17 @@
           class="emerald-button primary"
           :loading="isLoading"
         />
+        
+        <!-- 🆕 Lien mot de passe oublié -->
+        <div class="forgot-password-section">
+          <button 
+            type="button"
+            @click="showForgotPassword = true"
+            class="forgot-password-link"
+          >
+            Mot de passe oublié ?
+          </button>
+        </div>
       </form>
 
       <!-- Formulaire d'inscription -->
@@ -198,6 +209,86 @@
       </div>
     </div>
   </Dialog>
+
+  <!-- 🆕 MODAL MOT DE PASSE OUBLIÉ -->
+  <Dialog 
+    v-model:visible="showForgotPassword"
+    modal 
+    :closable="true"
+    :style="{ width: '100%', maxWidth: '480px' }"
+    class="forgot-password-modal"
+  >
+    <template #header>
+      <div class="modal-header-content">
+        <i class="pi pi-key header-icon"></i>
+        <span class="header-title">Mot de passe oublié</span>
+      </div>
+    </template>
+
+    <div class="forgot-password-content">
+      <p class="forgot-description">
+        Entrez votre adresse email et nous vous enverrons un lien pour réinitialiser votre mot de passe.
+      </p>
+
+      <form @submit.prevent="handleForgotPassword" class="emerald-form">
+        <div class="field-group">
+          <label for="forgot-email" class="field-label">Email</label>
+          <InputText 
+            id="forgot-email"
+            v-model="forgotPasswordForm.email"
+            type="email"
+            placeholder="votre@email.com"
+            class="emerald-input"
+            :class="{ 'error': !!forgotPasswordErrors.email }"
+          />
+          <small v-if="forgotPasswordErrors.email" class="field-error">
+            {{ forgotPasswordErrors.email }}
+          </small>
+        </div>
+
+        <!-- Erreurs globales -->
+        <div v-if="forgotPasswordGlobalErrors.length" class="error-message">
+          <div class="error-content">
+            <i class="pi pi-exclamation-triangle error-icon"></i>
+            <div class="error-text">
+              <p v-for="(err, index) in forgotPasswordGlobalErrors" :key="'forgot-error-' + index">
+                {{ err }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Message de succès -->
+        <div v-if="forgotPasswordSuccess" class="success-message">
+          <div class="success-content">
+            <i class="pi pi-check success-icon"></i>
+            <div class="success-text">
+              <p>{{ forgotPasswordSuccess }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="forgot-actions">
+          <Button 
+            type="submit"
+            label="Envoyer le lien"
+            icon="pi pi-send"
+            class="emerald-button primary forgot-submit-btn"
+            :loading="isForgotLoading"
+            :disabled="!!forgotPasswordSuccess"
+          />
+          <Button 
+            type="button"
+            label="Annuler"
+            icon="pi pi-times"
+            class="secondary-button forgot-cancel-btn"
+            @click="closeForgotPassword"
+            text
+          />
+        </div>
+      </form>
+    </div>
+  </Dialog>
 </template>
 
 <script setup>
@@ -209,6 +300,14 @@ import { useRouter } from 'vue-router'
 // Props
 const props = defineProps({ visible: Boolean })
 const emit = defineEmits(['update:visible', 'login-success'])
+
+// State pour mot de passe oublié
+const showForgotPassword = ref(false)
+const isForgotLoading = ref(false)
+const forgotPasswordForm = reactive({ email: '' })
+const forgotPasswordErrors = reactive({ email: '' })
+const forgotPasswordGlobalErrors = ref([])
+const forgotPasswordSuccess = ref('')
 
 // State
 const isLoginMode = ref(true)
@@ -298,6 +397,23 @@ const validateRegisterForm = () => {
   return valid
 }
 
+// Fonction de validation pour forgot password
+const validateForgotPasswordForm = () => {
+  forgotPasswordErrors.email = ''
+  forgotPasswordGlobalErrors.value = []
+  forgotPasswordSuccess.value = ''
+  
+  let valid = true
+  if (!forgotPasswordForm.email) {
+    forgotPasswordErrors.email = 'Email requis'
+    valid = false
+  } else if (!/\S+@\S+\.\S+/.test(forgotPasswordForm.email)) {
+    forgotPasswordErrors.email = 'Email invalide'
+    valid = false
+  }
+  return valid
+}
+
 // Actions
 const handleLogin = async () => {
   if (!validateLoginForm()) return
@@ -306,10 +422,8 @@ const handleLogin = async () => {
   try {
     const res = await authStore.login(loginForm.email, loginForm.password)
     if (res.success) {
-      // toast.add({ severity: 'success', summary: 'Connexion réussie', detail: `Bienvenue`, life: 3000 })
       emit('login-success')
       resetForms()
-      // Redirection vers /profile
       router.push('/profile')
     } else {
       loginGlobalErrors.value = res.errors || ['Erreur de connexion']
@@ -335,7 +449,6 @@ const handleRegister = async () => {
       toast.add({ severity: 'success', summary: 'Inscription réussie', detail: `Bienvenue`, life: 3000 })
       emit('login-success')
       resetForms()
-      // Redirection vers /profile
       router.push('/profile')
     } else {
       registerGlobalErrors.value = res.errors || ['Erreur d\'inscription']
@@ -345,6 +458,66 @@ const handleRegister = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+// 🆕 Handler pour forgot password avec debug
+const handleForgotPassword = async () => {
+  console.log('🔥 handleForgotPassword called')
+  console.log('Form data:', forgotPasswordForm.email)
+  
+  if (!validateForgotPasswordForm()) {
+    console.log('❌ Validation failed')
+    return
+  }
+  
+  console.log('✅ Validation passed, making API call...')
+  
+  isForgotLoading.value = true
+  forgotPasswordGlobalErrors.value = []
+  forgotPasswordSuccess.value = ''
+  
+  try {
+    console.log('📤 Sending request to /api/password-reset')
+    const response = await fetch('/api/password-reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: forgotPasswordForm.email
+      })
+    })
+    
+    console.log('📥 Response status:', response.status)
+    const data = await response.json()
+    console.log('📥 Response data:', data)
+    
+    if (response.ok && data.success) {
+      forgotPasswordSuccess.value = data.message
+      console.log('✅ Success!')
+      // Fermer automatiquement après 3 secondes
+      setTimeout(() => {
+        closeForgotPassword()
+      }, 3000)
+    } else {
+      console.log('❌ Error:', data.error)
+      forgotPasswordGlobalErrors.value = [data.error || 'Erreur lors de l\'envoi']
+    }
+  } catch (error) {
+    console.error('💥 Fetch error:', error)
+    forgotPasswordGlobalErrors.value = ['Erreur serveur. Veuillez réessayer.']
+  } finally {
+    isForgotLoading.value = false
+  }
+}
+
+// Fonction pour fermer le modal forgot password
+const closeForgotPassword = () => {
+  showForgotPassword.value = false
+  forgotPasswordForm.email = ''
+  forgotPasswordErrors.email = ''
+  forgotPasswordGlobalErrors.value = []
+  forgotPasswordSuccess.value = ''
 }
 </script>
 
@@ -605,6 +778,119 @@ const handleRegister = async () => {
   color: var(--primary-dark);
 }
 
+/* 🆕 Forgot password section */
+.forgot-password-section {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.forgot-password-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  transition: color var(--transition-fast);
+  padding: 0.5rem;
+}
+
+.forgot-password-link:hover {
+  color: var(--primary-dark);
+}
+
+/* 🆕 Forgot password modal */
+:deep(.forgot-password-modal .p-dialog) {
+  border-radius: var(--border-radius-large) !important;
+  box-shadow: var(--shadow-large) !important;
+}
+
+:deep(.forgot-password-modal .p-dialog-header) {
+  background: linear-gradient(135deg, #ff5722 0%, #e64a19 100%) !important;
+  color: white !important;
+  padding: 1.5rem 2rem !important;
+}
+
+.forgot-password-content {
+  padding: 2rem;
+}
+
+.forgot-description {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.forgot-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 🆕 Boutons spécifiques forgot password */
+:deep(.forgot-submit-btn) {
+  flex: 1 !important;
+  max-width: 200px !important;
+  width: auto !important;
+}
+
+:deep(.forgot-cancel-btn) {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 100px !important;
+}
+
+/* 🆕 Fix pour les boutons secondaires dans forgot password */
+:deep(.forgot-password-modal .secondary-button) {
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--surface-300) !important;
+  background: none !important;
+  padding: 0.875rem 1.5rem !important;
+  border-radius: var(--border-radius) !important;
+  font-weight: 500 !important;
+  transition: all var(--transition-fast) !important;
+  width: auto !important;
+}
+
+:deep(.forgot-password-modal .secondary-button:hover) {
+  color: var(--text-primary) !important;
+  border-color: var(--surface-400) !important;
+  background: var(--surface-100) !important;
+}
+
+/* Success message */
+.success-message {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(76, 175, 80, 0.05) 100%);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.success-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.success-icon {
+  color: #4caf50;
+  font-size: 1.1rem;
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+}
+
+.success-text p {
+  color: #2e7d32;
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .modal-body {
@@ -630,6 +916,18 @@ const handleRegister = async () => {
   .emerald-tab {
     padding: 0.75rem 1rem;
     font-size: 0.875rem;
+  }
+  
+  /* 🆕 Responsive pour forgot actions */
+  .forgot-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  :deep(.forgot-submit-btn),
+  :deep(.forgot-cancel-btn) {
+    width: 100% !important;
+    max-width: none !important;
   }
 }
 

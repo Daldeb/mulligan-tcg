@@ -213,6 +213,15 @@ const routes = [
     }
   },
 
+    {
+    path: '/password-reset',
+    name: 'password-reset',
+    component: () => import('../views/PasswordResetView.vue'),
+    meta: {
+      title: 'Réinitialisation du mot de passe - MULLIGAN TCG'
+    }
+  },
+
   {
   path: '/profile/:userId',
   name: 'public-profile',

@@ -84,6 +84,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $followedEvents = null;
 
+    #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    private ?string $resetToken = null;
+
+    #[ORM\Column(type: 'datetime', nullable: true)]
+    private ?\DateTimeInterface $resetTokenExpiresAt = null;
+
     /**
      * Adresse de l'utilisateur (optionnelle)
      */
@@ -362,6 +368,28 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+        public function getResetToken(): ?string
+    {
+        return $this->resetToken;
+    }
+
+    public function setResetToken(?string $resetToken): self
+    {
+        $this->resetToken = $resetToken;
+        return $this;
+    }
+
+    public function getResetTokenExpiresAt(): ?\DateTimeInterface
+    {
+        return $this->resetTokenExpiresAt;
+    }
+
+    public function setResetTokenExpiresAt(?\DateTimeInterface $resetTokenExpiresAt): self
+    {
+        $this->resetTokenExpiresAt = $resetTokenExpiresAt;
+        return $this;
+    }
+
     /**
      * Gestion de l'adresse utilisateur
      */
@@ -593,6 +621,27 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         
         $shop->setOwner($this);
         $this->setShop($shop);
+    }
+
+        public function generateResetToken(): void
+    {
+        $this->resetToken = bin2hex(random_bytes(32));
+        $this->resetTokenExpiresAt = new \DateTime('+1 hour'); // Expire dans 1 heure
+    }
+
+    public function clearResetToken(): void
+    {
+        $this->resetToken = null;
+        $this->resetTokenExpiresAt = null;
+    }
+
+    public function isResetTokenValid(): bool
+    {
+        if ($this->resetToken === null || $this->resetTokenExpiresAt === null) {
+            return false;
+        }
+
+        return $this->resetTokenExpiresAt > new \DateTime();
     }
 
     /**
