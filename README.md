@@ -89,7 +89,7 @@ Ouvre [http://localhost:8081](http://localhost:8081) dans ton navigateur.
 | Système      | MySQL     |
 | Serveur      | mysql     |
 | Utilisateur  | tcg\_user |
-| Mot de passe | tcg\_pass |
+| Mot de passe | ******* |
 | Base         | tcg\_db   |
 
 ### 🔧 Commandes Symfony (dans le container)
@@ -127,12 +127,12 @@ Les clés sont générées sans passphrase (compatible avec la config `.env.loca
 # Test register
 curl -X POST http://localhost:8000/api/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"password","pseudo":"testuser"}'
+  -d '{"email":"test@test.com","password":"*******","pseudo":"testuser"}'
 
 # Test login
 curl -X POST http://localhost:8000/api/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"password"}'
+  -d '{"email":"test@test.com","password":"*******"}'
 ```
 
 ---
@@ -142,7 +142,7 @@ curl -X POST http://localhost:8000/api/login \
 * URL : [http://51.178.27.41:8084](http://51.178.27.41:8084)
 * Serveur : `mysql`
 * Utilisateur : `tcg_prod_user`
-* Mot de passe : `tcg_prod_password`
+* Mot de passe : `*******`
 * Base de données : `tcg_prod_db`
 
 ---
@@ -172,7 +172,7 @@ curl -s http://51.178.27.41 | grep "VERSION"
 # Tester l'API après déploiement
 curl -X POST http://51.178.27.41/api/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"daldeb.daldeb@gmail.com","password":"12Avenue"}'
+  -d '{"email":"daldeb.daldeb@gmail.com","password":"*******"}'
 ```
 
 **Le login API fonctionne automatiquement après chaque déploiement** grâce aux corrections de permissions JWT intégrées dans le pipeline.
@@ -215,7 +215,7 @@ Les tokens JWT contiennent automatiquement les rôles utilisateur :
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep tcg_prod
 
 # Test santé MySQL
-docker exec tcg_prod_mysql mysql -u tcg_prod_user -ptcg_prod_password -e "SELECT 'MySQL OK' as status;" tcg_prod_db
+docker exec tcg_prod_mysql mysql -u tcg_prod_user -p******* -e "SELECT 'MySQL OK' as status;" tcg_prod_db
 
 # Test API fonctionnelle
 curl -s -o /dev/null -w "API Status: %{http_code}\n" -X POST http://51.178.27.41/api/register
@@ -237,67 +237,3 @@ Le projet est maintenant :
 * ✅ **Architecture scalable** prête pour les fonctionnalités avancées
 
 **Ready to build amazing features! 🚀**
-
-
-MAILER SMTP GOOGLE : mulligan.alltcg@gmail.com
-
-
-Mot de passe d'application dans gmail : fmfh bzev mswi evww
-
-Sommaire proposé
-1. Liste des compétences couvertes par le projet
-Récapitulatif des 11 compétences du titre CDA, avec précision de leur mise en œuvre dans le cadre du projet Mulligan TCG.
-
-2. Expression des besoins
-Présentation non technique des besoins exprimés par le “client” (la communauté TCG) : contexte, enjeux, objectifs fonctionnels et non-fonctionnels.
-
-3. Présentation de l’entreprise et du service
-Historique, secteur et contexte d’utilisation.
-Description des services rendus par la plateforme Mulligan TCG et de ses utilisateurs cibles.
-
-4. Gestion de projet
-Méthodologie appliquée (Agile/Scrum simplifié).
-
-Outils utilisés (Trello, Discord, GitHub).
-
-Planning prévisionnel et réel (diagramme de Gantt).
-
-Suivi qualité et évolutions post-production.
-
-5. Spécifications fonctionnelles
-5.1 Contraintes du projet et livrables attendus
-5.2 Architecture logicielle du projet (front-end, back-end, base de données, services externes, infrastructure et déploiement)
-5.3 Maquettes et enchaînement des maquettes ✅ (déjà fait)
-5.4 Modèle entités-associations (MCD) et modèle physique (MLD)
-5.5 Script de création ou de modification de la base de données
-5.6 Diagramme de comportement des fonctionnalités (use-case UML)
-5.7 Diagramme de séquence des cas d’utilisation les plus significatifs
-
-6. Spécifications techniques
-Langages, frameworks, SGBD, serveurs, environnements de développement et outils tiers utilisés.
-
-7. Réalisations du candidat
-7.1 Interfaces utilisateur et code correspondant
-7.2 Extraits de code de composants métier
-7.3 Extraits de code de composants d’accès aux données
-7.4 Extraits de code d’autres composants (contrôleurs, utilitaires)
-
-8. Éléments de sécurité de l’application
-Mesures mises en place pour protéger les données et contrer les failles de sécurité classiques.
-
-9. Plan de tests
-Scénarios, organisation, outils et résultats des tests.
-
-10. Jeu d’essai
-Présentation des données d’entrée, résultats attendus, résultats obtenus et analyse des écarts.
-
-11. Veille technologique
-Thèmes, méthodes de recherche, outils de veille, sources consultées, synthèse des informations utiles.
-
-12. Annexes
-12.1 Maquettes complètes des interfaces utilisateur
-12.2 Captures d’écrans d’interfaces et code correspondant
-12.3 Code complet des composants métier les plus significatifs
-12.4 Code complet des composants d’accès aux données les plus significatifs
-12.5 Code complet d’autres composants (contrôleurs, utilitaires)
-

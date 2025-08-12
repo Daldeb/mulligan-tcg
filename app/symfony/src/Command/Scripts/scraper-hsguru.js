@@ -4,6 +4,9 @@ const path = require('path');
 
 const [,, targetUrl, outputDir, metadataPath] = process.argv;
 
+// --- helper compat v1+ : remplace page.waitForTimeout ---
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 if (!targetUrl || !outputDir || !metadataPath) {
   console.error('❌ Usage: node scraper-hsguru.js <url> <outputDir> <metadataPath>');
   process.exit(1);
@@ -168,7 +171,7 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
     console.log('✅ Page chargée');
 
     // Attendre que le contenu se charge
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await sleep(5000);
 
     // Gérer popup cookies
     try {
@@ -187,7 +190,7 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
           );
           if (target) target.click();
         });
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await sleep(2000);
         console.log('✅ Popup fermée');
       }
     } catch (popupError) {
@@ -201,7 +204,7 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
       console.log(`➡️ Scroll ${i + 1} → ${deckCount} decks visibles`);
       if (deckCount >= 25) break;
       await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); });
-      await new Promise(resolve => setTimeout(resolve, 2500));
+      await sleep(2500);
     }
 
     // Récupérer les éléments decks
@@ -266,7 +269,7 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
 
         // 1) Amener l'élément au centre du viewport pour déclencher le lazy-loading
         await deckEl.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
-        await page.waitForTimeout(100);
+        await sleep(100);
 
         // 2) Forcer/attendre le chargement des images internes (lazy, data-src/srcset, decode)
         try {
@@ -297,11 +300,11 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
             const imgs = Array.from(el.querySelectorAll('img'));
             return imgs.length === 0 || imgs.every(i => i.complete && i.naturalWidth > 0);
           }, {}, deckEl),
-          page.waitForTimeout(3000)
+          sleep(3000)
         ]);
 
         // 4) Attente demandée : 1 seconde avant chaque screenshot
-        await page.waitForTimeout(1000);
+        await sleep(1000);
 
         // Screenshot optimisé
         await deckEl.screenshot({ 

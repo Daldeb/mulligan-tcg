@@ -22,12 +22,12 @@ class ScrapeHearthstoneMetagameCommand extends Command
         $formats = [
             'standard' => [
                 'url' => 'https://www.hsguru.com/decks?format=2&period=past_day&rank=all',
-                'outputDir' => 'public/uploads/hearthstone/metagame'
+                'outputDir' => 'public/uploads/hearthstone/metagame',
             ],
             'wild' => [
                 'url' => 'https://www.hsguru.com/decks?format=1&period=past_day&rank=all',
-                'outputDir' => 'public/uploads/hearthstone/wild_metagame'
-            ]
+                'outputDir' => 'public/uploads/hearthstone/wild_metagame',
+            ],
         ];
 
         $scriptPath = __DIR__ . '/Scripts/scraper-hsguru.js';
@@ -46,28 +46,27 @@ class ScrapeHearthstoneMetagameCommand extends Command
             $metadataOutputPath = $outputDir . '/metagame_decks.json';
 
             $io->title("📊 Scraping HS Guru ({$label}) → {$url}");
-            
+
             // ========================================
-            // NETTOYAGE RADICAL AVANT CHAQUE FORMAT
+            // NETTOYAGE AVANT CHAQUE FORMAT
             // ========================================
             if ($label !== 'standard') {
                 $io->writeln("🧹 Nettoyage radical avant {$label}...");
-                
+
                 // 1. Tuer TOUS les processus Chrome/Chromium
                 $killCommands = [
                     ['pkill', '-9', '-f', 'chromium'],
                     ['pkill', '-9', '-f', 'chrome'],
-                    ['pkill', '-9', '-f', 'node.*scraper']
+                    ['pkill', '-9', '-f', 'node.*scraper'],
                 ];
-                
                 foreach ($killCommands as $cmd) {
                     $killProcess = new Process($cmd);
                     $killProcess->run();
                 }
-                
+
                 // 2. Forcer le garbage collection PHP
                 gc_collect_cycles();
-                
+
                 // 3. Pause LONGUE pour que tout se libère
                 $io->writeln("⏰ Pause de 20 secondes pour libération complète...");
                 sleep(20);
@@ -80,17 +79,21 @@ class ScrapeHearthstoneMetagameCommand extends Command
             }
 
             // ========================================
-            // LANCEMENT AVEC CONFIGURATION ISOLÉE
+            // LANCEMENT AVEC ENVIRONNEMENT NETTOYÉ
             // ========================================
-            $process = new Process(['node', $scriptPath, $url, $outputDir, $metadataOutputPath]);
-            $process->setTimeout(500); // Augmenté encore plus
-            
-            // Variables d'environnement ultra-restrictives
-            $process->setEnv([
-                'NODE_OPTIONS' => '--max-old-space-size=200 --expose-gc',
+            // Important : on VIDE NODE_OPTIONS pour éviter l'erreur "--expose-gc is not allowed in NODE_OPTIONS"
+            $childEnv = [
+                'NODE_OPTIONS' => '', // <= vide = pas de flag interdit transmis à Node
                 'PUPPETEER_ARGS' => '--memory-pressure-off --max_old_space_size=200',
-                'CHROME_DEVEL_SANDBOX' => '0'
-            ]);
+                'CHROME_DEVEL_SANDBOX' => '0',
+            ];
+
+            $process = new Process(
+                ['node', $scriptPath, $url, $outputDir, $metadataOutputPath],
+                null,
+                $childEnv
+            );
+            $process->setTimeout(600); // on laisse un peu plus de temps
 
             $io->section("🕵️ Lancement du scraper Puppeteer ({$label})...");
 
@@ -106,8 +109,6 @@ class ScrapeHearthstoneMetagameCommand extends Command
                 // Vérifier que le fichier JSON a été créé
                 if (!file_exists($metadataOutputPath)) {
                     $io->error("❌ Le fichier JSON n'a pas été généré : {$metadataOutputPath}");
-                    
-                    // En cas d'échec, continuer quand même
                     $io->warning("⚠️ Le scraping {$label} a échoué, mais on continue...");
                     continue;
                 }
@@ -118,14 +119,13 @@ class ScrapeHearthstoneMetagameCommand extends Command
                 // Petit nettoyage immédiat après succès
                 $quickKill = new Process(['pkill', '-f', 'chromium']);
                 $quickKill->run();
-
             } catch (\Exception $e) {
                 $io->error("💥 Erreur pendant l'exécution du script Node pour {$label} : " . $e->getMessage());
-                
+
                 // Nettoyage forcé en cas d'erreur
                 $forceKill = new Process(['pkill', '-9', '-f', 'chromium']);
                 $forceKill->run();
-                
+
                 $io->warning("⚠️ Le scraping {$label} a échoué, mais on continue avec les autres formats...");
                 continue;
             }
