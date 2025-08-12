@@ -27,6 +27,16 @@ jobs:
            git fetch origin
            git reset --hard origin/main
 
+           echo "🔐 Vérification du fichier d'environnement persistant..."
+           if [ ! -f /opt/tcg-hub-config/.env.prod ]; then
+             echo "❌ ERREUR: Le fichier /opt/tcg-hub-config/.env.prod n'existe pas sur le serveur !"
+             echo "Créez le fichier avec vos vraies valeurs avant le déploiement."
+             exit 1
+           fi
+
+           echo "🔗 Création du lien symbolique vers le fichier de config..."
+           ln -sf /opt/tcg-hub-config/.env.prod /opt/tcg-hub/.env.prod
+
            echo "📦 Building frontend (Vue)..."
            cd app/vuejs
            npm install
@@ -34,13 +44,20 @@ jobs:
            cd ../../
 
            echo "💾 Sauvegarde de la base de données MySQL..."
-           mkdir -p /opt/tcg-hub/backups
+           mkdir -p /opt/tcg-hub-config/backups
            NOW=$(date +"%Y%m%d_%H%M%S")
-           BACKUP_FILE="/opt/tcg-hub/backups/mysql_backup_$NOW.sql"
-           docker exec tcg_prod_mysql mysqldump -u tcg_prod_user -ptcg_prod_password tcg_prod_db > "$BACKUP_FILE"
+           BACKUP_FILE="/opt/tcg-hub-config/backups/mysql_backup_$NOW.sql"
+           
+           # Charger les variables d'environnement pour le backup
+           export $(cat /opt/tcg-hub-config/.env.prod | xargs)
+           docker exec tcg_prod_mysql mysqladump -u $DB_USER -p$DB_PASSWORD $DB_NAME > "$BACKUP_FILE"
 
            echo "🧹 Nettoyage des anciens backups (garder les 15 derniers)..."
-           ls -1t /opt/tcg-hub/backups/mysql_backup_*.sql | tail -n +16 | xargs -r rm -f
+           ls -1t /opt/tcg-hub-config/backups/mysql_backup_*.sql | tail -n +16 | xargs -r rm -f
+
+           echo "🔗 Création des liens symboliques vers les dossiers persistants..."
+           ln -sf /opt/tcg-hub-config/ssl /opt/tcg-hub/ssl 2>/dev/null || true
+           ln -sf /opt/tcg-hub-config/backups /opt/tcg-hub/backups
 
            echo "📄 Copie de docker-compose.prod.yaml à la racine..."
            cp infrastructure/docker-compose.prod.yaml docker-compose.prod.yaml
@@ -53,10 +70,10 @@ jobs:
            docker rm -f tcg_prod_adminer || true
 
            echo "📉 Stopping and removing containers (but keeping data)..."
-           docker compose -f docker-compose.prod.yaml down --remove-orphans
+           docker compose -f docker-compose.prod.yaml --env-file /opt/tcg-hub-config/.env.prod down --remove-orphans
 
            echo "🐳 Rebuilding Docker stack..."
-           docker compose -f docker-compose.prod.yaml up -d --build --force-recreate
+           docker compose -f docker-compose.prod.yaml --env-file /opt/tcg-hub-config/.env.prod up -d --build --force-recreate
 
            echo "🚀 Forcer le démarrage des containers en état 'Created'..."
            docker start tcg_prod_mysql || true
@@ -69,7 +86,7 @@ jobs:
            sleep 5
 
            echo "🔍 Ensuring all services are running..."
-           docker compose -f docker-compose.prod.yaml up -d
+           docker compose -f docker-compose.prod.yaml --env-file /opt/tcg-hub-config/.env.prod up -d
 
            echo "📁 Installing Symfony dependencies..."
            docker exec tcg_prod_app composer install --no-dev --optimize-autoloader
