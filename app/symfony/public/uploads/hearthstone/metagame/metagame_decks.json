@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "id": "deck_stats_viewport",
+    "title": "Demon Hunter",
+    "winrate": 62.7,
+    "games": 5,
+    "class": null,
+    "deckcode": null,
+    "url": "https://www.hsguru.com/deck/33389185",
+    "image": "deck_demon_hunter_1.png",
+    "lastUpdated": "2025-08-12T09:32:33.891Z"
+  }
+]

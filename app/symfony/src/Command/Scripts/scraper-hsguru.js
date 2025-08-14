@@ -226,54 +226,195 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
       const deckEl = deckElements[i];
       
       try {
-        const deckData = await deckEl.evaluate(el => {
-          const getText = (selector) => {
-            const node = el.querySelector(selector);
-            return node ? node.textContent.trim() : null;
-          };
+        // EXTRACTION MÉTADONNÉES CORRIGÉE
+        const deckData = await deckEl.evaluate((el) => {
+          try {
+            const getText = (selector) => {
+              try {
+                const node = el.querySelector(selector);
+                return node ? node.textContent.trim() : null;
+              } catch (e) {
+                return null;
+              }
+            };
 
-          const title = getText('a.basic-black-text') || `Deck ${Math.random().toString(36).substr(2, 9)}`;
-          const deckcodeNode = el.querySelector('a.basic-black-text + span');
-          const deckcode = deckcodeNode ? deckcodeNode.textContent.trim() : null;
+            // Titre du deck - recherche dans plusieurs sélecteurs possibles
+            let title = getText('a.basic-black-text') || 
+                       getText('.deck-title') || 
+                       getText('[class*="title"]') || 
+                       getText('h1, h2, h3, h4') ||
+                       `Deck_${Date.now()}`;
 
-          const winrateText = getText('.tag.column .basic-black-text');
-          const winrate = winrateText ? parseFloat(winrateText.replace('%', '')) : null;
+            // Deckcode - souvent à côté du titre ou dans un span
+            let deckcode = null;
+            try {
+              const deckcodeNode = el.querySelector('a.basic-black-text + span') || 
+                                  el.querySelector('[class*="deckcode"]') ||
+                                  el.querySelector('[data-deckcode]');
+              deckcode = deckcodeNode ? deckcodeNode.textContent.trim() : null;
+            } catch (e) {
+              deckcode = null;
+            }
 
-          const gamesText = Array.from(el.querySelectorAll('.column.tag'))
-            .map(e => e.textContent.trim())
-            .find(txt => txt.toLowerCase().includes('games:'));
-          const games = gamesText ? parseInt(gamesText.replace(/[^0-9]/g, '')) : null;
+            // Winrate - recherche dans les éléments contenant des pourcentages
+            let winrate = null;
+            try {
+              // Chercher dans les éléments avec classes spécifiques
+              const winrateElements = [
+                ...Array.from(el.querySelectorAll('.tag.column .basic-black-text')),
+                ...Array.from(el.querySelectorAll('.tag .basic-black-text')),
+                ...Array.from(el.querySelectorAll('[class*="winrate"]')),
+                ...Array.from(el.querySelectorAll('[class*="win-rate"]')),
+                ...Array.from(el.querySelectorAll('*'))
+              ];
 
-          const className = Array.from(el.classList).find(c =>
-            ['deathknight','demonhunter','druid','hunter','mage','paladin','priest','rogue','shaman','warlock','warrior']
-            .includes(c.toLowerCase())
-          );
+              for (const elem of winrateElements) {
+                const text = elem.textContent.trim();
+                // Chercher un pattern de pourcentage
+                const percentMatch = text.match(/(\d+(?:\.\d+)?)\s*%/);
+                if (percentMatch) {
+                  const value = parseFloat(percentMatch[1]);
+                  if (value >= 0 && value <= 100) {
+                    winrate = value;
+                    break;
+                  }
+                }
+              }
+            } catch (e) {
+              winrate = null;
+            }
 
-          const href = el.querySelector('a.basic-black-text')?.getAttribute('href') || null;
+            // Nombre de games - recherche du pattern "Games:"
+            let games = null;
+            try {
+              const allElements = Array.from(el.querySelectorAll('*'));
+              for (const elem of allElements) {
+                const text = elem.textContent.trim();
+                if (text.toLowerCase().includes('games')) {
+                  // Chercher les nombres dans le texte
+                  const numberMatch = text.match(/(\d+)/);
+                  if (numberMatch) {
+                    const value = parseInt(numberMatch[1]);
+                    if (value > 0) {
+                      games = value;
+                      break;
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              games = null;
+            }
 
-          return {
-            title,
-            deckcode,
-            winrate,
-            games,
-            class: className,
-            url: href ? `https://www.hsguru.com${href}` : null
-          };
+            // Classe Hearthstone - dans les classes CSS de l'élément
+            let heroClass = null;
+            try {
+              const possibleClasses = ['deathknight','demonhunter','druid','hunter','mage','paladin','priest','rogue','shaman','warlock','warrior'];
+              const classList = Array.from(el.classList);
+              heroClass = classList.find(c => possibleClasses.includes(c.toLowerCase())) || null;
+            } catch (e) {
+              heroClass = null;
+            }
+
+            // URL du deck - lien vers la page détaillée
+            let url = null;
+            try {
+              const linkElement = el.querySelector('a.basic-black-text') || 
+                                 el.querySelector('a[href*="/deck"]') ||
+                                 el.querySelector('a[href*="/decks"]');
+              if (linkElement) {
+                const href = linkElement.getAttribute('href');
+                url = href ? `https://www.hsguru.com${href}` : null;
+              }
+            } catch (e) {
+              url = null;
+            }
+
+            return {
+              title: title,
+              deckcode: deckcode,
+              winrate: winrate,
+              games: games,
+              class: heroClass,
+              url: url
+            };
+
+          } catch (globalError) {
+            // Fallback en cas d'erreur générale
+            return {
+              title: `Deck_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              deckcode: null,
+              winrate: null,
+              games: null,
+              class: null,
+              url: null,
+              error: globalError.message
+            };
+          }
         });
+
+                // === DEBUG MÉTADONNÉES ===
+        if (count < 3) { // Debug seulement les 3 premiers decks
+          const debugInfo = await deckEl.evaluate((el) => {
+            // Récupérer tout le HTML de l'élément
+            const fullHTML = el.outerHTML;
+            
+            // Récupérer tous les textes visibles
+            const allTexts = Array.from(el.querySelectorAll('*'))
+              .map(e => e.textContent.trim())
+              .filter(text => text.length > 0 && text.length < 100)
+              .slice(0, 20); // Limiter à 20 textes
+            
+            // Chercher spécifiquement les pourcentages
+            const percentageTexts = Array.from(el.querySelectorAll('*'))
+              .map(e => e.textContent.trim())
+              .filter(text => text.includes('%'))
+              .slice(0, 10);
+            
+            // Chercher les nombres (possibles games)
+            const numberTexts = Array.from(el.querySelectorAll('*'))
+              .map(e => e.textContent.trim())
+              .filter(text => /\d+/.test(text) && !text.includes('%'))
+              .slice(0, 10);
+            
+            // Récupérer toutes les classes CSS
+            const allClasses = Array.from(el.querySelectorAll('*'))
+              .flatMap(e => Array.from(e.classList))
+              .filter(cls => cls.length > 0)
+              .slice(0, 30);
+            
+            return {
+              deckIndex: el.dataset?.index || 'unknown',
+              htmlLength: fullHTML.length,
+              htmlPreview: fullHTML.substring(0, 500) + '...',
+              allTexts: allTexts,
+              percentageTexts: percentageTexts,
+              numberTexts: numberTexts,
+              allClasses: allClasses
+            };
+          });
+          
+          console.log(`\n🔍 DEBUG DECK ${count}:`);
+          console.log(`📄 HTML Preview:`, debugInfo.htmlPreview);
+          console.log(`📝 Tous les textes:`, debugInfo.allTexts);
+          console.log(`📊 Textes avec %:`, debugInfo.percentageTexts);
+          console.log(`🔢 Textes avec nombres:`, debugInfo.numberTexts);
+          console.log(`🎨 Classes CSS:`, debugInfo.allClasses);
+          console.log(`\n`);
+        }
 
         const safeTitle = deckData.title.toLowerCase().replace(/[^a-z0-9]+/gi, '_').slice(0, 30);
         const filename = `deck__${safeTitle}_${count}.png`;
         const imagePath = path.join(outputDir, filename);
 
-        // --- NOUVEAU : fiabiliser le rendu des vignettes + pause 1s avant screenshot ---
-
+        // SCREENSHOT LOGIC - INCHANGÉE
         // 1) Amener l'élément au centre du viewport pour déclencher le lazy-loading
         await deckEl.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
         await sleep(100);
 
         // 2) Forcer/attendre le chargement des images internes (lazy, data-src/srcset, decode)
         try {
-          await page.evaluate(async el => {
+          await page.evaluate(async (el) => {
             const imgs = Array.from(el.querySelectorAll('img'));
             for (const img of imgs) {
               if (img.loading === 'lazy') img.loading = 'eager';
@@ -296,7 +437,7 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
 
         // 3) Attendre que toutes les <img> soient complètes OU timeout doux
         await Promise.race([
-          page.waitForFunction(el => {
+          page.waitForFunction((el) => {
             const imgs = Array.from(el.querySelectorAll('img'));
             return imgs.length === 0 || imgs.every(i => i.complete && i.naturalWidth > 0);
           }, {}, deckEl),
@@ -309,9 +450,8 @@ console.log(`🧹 Anciennes captures supprimées dans : ${outputDir}`);
         // Screenshot optimisé
         await deckEl.screenshot({ 
           path: imagePath
-          // Note: quality ne fonctionne que pour JPG, pas PNG
         });
-        console.log(`📸 Screenshot: ${filename}`);
+        console.log(`📸 Screenshot: ${filename} | ${deckData.title} | WR: ${deckData.winrate}% | Games: ${deckData.games}`);
 
         decks.push({
           ...deckData,

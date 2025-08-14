@@ -2,7 +2,7 @@
   <div class="metagame-decks-page">
     <div class="container">
       
-      <!-- État de chargement -->
+      <!-- État de chargement initial -->
       <div v-if="isLoading" class="loading-state">
         <Card class="gaming-card loading-card">
           <template #content>
@@ -15,7 +15,7 @@
         </Card>
       </div>
 
-      <!-- Sections par jeu -->
+      <!-- Sections par jeu avec scroll infini -->
       <div class="games-sections" v-if="!isLoading && hasData">
         
         <!-- Section Hearthstone -->
@@ -28,7 +28,7 @@
                 <span class="game-name">Hearthstone Metagame</span>
               </div>
               <div class="game-stats">
-                <span class="deck-count">{{ filteredDecksByGame('hearthstone').length }} decks</span>
+                <span class="deck-count">{{ getVisibleDecksCount('hearthstone') }}/{{ getTotalDecksCount('hearthstone') }} decks</span>
                 <div class="last-updated">
                   <i class="pi pi-clock"></i>
                   <span>Mis à jour: {{ formatLastUpdate(lastUpdated) }}</span>
@@ -60,6 +60,7 @@
                   v-model="gameFilters.hearthstone.search"
                   placeholder="Rechercher un deck Hearthstone..."
                   class="filter-search-input hearthstone-search"
+                  @input="onSearchChange('hearthstone')"
                 />
                 <i class="pi pi-search search-icon"></i>
               </div>
@@ -70,6 +71,7 @@
                 option-label="label"
                 option-value="value"
                 class="filter-dropdown sort-dropdown hearthstone-sort"
+                @change="onSortChange('hearthstone')"
               />
               <Button
                 icon="pi pi-filter-slash"
@@ -82,37 +84,31 @@
             </div>
           </div>
           
-          <!-- Grille Hearthstone -->
-          <div class="decks-grid hearthstone-grid">
-            <SimpleDeckImage 
-              v-for="(deck, index) in filteredDecksByGame('hearthstone')" 
-              :key="deck.id"
-              :deck="deck"
-              :index="index"
-              @open-gallery="openGallery('hearthstone', $event)"
-            />
-          </div>
-          
-          <!-- Pagination Hearthstone -->
-          <div class="pagination-controls" v-if="hasMoreDecks('hearthstone')">
-            <Button
-              :label="`Charger plus`"
-              icon="pi pi-chevron-down"
-              class="load-more-btn hearthstone-btn"
-              @click="loadMore('hearthstone')"
-              outlined
-            />
-          </div>
-
-          <div class="pagination-controls" v-if="canCollapse('hearthstone')">
-            <Button
-              label="Réduire à 4 decks"
-              icon="pi pi-chevron-up"
-              class="collapse-btn"
-              @click="collapseTo('hearthstone')"
-              text
-              size="small"
-            />
+          <!-- Grille Hearthstone avec scroll infini -->
+          <div class="infinite-scroll-container">
+            <div class="decks-grid hearthstone-grid" ref="hearthstoneGrid">
+              <SimpleDeckImage 
+                v-for="(deck, index) in visibleDecks.hearthstone" 
+                :key="deck.id"
+                :deck="deck"
+                :index="index"
+                @open-gallery="openGallery('hearthstone', $event)"
+                @image-loaded="onImageLoaded('hearthstone')"
+              />
+            </div>
+            
+            <!-- Indicateur de chargement pour scroll infini -->
+            <div v-if="loadingMore.hearthstone" class="loading-more">
+              <div class="loading-more-spinner"></div>
+              <span>Chargement des decks suivants...</span>
+            </div>
+            
+            <!-- Sentinelle pour détecter le scroll -->
+            <div 
+              ref="hearthstoneSentinel" 
+              class="scroll-sentinel"
+              v-if="hasMoreDecks('hearthstone')"
+            ></div>
           </div>
         </div>
 
@@ -126,7 +122,7 @@
                 <span class="game-name">Magic: The Gathering Metagame</span>
               </div>
               <div class="game-stats">
-                <span class="deck-count">{{ filteredDecksByGame('magic').length }} decks</span>
+                <span class="deck-count">{{ getVisibleDecksCount('magic') }}/{{ getTotalDecksCount('magic') }} decks</span>
                 <div class="last-updated">
                   <i class="pi pi-clock"></i>
                   <span>Mis à jour: {{ formatLastUpdate(lastUpdated) }}</span>
@@ -158,6 +154,7 @@
                   v-model="gameFilters.magic.search"
                   placeholder="Rechercher un deck Magic..."
                   class="filter-search-input magic-search"
+                  @input="onSearchChange('magic')"
                 />
                 <i class="pi pi-search search-icon"></i>
               </div>
@@ -168,6 +165,7 @@
                 option-label="label"
                 option-value="value"
                 class="filter-dropdown sort-dropdown magic-sort"
+                @change="onSortChange('magic')"
               />
               <Button
                 icon="pi pi-filter-slash"
@@ -180,37 +178,29 @@
             </div>
           </div>
           
-          <!-- Grille Magic -->
-          <div class="decks-grid magic-grid">
-            <SimpleDeckImage 
-              v-for="(deck, index) in filteredDecksByGame('magic')" 
-              :key="deck.id"
-              :deck="deck"
-              :index="index"
-              @open-gallery="openGallery('magic', $event)"
-            />
-          </div>
-          
-          <!-- Pagination Magic -->
-          <div class="pagination-controls" v-if="hasMoreDecks('magic')">
-            <Button
-              :label="`Charger plus`"
-              icon="pi pi-chevron-down"
-              class="load-more-btn magic-btn"
-              @click="loadMore('magic')"
-              outlined
-            />
-          </div>
-          
-          <div class="pagination-controls" v-if="canCollapse('magic')">
-            <Button
-              label="Réduire à 4 decks"
-              icon="pi pi-chevron-up"
-              class="collapse-btn"
-              @click="collapseTo('magic')"
-              text
-              size="small"
-            />
+          <!-- Grille Magic avec scroll infini -->
+          <div class="infinite-scroll-container">
+            <div class="decks-grid magic-grid" ref="magicGrid">
+              <SimpleDeckImage 
+                v-for="(deck, index) in visibleDecks.magic" 
+                :key="deck.id"
+                :deck="deck"
+                :index="index"
+                @open-gallery="openGallery('magic', $event)"
+                @image-loaded="onImageLoaded('magic')"
+              />
+            </div>
+            
+            <div v-if="loadingMore.magic" class="loading-more">
+              <div class="loading-more-spinner"></div>
+              <span>Chargement des decks suivants...</span>
+            </div>
+            
+            <div 
+              ref="magicSentinel" 
+              class="scroll-sentinel"
+              v-if="hasMoreDecks('magic')"
+            ></div>
           </div>
         </div>
 
@@ -224,7 +214,7 @@
                 <span class="game-name">Pokemon TCG Metagame</span>
               </div>
               <div class="game-stats">
-                <span class="deck-count">{{ filteredDecksByGame('pokemon').length }} decks</span>
+                <span class="deck-count">{{ getVisibleDecksCount('pokemon') }}/{{ getTotalDecksCount('pokemon') }} decks</span>
                 <div class="last-updated">
                   <i class="pi pi-clock"></i>
                   <span>Mis à jour: {{ formatLastUpdate(lastUpdated) }}</span>
@@ -240,6 +230,7 @@
                 v-model="gameFilters.pokemon.search"
                 placeholder="Rechercher un deck Pokemon..."
                 class="filter-search-input pokemon-search"
+                @input="onSearchChange('pokemon')"
               />
               <i class="pi pi-search search-icon"></i>
             </div>
@@ -251,6 +242,7 @@
                 option-label="label"
                 option-value="value"
                 class="filter-dropdown sort-dropdown pokemon-sort"
+                @change="onSortChange('pokemon')"
               />
               <Button
                 icon="pi pi-filter-slash"
@@ -263,37 +255,29 @@
             </div>
           </div>
           
-          <!-- Grille Pokemon -->
-          <div class="decks-grid pokemon-grid">
-            <SimpleDeckImage 
-              v-for="(deck, index) in filteredDecksByGame('pokemon')" 
-              :key="deck.id"
-              :deck="deck"
-              :index="index"
-              @open-gallery="openGallery('pokemon', $event)"
-            />
-          </div>
-          
-          <!-- Pagination Pokemon -->
-          <div class="pagination-controls" v-if="hasMoreDecks('pokemon')">
-            <Button
-              :label="`Charger plus`"
-              icon="pi pi-chevron-down"
-              class="load-more-btn pokemon-btn"
-              @click="loadMore('pokemon')"
-              outlined
-            />
-          </div>
-          
-          <div class="pagination-controls" v-if="canCollapse('pokemon')">
-            <Button
-              label="Réduire à 6 decks"
-              icon="pi pi-chevron-up"
-              class="collapse-btn"
-              @click="collapseTo('pokemon')"
-              text
-              size="small"
-            />
+          <!-- Grille Pokemon avec scroll infini -->
+          <div class="infinite-scroll-container">
+            <div class="decks-grid pokemon-grid" ref="pokemonGrid">
+              <SimpleDeckImage 
+                v-for="(deck, index) in visibleDecks.pokemon" 
+                :key="deck.id"
+                :deck="deck"
+                :index="index"
+                @open-gallery="openGallery('pokemon', $event)"
+                @image-loaded="onImageLoaded('pokemon')"
+              />
+            </div>
+            
+            <div v-if="loadingMore.pokemon" class="loading-more">
+              <div class="loading-more-spinner"></div>
+              <span>Chargement des decks suivants...</span>
+            </div>
+            
+            <div 
+              ref="pokemonSentinel" 
+              class="scroll-sentinel"
+              v-if="hasMoreDecks('pokemon')"
+            ></div>
           </div>
         </div>
 
@@ -331,9 +315,7 @@
             <div class="error-content">
               <i class="pi pi-exclamation-triangle error-icon"></i>
               <h3 class="error-title">Erreur de chargement</h3>
-              <p class="error-description">
-                {{ error }}
-              </p>
+              <p class="error-description">{{ error }}</p>
               <div class="error-actions">
                 <Button
                   label="Réessayer"
@@ -349,7 +331,7 @@
 
     </div>
     
-    <!-- Modale galerie -->
+    <!-- Modale galerie (inchangée) -->
     <DeckGalleryModal
       v-model:visible="galleryVisible"
       :decks="currentGalleryDecks"
@@ -359,7 +341,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import SimpleDeckImage from './SimpleDeckImage.vue'
 import DeckGalleryModal from './DeckGalleryModal.vue'
 import api from '../../services/api'
@@ -374,6 +356,38 @@ const metagameData = ref({
   magic: [],
   pokemon: []
 })
+
+// Decks filtrés et triés (complets)
+const filteredDecks = ref({
+  hearthstone: [],
+  magic: [],
+  pokemon: []
+})
+
+// Decks visibles (avec scroll infini)
+const visibleDecks = ref({
+  hearthstone: [],
+  magic: [],
+  pokemon: []
+})
+
+// Configuration du scroll infini
+const INITIAL_LOAD = 12 // Nombre initial de decks
+const LOAD_MORE_COUNT = 8 // Nombre de decks à charger à chaque scroll
+
+// État de pagination par jeu
+const decksPagination = ref({
+  hearthstone: { loaded: 0 },
+  magic: { loaded: 0 },
+  pokemon: { loaded: 0 }
+})
+
+const loadingMore = ref({
+  hearthstone: false,
+  magic: false,
+  pokemon: false
+})
+
 const isLoading = ref(true)
 const error = ref(null)
 const lastUpdated = ref(null)
@@ -390,23 +404,14 @@ const activeFormats = ref({
   pokemon: 'standard'
 })
 
-// État de la pagination
-const pagination = ref({
-  hearthstone: { current: 0, pageSize: 4 }, 
-  magic: { current: 0, pageSize: 4 },
-  pokemon: { current: 0, pageSize: 6 }
-})
-
 // Filtres
 const gameFilters = ref({
   hearthstone: {
     search: '',
-    format: 'all',
     sortBy: 'winrate'
   },
   magic: {
     search: '',
-    format: 'all',
     sortBy: 'recent'
   },
   pokemon: {
@@ -424,6 +429,12 @@ const sortOptions = [
   { label: 'Rang', value: 'rank' }
 ]
 
+// Refs pour les sentinelles d'observation
+const hearthstoneSentinel = ref(null)
+const magicSentinel = ref(null)
+const pokemonSentinel = ref(null)
+const observers = new Map()
+
 // Computed
 const hasData = computed(() => {
   return metagameData.value.hearthstone?.length > 0 ||
@@ -431,12 +442,48 @@ const hasData = computed(() => {
          metagameData.value.pokemon?.length > 0
 })
 
-const filteredDecksByGame = (game) => {
+// Méthodes principales
+const loadMetagameData = async () => {
+  try {
+    isLoading.value = true
+    error.value = null
+    
+    console.log('[📡 Requête API] /api/decks/metagame...')
+    const response = await api.get('/api/decks/metagame')
+    console.log('[✅ Réponse API reçue]', response.data)
+
+    if (response.data.success) {
+      metagameData.value = response.data.data
+      lastUpdated.value = response.data.lastUpdated
+      
+      // Appliquer les filtres et tri initiaux
+      for (const game of ['hearthstone', 'magic', 'pokemon']) {
+        applyFiltersAndSort(game)
+        loadInitialDecks(game)
+      }
+      
+      // Configurer les observers après le prochain tick
+      await nextTick()
+      setupIntersectionObservers()
+      
+      const totalDecks = Object.values(response.data.data).reduce((sum, decks) => sum + decks.length, 0)
+      console.log(`[📦 Metagame chargé] ${totalDecks} decks au total`)
+    } else {
+      throw new Error('Réponse API invalide')
+    }
+  } catch (err) {
+    console.error('[❌ Erreur chargement metagame]:', err)
+    error.value = 'Impossible de charger les decks metagame. Vérifiez votre connexion.'
+    metagameData.value = { hearthstone: [], magic: [], pokemon: [] }
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const applyFiltersAndSort = (game) => {
   const gameDecks = metagameData.value[game] || []
   const filters = gameFilters.value[game]
   const activeFormat = activeFormats.value[game]
-  
-  if (!filters) return gameDecks
   
   let filtered = [...gameDecks]
   
@@ -454,7 +501,7 @@ const filteredDecksByGame = (game) => {
   }
   
   // Filtrage par recherche
-  if (filters.search?.trim()) {
+  if (filters?.search?.trim()) {
     const searchQuery = filters.search.toLowerCase().trim()
     filtered = filtered.filter(deck => 
       deck.title?.toLowerCase().includes(searchQuery) ||
@@ -465,13 +512,9 @@ const filteredDecksByGame = (game) => {
   }
   
   // Tri
-  const sorted = sortDecks(filtered, filters.sortBy, game)
+  const sorted = sortDecks(filtered, filters?.sortBy, game)
   
-  // Pagination
-  const pageInfo = pagination.value[game]
-  const endIndex = (pageInfo.current + 1) * pageInfo.pageSize
-  
-  return sorted.slice(0, endIndex)
+  filteredDecks.value[game] = sorted
 }
 
 const sortDecks = (decks, sortBy, game) => {
@@ -505,32 +548,79 @@ const sortDecks = (decks, sortBy, game) => {
   }
 }
 
-// Méthodes
-const loadMetagameData = async () => {
-  try {
-    isLoading.value = true
-    error.value = null
-    
-    console.log('[📡 Requête API] /api/decks/metagame...')
-    const response = await api.get('/api/decks/metagame')
-    console.log('[✅ Réponse API reçue]', response.data)
+const loadInitialDecks = (game) => {
+  const filtered = filteredDecks.value[game]
+  const initialCount = Math.min(INITIAL_LOAD, filtered.length)
+  
+  visibleDecks.value[game] = filtered.slice(0, initialCount)
+  decksPagination.value[game].loaded = initialCount
+}
 
-    if (response.data.success) {
-      metagameData.value = response.data.data
-      lastUpdated.value = response.data.lastUpdated
-      
-      const totalDecks = Object.values(response.data.data).reduce((sum, decks) => sum + decks.length, 0)
-      console.log(`[📦 Metagame chargé] ${totalDecks} decks au total`)
-    } else {
-      throw new Error('Réponse API invalide')
-    }
-  } catch (err) {
-    console.error('[❌ Erreur chargement metagame]:', err)
-    error.value = 'Impossible de charger les decks metagame. Vérifiez votre connexion.'
-    metagameData.value = { hearthstone: [], magic: [], pokemon: [] }
-  } finally {
-    isLoading.value = false
+const loadMoreDecks = async (game) => {
+  if (loadingMore.value[game]) return
+  
+  loadingMore.value[game] = true
+  
+  // Simulation d'un délai pour l'UX
+  await new Promise(resolve => setTimeout(resolve, 300))
+  
+  const filtered = filteredDecks.value[game]
+  const currentLoaded = decksPagination.value[game].loaded
+  const nextLoad = Math.min(currentLoaded + LOAD_MORE_COUNT, filtered.length)
+  
+  if (nextLoad > currentLoaded) {
+    const newDecks = filtered.slice(currentLoaded, nextLoad)
+    visibleDecks.value[game] = [...visibleDecks.value[game], ...newDecks]
+    decksPagination.value[game].loaded = nextLoad
   }
+  
+  loadingMore.value[game] = false
+}
+
+// Configuration des Intersection Observers
+const setupIntersectionObservers = () => {
+  const sentinels = [
+    { ref: hearthstoneSentinel, game: 'hearthstone' },
+    { ref: magicSentinel, game: 'magic' },
+    { ref: pokemonSentinel, game: 'pokemon' }
+  ]
+  
+  sentinels.forEach(({ ref, game }) => {
+    if (ref.value) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting && hasMoreDecks(game)) {
+              loadMoreDecks(game)
+            }
+          })
+        },
+        {
+          rootMargin: '100px' // Charger 100px avant d'atteindre la sentinelle
+        }
+      )
+      
+      observer.observe(ref.value)
+      observers.set(game, observer)
+    }
+  })
+}
+
+// Gestionnaires d'événements
+const onSearchChange = (game) => {
+  applyFiltersAndSort(game)
+  loadInitialDecks(game)
+}
+
+const onSortChange = (game) => {
+  applyFiltersAndSort(game)
+  loadInitialDecks(game)
+}
+
+const setActiveFormat = (game, format) => {
+  activeFormats.value[game] = format
+  applyFiltersAndSort(game)
+  loadInitialDecks(game)
 }
 
 const resetGameFilters = (gameSlug) => {
@@ -543,85 +633,42 @@ const resetGameFilters = (gameSlug) => {
     
     gameFilters.value[gameSlug] = {
       search: '',
-      format: 'all',
       sortBy: defaultSorts[gameSlug] || 'recent'
     }
+    
+    applyFiltersAndSort(gameSlug)
+    loadInitialDecks(gameSlug)
   }
 }
 
 const openGallery = (game, index) => {
-  currentGalleryDecks.value = filteredDecksByGame(game)
+  currentGalleryDecks.value = visibleDecks.value[game]
   galleryIndex.value = index
   galleryVisible.value = true
 }
 
-const setActiveFormat = (game, format) => {
-  activeFormats.value[game] = format
+const onImageLoaded = (game) => {
+  // Callback pour optimisations futures (masonry layout, etc.)
 }
 
+// Utilitaires
 const countDecksByFormat = (game, format) => {
   const gameDecks = metagameData.value[game] || []
   return gameDecks.filter(deck => deck.format === format).length
 }
 
-const loadMore = (game) => {
-  pagination.value[game].current++
-}
-
-const collapseTo = (game) => {
-  pagination.value[game].current = 0
-}
-
 const hasMoreDecks = (game) => {
-  const allValidDecks = getAllFilteredDecks(game)
-  const pageInfo = pagination.value[game]
-  const currentTotal = (pageInfo.current + 1) * pageInfo.pageSize
-  return allValidDecks.length > currentTotal
+  const filtered = filteredDecks.value[game]
+  const loaded = decksPagination.value[game].loaded
+  return loaded < filtered.length
 }
 
-const canCollapse = (game) => {
-  return pagination.value[game].current > 0
+const getTotalDecksCount = (game) => {
+  return filteredDecks.value[game]?.length || 0
 }
 
-const getRemainingCount = (game) => {
-  const allValidDecks = getAllFilteredDecks(game)
-  const pageInfo = pagination.value[game]
-  const currentTotal = (pageInfo.current + 1) * pageInfo.pageSize
-  return Math.max(0, allValidDecks.length - currentTotal)
-}
-
-const getAllFilteredDecks = (game) => {
-  const gameDecks = metagameData.value[game] || []
-  const filters = gameFilters.value[game]
-  const activeFormat = activeFormats.value[game]
-  
-  if (!filters) return gameDecks.filter(deck => deck.imagePath && deck.imagePath.trim() !== '')
-  
-  let filtered = [...gameDecks]
-  
-  // Filtrer les decks sans image
-  filtered = filtered.filter(deck => {
-    return deck.imagePath && 
-           deck.imagePath.trim() !== '' && 
-           !deck.imagePath.includes('error') &&
-           !deck.imagePath.includes('404')
-  })
-  
-  if (activeFormat) {
-    filtered = filtered.filter(deck => deck.format === activeFormat)
-  }
-  
-  if (filters.search?.trim()) {
-    const searchQuery = filters.search.toLowerCase().trim()
-    filtered = filtered.filter(deck => 
-      deck.title?.toLowerCase().includes(searchQuery) ||
-      deck.metadata?.player?.toLowerCase().includes(searchQuery) ||
-      deck.metadata?.class?.toLowerCase().includes(searchQuery) ||
-      deck.metadata?.archetype?.toLowerCase().includes(searchQuery)
-    )
-  }
-  
-  return sortDecks(filtered, filters.sortBy, game)
+const getVisibleDecksCount = (game) => {
+  return visibleDecks.value[game]?.length || 0
 }
 
 const formatLastUpdate = (dateString) => {
@@ -648,13 +695,85 @@ const formatLastUpdate = (dateString) => {
   }
 }
 
+// Lifecycle
 onMounted(() => {
   loadMetagameData()
+})
+
+onUnmounted(() => {
+  // Nettoyer les observers
+  observers.forEach(observer => {
+    observer.disconnect()
+  })
+  observers.clear()
 })
 </script>
 
 <style scoped>
-/* === METAGAME DECKS PAGE === */
+/* === SCROLL INFINI === */
+
+.infinite-scroll-container {
+  position: relative;
+}
+
+.loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.loading-more-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--surface-300);
+  border-top: 2px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.scroll-sentinel {
+  height: 20px;
+  margin: 1rem 0;
+  background: transparent;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* === GRILLES OPTIMISÉES === */
+
+.decks-grid {
+  padding: 2rem;
+  display: grid;
+  gap: 1.5rem;
+  transition: all var(--transition-medium);
+}
+
+.hearthstone-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  background: linear-gradient(135deg, rgba(139, 0, 0, 0.15), rgba(105, 0, 0, 0.1));
+  border-radius: 16px;
+}
+
+.magic-grid {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  background: linear-gradient(135deg, rgba(31, 0, 51, 0.15), rgba(19, 0, 31, 0.1));
+  border-radius: 16px;
+}
+
+.pokemon-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  background: linear-gradient(135deg, rgba(204, 68, 0, 0.15), rgba(165, 55, 0, 0.1));
+  border-radius: 16px;
+}
+
+/* === STYLES EXISTANTS OPTIMISÉS === */
 
 .metagame-decks-page {
   min-height: calc(100vh - 140px);
@@ -668,7 +787,6 @@ onMounted(() => {
   padding: 0 2rem;
 }
 
-/* Games sections */
 .games-sections {
   display: flex;
   flex-direction: column;
@@ -699,7 +817,6 @@ onMounted(() => {
   height: 4px;
 }
 
-/* Couleurs BEAUCOUP plus foncées */
 .hearthstone-section::before {
   background: linear-gradient(90deg, #8b0000, #690000, #4a0000);
 }
@@ -787,7 +904,8 @@ onMounted(() => {
   font-size: 0.8rem;
 }
 
-/* Filtres */
+/* === FILTRES === */
+
 .game-filters {
   padding: 1.5rem 2rem;
   background: white;
@@ -922,155 +1040,8 @@ onMounted(() => {
   border-radius: 0 16px 16px 0;
 }
 
-/* Grilles spécialisées */
-.decks-grid {
-  padding: 2rem;
-  display: grid;
-  gap: 1rem;
-}
+/* === ÉTATS SPÉCIAUX === */
 
-/* Grilles avec fondus TRÈS FONCÉS */
-.hearthstone-grid {
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: min-content;
-  align-items: start;
-  gap: 2rem;
-  max-width: 100%;
-  margin: 0;
-  padding: 2rem;
-  background: linear-gradient(135deg, rgba(139, 0, 0, 0.25), rgba(105, 0, 0, 0.18));
-  border-radius: 16px;
-  position: relative;
-  overflow: hidden;
-}
-
-.hearthstone-grid::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at top left, rgba(139, 0, 0, 0.35), transparent 60%);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.magic-grid {
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: min-content;
-  align-items: start;
-  gap: 2rem;
-  max-width: 100%;
-  margin: 0;
-  padding: 2rem;
-  background: linear-gradient(135deg, rgba(31, 0, 51, 0.25), rgba(19, 0, 31, 0.18));
-  border-radius: 16px;
-  position: relative;
-  overflow: hidden;
-}
-
-.magic-grid::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at top left, rgba(31, 0, 51, 0.35), transparent 60%);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.pokemon-grid {
-  grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: min-content;
-  align-items: start;
-  gap: 2rem;
-  max-width: 100%;
-  margin: 0;
-  padding: 2rem;
-  background: linear-gradient(135deg, rgba(204, 68, 0, 0.25), rgba(165, 55, 0, 0.18));
-  border-radius: 16px;
-  position: relative;
-  overflow: hidden;
-}
-
-.pokemon-grid::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at bottom right, rgba(120, 40, 0, 0.4), transparent 70%);
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* S'assurer que les images sont visibles */
-.decks-grid :deep(.simple-deck-image) {
-  position: relative;
-  z-index: 2;
-}
-
-/* Pagination controls */
-.pagination-controls {
-  padding: 1rem 2rem;
-  display: flex;
-  justify-content: center;
-  border-top: 1px solid var(--surface-200);
-}
-
-:deep(.load-more-btn) {
-  padding: 1rem 2rem !important;
-  font-size: 0.9rem !important;
-  font-weight: 600 !important;
-  border-radius: 8px !important;
-  transition: all var(--transition-medium) !important;
-}
-
-/* Boutons avec couleurs plus foncées */
-:deep(.load-more-btn.hearthstone-btn) {
-  color: #8b0000 !important;
-  border-color: #8b0000 !important;
-}
-
-:deep(.load-more-btn.hearthstone-btn:hover) {
-  background: #8b0000 !important;
-  color: white !important;
-}
-
-:deep(.load-more-btn.magic-btn) {
-  color: #1f0033 !important;
-  border-color: #1f0033 !important;
-}
-
-:deep(.load-more-btn.magic-btn:hover) {
-  background: #1f0033 !important;
-  color: white !important;
-}
-
-:deep(.load-more-btn.pokemon-btn) {
-  color: #cc4400 !important;
-  border-color: #cc4400 !important;
-}
-
-:deep(.load-more-btn.pokemon-btn:hover) {
-  background: #cc4400 !important;
-  color: white !important;
-}
-
-:deep(.collapse-btn) {
-  color: var(--text-secondary) !important;
-  font-size: 0.85rem !important;
-}
-
-:deep(.collapse-btn:hover) {
-  color: var(--text-primary) !important;
-}
-
-/* États spéciaux */
 .loading-state,
 .empty-state,
 .error-state {
@@ -1140,7 +1111,8 @@ onMounted(() => {
   justify-content: center;
 }
 
-/* Animations */
+/* === ANIMATIONS === */
+
 .slide-in-up {
   animation: slideInUp 0.6s ease-out;
 }
@@ -1172,7 +1144,8 @@ onMounted(() => {
   100% { transform: rotate(360deg); }
 }
 
-/* Responsive */
+/* === RESPONSIVE === */
+
 @media (max-width: 1024px) {
   .container {
     padding: 0 1rem;
@@ -1183,13 +1156,16 @@ onMounted(() => {
     gap: 1rem;
   }
   
-  .hearthstone-grid,
+  .hearthstone-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+  
   .magic-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
   
   .pokemon-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   }
   
   .game-header {
@@ -1231,8 +1207,9 @@ onMounted(() => {
   .hearthstone-grid,
   .magic-grid,
   .pokemon-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     padding: 1rem;
+    gap: 0.75rem;
   }
 }
 
@@ -1245,5 +1222,40 @@ onMounted(() => {
   .game-icon {
     font-size: 1.25rem;
   }
+  
+  .decks-grid,
+  .hearthstone-grid,
+  .magic-grid,
+  .pokemon-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* === PERFORMANCE === */
+
+.deck-image {
+  will-change: transform;
+}
+
+.simple-deck-image {
+  contain: layout style paint;
+}
+
+/* === SMOOTH SCROLLING === */
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* === FOCUS MANAGEMENT === */
+
+.format-toggle-btn:focus,
+.filter-search-input:focus,
+.filter-dropdown:focus,
+.clear-filters-btn:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 </style>
